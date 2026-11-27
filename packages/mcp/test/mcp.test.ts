@@ -21,6 +21,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterAll, describe, expect, it } from "vitest";
+import { toolList } from "../src/server.ts";
 import { type HttpListening, MCP_PATH, serveHttp } from "../src/transports.ts";
 import { DANA, FIXTURE, readIdOf, testWorkspace, textOf } from "./helpers.ts";
 
@@ -68,6 +69,30 @@ describe("over the in-memory transport", () => {
     const names = tools.flatMap((t) => Object.keys(t.inputSchema.properties ?? {}));
     for (const forbidden of ["actor", "source", "provenance", "kind", "owner", "as"])
       expect(names).not.toContain(forbidden);
+  });
+
+  // ADR 0046, decision 7 (card E2.21; review finding E221-1): no surface
+  // exposes `replay` until verified actors are in place. Over every tool the
+  // server can list, `memory_supersede` (engram mcp --supersede) included,
+  // and over what a client is served: no tool promotes, and no input schema
+  // carries a `replay` key at any depth.
+  it("offers no promotion and no replay in any tool it can list", async () => {
+    const keysDeep = (value: unknown): string[] =>
+      Array.isArray(value)
+        ? value.flatMap(keysDeep)
+        : value === null || typeof value !== "object"
+          ? []
+          : Object.entries(value).flatMap(([k, v]) => [k, ...keysDeep(v)]);
+    const every = toolList(true);
+    expect(every.map((t) => t.name)).toContain("memory_supersede");
+    const client = await inMemory(await testWorkspace());
+    const { tools } = await client.listTools();
+    expect(tools.length).toBeGreaterThan(0);
+    for (const t of [...every, ...tools]) {
+      expect(t.name).not.toMatch(/promot/);
+      expect(keysDeep(t.inputSchema), t.name).not.toContain("replay");
+    }
+    expect(keysDeep({ properties: { a: { properties: { replay: {} } } } })).toContain("replay");
   });
 
   it("explains a fixture read: the read's tag and its explanations", async () => {
