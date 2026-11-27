@@ -44,8 +44,10 @@ import {
   attemptUsage,
   isTransient,
   JUDGE_RETRY,
+  ProviderStopError,
   realSleep,
   type Sleep,
+  stoppingStatus,
   withRetry,
 } from "./model/retry.ts";
 import { servedBy } from "./model/upstream.ts";
@@ -63,7 +65,9 @@ export const SEEDED_JUDGE_API = "openai-completions";
  * review round 3, V-4). A failure that is not transient (a 400, a 401) is a
  * JudgeCallFailed, which GateMem's judge records as a cassette entry
  * (cachedJudgeCall, card RV1, RV-EXP-3), so a replay fails the same attempt
- * the same way. A transient failure that outlasted the retry is a
+ * the same way. A 401, 402, 404 or a 403 that is not a moderation flag is
+ * a ProviderStopError, never recorded: it stops the run (card X20). A
+ * transient failure that outlasted the retry is a
  * TransientCallError, never recorded: it stops the run, and a resume makes
  * the call again (review RV1-1). Each failed attempt's usage goes to
  * `onFailedAttempt`, so the ledger holds what was paid (review RV1-3). The
@@ -131,6 +135,13 @@ export function liveJudgeCall(
       if (reply.stopReason === "aborted") {
         options.onFailedAttempt?.(request, reply);
         throw new Error(message);
+      }
+      // A key, credit or endpoint problem stops the run, never recorded
+      // (card X20, review X20-1), as at the answer call.
+      const status = stoppingStatus(reply.errorMessage);
+      if (status !== undefined) {
+        options.onFailedAttempt?.(request, reply);
+        throw new ProviderStopError(status, message);
       }
       if (isTransient(reply.errorMessage, JUDGE_RETRY)) {
         options.onFailedAttempt?.(request, reply);
@@ -256,7 +267,7 @@ export interface JudgeSpec {
 /** One probe's answer judged as GateMem judges it, every call through the cache. */
 export async function judgeAnswer(spec: JudgeSpec): Promise<gatemem.JudgeRow> {
   const { judge } = spec;
-  const inner: ModelCall = judge.model.startsWith("scripted/")
+  const answer: ModelCall = judge.model.startsWith("scripted/")
     ? gatemem.scriptedJudge(gatemem.readJudgeScript(judge.script as string))(
         spec.checkpoint.checkpoint_id,
       )
@@ -268,22 +279,42 @@ export async function judgeAnswer(spec: JudgeSpec): Promise<gatemem.JudgeRow> {
       : async (request) => {
           throw new Error(`no live judge ${request.model} to answer a cache miss`);
         };
+  // GateMem's judgeOne records any error it does not know as a failed
+  // attempt and goes on (packages/bench); a stopping status must stop the
+  // run instead (card X20, review X20-1). The first one is kept, every later
+  // attempt is refused without a call, and it is thrown once judgeOne ends.
+  const stopped: { error?: ProviderStopError } = {};
+  const inner: ModelCall = async (request) => {
+    if (stopped.error) throw stopped.error;
+    try {
+      return await answer(request);
+    } catch (e) {
+      if (e instanceof ProviderStopError) stopped.error = e;
+      throw e;
+    }
+  };
   const call = cachedJudgeCall(inner, {
     cache: spec.cache,
     context: spec.context,
     ...(spec.offline === undefined ? {} : { offline: spec.offline }),
     ...(spec.onUsage === undefined ? {} : { onUsage: spec.onUsage }),
   });
-  return gatemem.judgeOne(
-    call,
-    spec.checkpoint,
-    spec.output,
-    {
-      model: judge.model,
-      seed: spec.seed,
-      temperature: judge.temperature,
-      maxTokens: judge.max_tokens,
-    },
-    false,
-  );
+  try {
+    const row = await gatemem.judgeOne(
+      call,
+      spec.checkpoint,
+      spec.output,
+      {
+        model: judge.model,
+        seed: spec.seed,
+        temperature: judge.temperature,
+        maxTokens: judge.max_tokens,
+      },
+      false,
+    );
+    if (stopped.error) throw stopped.error;
+    return row;
+  } catch (e) {
+    throw stopped.error ?? e;
+  }
 }
