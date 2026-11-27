@@ -25,7 +25,10 @@ function registeredTools(): { name: string; parameters: unknown }[] {
       get: (_target, key) =>
         key === "registerTool"
           ? (tool: { name: string; parameters: unknown }) =>
-              tools.push({ name: tool.name, parameters: JSON.parse(JSON.stringify(tool.parameters)) })
+              tools.push({
+                name: tool.name,
+                parameters: JSON.parse(JSON.stringify(tool.parameters)),
+              })
           : () => undefined,
     },
   ) as unknown as ExtensionAPI;
