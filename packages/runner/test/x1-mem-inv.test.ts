@@ -17,7 +17,7 @@ import {
 } from "@earendil-works/pi-ai";
 import { memInvBench } from "@engram/bench";
 import { loadPreset } from "@engram/core";
-import type { CacheEntry, CacheStore } from "@engram/model";
+import type { CacheEntry, CacheStore, UsageRecord } from "@engram/model";
 import { afterAll, describe, expect, test } from "vitest";
 import { memInvLines } from "../scripts/run-mem-inv.ts";
 import { answersFor } from "../src/answers.ts";
@@ -440,6 +440,38 @@ describe("the agent's own note is written by the model under test (PR #25 review
     "404 No endpoints found for faux-live/model-1.",
   ])("a note call answered %s stops the run and is not recorded (card X20)", async (error) => {
     await expect(noteFrom("", "error", error)).rejects.toBeInstanceOf(ProviderStopError);
+  });
+
+  test("every failed note attempt reaches the usage ledger once: a retried 429 and the 402 that stops the run (card X20 step 4, review finding 6)", async () => {
+    const faux = fauxProvider({
+      api: "openai-completions",
+      provider: "faux-live",
+      models: [{ id: "model-1" }],
+    });
+    faux.setResponses(
+      ["429 Rate limit exceeded", "402 Insufficient credits"].map(
+        (errorMessage) => () =>
+          fauxAssistantMessage(fauxText(""), { stopReason: "error", errorMessage }),
+      ),
+    );
+    const models = createModels();
+    models.setProvider(faux.provider);
+    const cache = recordingCache();
+    const ledger: UsageRecord[] = [];
+    await expect(
+      withNotes(summarized, {
+        config: { ...config, model: FAUX_MODEL, script: undefined },
+        cache,
+        live: models,
+        offline: false,
+        sleep: async () => {},
+        onUsage: (u) => ledger.push(u),
+      }),
+    ).rejects.toBeInstanceOf(ProviderStopError);
+    expect(cache.entries).toEqual([]);
+    expect(ledger).toHaveLength(2);
+    expect(ledger.every((u) => !u.hit && u.model === FAUX_MODEL)).toBe(true);
+    expect(new Set(ledger.map((u) => u.key)).size).toBe(1);
   });
 
   test("a run writes each note once, whatever the conditions, stores and seeds", async () => {

@@ -18,6 +18,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { memInvBench } from "@engram/bench";
 import {
   type Adapter,
@@ -36,6 +37,7 @@ import {
   type CacheStore,
   type CallContext,
   cached,
+  cacheKey,
   fileCache,
   type UsageRecord,
 } from "@engram/model";
@@ -71,6 +73,7 @@ import {
   sessionEnd,
 } from "./model/cassette.ts";
 import {
+  attemptUsage,
   NOTE_RETRY,
   ProviderStopError,
   type RetryPolicy,
@@ -545,7 +548,14 @@ export async function withNotes(
     }
     const prompt = notePrompt(input);
     const answers = noteAnswersFor(config, c.case_id, options.live)();
-    const inner: ModelCall = async () => {
+    const inner: ModelCall = async (request) => {
+      // Every failed attempt was paid for: a retried one and a stopping one
+      // reach the ledger here, once each; a recorded reply reaches it through
+      // `cached` (card X20 step 4, review RV1-3 and the final review's finding 6).
+      const paid = (failed: AssistantMessage) =>
+        options.onUsage?.(
+          attemptUsage(cacheKey(noteContext(c.case_id), request), config.model, failed),
+        );
       const { reply, attempts } = await withRetry(
         () =>
           answers(
@@ -554,6 +564,7 @@ export async function withNotes(
           ),
         NOTE_RETRY,
         options.sleep ?? realSleep,
+        paid,
       );
       if (reply.stopReason === "aborted") {
         throw new Error(`the note call for ${c.case_id} was aborted; nothing was recorded`);
@@ -562,6 +573,7 @@ export async function withNotes(
       // X20): falling back would write every later case's memory differently.
       const status = reply.stopReason === "error" ? stoppingStatus(reply.errorMessage) : undefined;
       if (status !== undefined) {
+        paid(reply);
         throw new ProviderStopError(
           status,
           `the note call for ${c.case_id} failed: ${reply.errorMessage ?? "error"}`,
