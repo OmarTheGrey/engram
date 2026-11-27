@@ -116,6 +116,7 @@ import { openSqlite } from "../../src/db/sqlite.ts";
 import { allEvents, appendEvent, currentItems, eventsByItem, rebuild } from "../../src/events.ts";
 import { itemById } from "../../src/items.ts";
 import { erasureOpen } from "../../src/plane/commit.ts";
+import { accessTime } from "../../src/plane/read.ts";
 import {
   type Actor,
   adoptStoreItems,
@@ -132,6 +133,7 @@ import { parsePolicy } from "../../src/policy/load.ts";
 import { itemsAt } from "../../src/replay.ts";
 import type { Grant, MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts";
 import { addSeconds, compareTimestamps } from "../../src/time.ts";
+import { disclosedEvent } from "../../src/visible.ts";
 import {
   arbActor,
   arbGatedGrant,
@@ -2253,8 +2255,22 @@ async function promotionsLandOnlyWherePermitted(name: string) {
       if (result.decision === "allow") replaySeen.landed++;
     }
     const added = plane.events().slice(logLength);
-    expect(added[0], "the decision is the first event the promotion appends").toEqual(result.event);
-    expect(result.events).toEqual(added.slice(0, result.events.length));
+    // The promoter is answered with the events as it is shown them (card
+    // RD1): a promoter who is neither the owner nor a grantee sees no grant
+    // naming anyone else, so the log's events are compared through the same
+    // disclosure, over the projection and access time the promotion used.
+    const projectedNow = new Map(currentItems(db).map((i) => [i.id, i]));
+    const shownView = {
+      policy,
+      at: accessTime(db, when),
+      current: (i: string) => projectedNow.get(i),
+    };
+    const asShown = (e: MemoryEvent) => disclosedEvent(actor, e, shownView);
+    expect(
+      asShown(added[0] as MemoryEvent),
+      "the decision is the first event the promotion appends",
+    ).toEqual(result.event);
+    expect(result.events).toEqual(added.slice(0, result.events.length).map(asShown));
     for (const e of added) {
       expect(e.reason).not.toBe("");
       expect(e.policy_id).not.toBe("");
