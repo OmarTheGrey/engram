@@ -236,7 +236,7 @@ Added on 2026-11-25 (`docs/tasks/absorb-plan-2.md`, section 9, "Gate work cards 
 
 | Week | Dates | Research lane | Product lane |
 |---|---|---|---|
-| W8 | 23 to 29 Nov | R5 audit configs drop (by 28 Nov), R6 OpenRouter endpoints (by 29 Nov), X21 capped utility count, then X20 refused answer call (both by 30 Nov, the day after W8 ends; the week does not move) | |
+| W8 | 23 to 29 Nov | R5 audit configs drop (by 28 Nov), R6 OpenRouter endpoints (by 29 Nov), X21 capped utility count, then X20 refused answer call (both by 30 Nov, the day after W8 ends; the week does not move); H5P H5's prerequisites drafted for the lead (by 30 Nov) | |
 | W10 | 7 to 13 Dec | X22 programme-wide spend cap (after `MERGE=4`, before any later live run) | |
 | W11 | 14 to 20 Dec | X23 request-identity check, L10 contradiction prompt | |
 | W13 | 28 Dec to 3 Jan | | E9.17 Knowledge dogfood kit; the members run it in W14 and W15 beside the twin dogfood |
@@ -431,7 +431,7 @@ Twenty-eight cards added by `docs/tasks/absorb-plan-2.md`, which also rewrote ca
 
 ### Gate work cards, 2026-11-25
 
-Eight cards for the gate work no card owned (`docs/tasks/absorb-plan-2.md`, section 9). H5's prerequisites (lead-decisions item 30) are drafted apart.
+Eight cards for the gate work no card owned (`docs/tasks/absorb-plan-2.md`, section 9). H5's prerequisites (lead-decisions item 30) are drafted apart, by card H5P, the last row: a proposed amendment, registered only by the lead.
 
 | Card  | Goal | Depends | Files | Acceptance |
 |-------|------|---------|-------|------------|
@@ -443,6 +443,7 @@ Eight cards for the gate work no card owned (`docs/tasks/absorb-plan-2.md`, sect
 | X23   | The request-identity check on files, Mem0 and Letta, a rule-9 result (ADR 0035) | H1's `MERGE=4` | research/scripts/h4_request_identity.py | `make test-one T=packages/runner/test/request-identity.test.ts`; `make test-repro` row |
 | L10   | The contradiction prompt counts a later update of the same attribute (item 44) | R6, H1's `MERGE=4` | packages/core/src/lint/model.ts | `make test-one T=packages/core/test/unit/lint/model.test.ts`; `make test-repro` |
 | E9.17 | The Knowledge profile's dogfood beside the twin dogfood (item 28) | E9.5 | docs/dogfood.md | `make test-one T=packages/core/test/unit/dogfood-knowledge.test.ts` |
+| H5P   | H5's prerequisites drafted as a proposed amendment for the lead, nothing registered (item 30) | none | docs/research/preregistration.md, proposed section only | `make lint-docs`; `uv run pytest research/tests/test_prereg.py` |
 
 ### Card prompt template
 
