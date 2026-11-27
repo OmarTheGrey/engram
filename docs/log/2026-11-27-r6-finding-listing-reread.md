@@ -14,10 +14,10 @@ supersedes: none
 
 **What.** OpenRouter's keyless endpoint list for the four models was read once more on 2026-11-27 and compared with the committed 2026-11-26 responses. The new responses were not committed.
 
-**Why.** Review finding 2 asks that every pinned endpoint list every parameter sent. A day-old snapshot could be stale.
+**Why.** Finding 2 needs every pinned endpoint to list every parameter sent, and the snapshot is a day old.
 
 **Result.** No endpoint was added or removed, and no endpoint's `supported_parameters` or quantisation changed. The pinned endpoints are unchanged. Four M1 prices moved: Alibaba's two endpoints doubled, Baidu's rose about fivefold, and Relace's input fell. None of them is pinned, and `wafer/us` is still the cheapest seeded endpoint.
 
-**Two points remain unchecked offline.** pi-ai sends `max_completion_tokens` where OpenRouter lists `max_tokens`, and it also sends `store` and `stream_options`. Whether `require_parameters` counts these could not be checked offline. If it refuses them, the first call fails and the run stops, which is the safe direction.
+Unchecked offline: pi-ai sends `max_completion_tokens` where OpenRouter lists `max_tokens`, and it also sends `store` and `stream_options`. If `require_parameters` refuses these, the first call fails and the run stops, which is the safe direction.
 
 **Consequence.** The smoke run is the first live test of these points.

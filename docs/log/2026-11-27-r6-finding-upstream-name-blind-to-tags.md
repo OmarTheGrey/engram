@@ -18,6 +18,6 @@ supersedes: none
 
 **Why.** Review finding 3: nothing checked that the pinned endpoint served the call.
 
-**Result.** The upstream recorded per call is the stream chunk's `provider`, a provider name. It cannot tell tags apart. `Wafer` covers both `wafer/us` and `wafer/mxfp4`. `OpenAI` covers `openai`, `openai/flex` and `openai/fast`, which the listing gives service tiers `flex` and `priority`. So the criterion catches another provider, not another tag of the same one. Whether `order` with a full tag admits only that tag is OpenRouter's and untested. The registered pass rule (H1's Stopping rule) is unchanged, since card R6 does not sanction editing it.
+**Result.** The recorded upstream is a provider name, which cannot tell tags apart. `Wafer` covers both `wafer/us` and `wafer/mxfp4`. `OpenAI` covers `openai`, `openai/flex` and `openai/fast`. So it catches another provider, not another tag. Whether `order` with a full tag admits only that tag is untested. The registered pass rule in H1's Stopping rule is unchanged, since R6 does not sanction editing it.
 
-**Consequence.** If B1's premise, the standard tier, must be proven, a later card records each call's tier or resolved endpoint (backlog row "The resolved model of each call").
+**Consequence.** Proving B1's standard tier needs a later card that records each call's tier (backlog row "The resolved model of each call").
