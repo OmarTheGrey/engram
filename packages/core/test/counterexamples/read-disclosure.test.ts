@@ -23,7 +23,7 @@ import { ADOPT_NARROWED_ID, removedGrantsNote } from "../../src/plane/commit.ts"
 import { adoptedItem } from "../../src/plane/write.ts";
 import { type Actor, accessTime } from "../../src/plane.ts";
 import type { Grant, MemoryEvent, MemoryItem } from "../../src/schema.ts";
-import { disclosedReason, visibleEvents } from "../../src/visible.ts";
+import { disclosedItem, disclosedReason, visibleEvents } from "../../src/visible.ts";
 import { fresh, id, item, testPolicy } from "../unit/plane/helpers.ts";
 
 const AT = "2026-11-19T10:00:00Z";
@@ -366,5 +366,55 @@ describe("lineage: only ids the reader may ask for by id (card E8.15c's finding)
     const leeSees = visibleEvents(lee, plane.events(), view);
     const write = leeSees.find((e) => e.op === "write" && e.item_id === VERSION);
     expect(write?.item?.lineage).toEqual([STALE]);
+  });
+
+  // Review finding 3: in the cases above an ancestor is either in a scope the
+  // reader may read or not admitted at all, so nothing pinned the half of
+  // the rule that names an ancestor the read filter admits through a grant,
+  // nor the read's valid_at in it. Dana's team ancestor 10, granted to sam
+  // and valid until 15 October, and her version 11 granted to sam naming it.
+  const GRANTED_ANCESTOR = id(10);
+  const GRANTED_VERSION = id(11);
+  const withGrantedAncestor = async () => {
+    const env = fresh(testPolicy());
+    const mine = { owner: dana.id, provenance: provenance(dana.id) };
+    for (const it of [
+      item(10, {
+        ...mine,
+        grants: [toSam],
+        valid_to: "2026-10-15T00:00:00Z",
+        content: "the first fact",
+      }),
+      item(11, { ...mine, grants: [toSam], lineage: [GRANTED_ANCESTOR], content: "the next fact" }),
+    ]) {
+      const { event } = await env.plane.write(dana, it, AT);
+      expect(event.decision, event.reason).toBe("allow");
+    }
+    return env;
+  };
+  const samsLineage = async (validAt?: string) => {
+    const { plane } = await withGrantedAncestor();
+    const query = validAt === undefined ? { at: AT } : { at: AT, valid_at: validAt };
+    const read = await plane.readById(sam, GRANTED_VERSION, query);
+    expect(read.items.map((i) => i.id)).toEqual([GRANTED_VERSION]);
+    return read.items[0]?.lineage;
+  };
+
+  test("sam, no member of the team, is shown an ancestor his live grant admits at the read's valid_at", async () => {
+    expect(await samsLineage("2026-10-10T00:00:00Z")).toEqual([GRANTED_ANCESTOR]);
+  });
+
+  test("the same ancestor is dropped at a valid_at past its window, and at the read's own time", async () => {
+    expect(await samsLineage("2026-11-01T00:00:00Z")).toEqual([]);
+    expect(await samsLineage()).toEqual([]);
+  });
+
+  test("an event's item shows sam the ancestor while the window is open, through his grant", async () => {
+    const { db, policy } = await withGrantedAncestor();
+    const items = new Map(currentItems(db).map((i) => [i.id, i]));
+    const at = "2026-10-12T00:00:00Z";
+    const view = { policy, at, current: (i: string) => items.get(i) };
+    const shown = disclosedItem(sam, items.get(GRANTED_VERSION) as MemoryItem, view);
+    expect(shown.lineage).toEqual([GRANTED_ANCESTOR]);
   });
 });
