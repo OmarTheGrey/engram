@@ -431,7 +431,7 @@ Twenty-eight cards added by `docs/tasks/absorb-plan-2.md`, which also rewrote ca
 
 ### Gate work cards, 2026-11-25
 
-Eight cards for the gate work no card owned (`docs/tasks/absorb-plan-2.md`, section 9). H5's prerequisites (lead-decisions item 30) are drafted apart, by card H5P, the last row: a proposed amendment, registered only by the lead.
+Eight cards for the gate work no card owned (`docs/tasks/absorb-plan-2.md`, section 9), and card H5P, the last row: H5's prerequisites (lead-decisions item 30), drafted apart as a proposed amendment, registered only by the lead.
 
 | Card  | Goal | Depends | Files | Acceptance |
 |-------|------|---------|-------|------------|
