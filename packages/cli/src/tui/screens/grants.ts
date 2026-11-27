@@ -1,7 +1,8 @@
 // Grants (card E8.15c, docs/design/tui.md 8.19 and 9.6): the inspector's
 // grants editor (card E9.4) through `engram grants <itemId> --add | --remove`.
-// The item's grants are listed as the inspector shows them (all of them to
-// the owner, only the viewer's own to anyone else: shownGrants), with
+// The item's grants are listed as the inspector shows them (as core's answer
+// gave them: all of them to the owner, only the viewer's own to anyone else;
+// shownGrants), with
 // grantLabel's text; a grant is added from a draft read by grantFrom, with
 // its messages. A change is one governed call, as `engram grants` makes it,
 // and may hold several grants added and removed (review fix pass): the
@@ -24,7 +25,7 @@ import {
   decisionHead,
   errorLines,
   firstLine,
-  knownState,
+  knownAnswer,
   oneLine,
   outputLines,
   RichScreen,
@@ -86,19 +87,23 @@ export class GrantsScreen extends RichScreen {
     return String(this.form.get("pos:itemId")).trim();
   }
 
-  /** The item as the last answer about it carries it: this screen's change, else the session's read. */
-  private item(ctx: Ctx): MemoryItem | undefined {
+  /**
+   * The item as the last answer about it carries it, and whether that answer
+   * gave it whole: this screen's change (the owner's own, whole), else the
+   * session's read or other answer (knownAnswer).
+   */
+  private item(ctx: Ctx): { item: MemoryItem; whole: boolean } | undefined {
     const changed = answerOf<{ item: MemoryItem | null }>(this.result, /\/api\/v1\/grants$/)?.item;
-    if (changed?.id === this.itemId()) return changed;
-    return this.itemId() === "" ? undefined : knownState(ctx, this.itemId());
+    if (changed?.id === this.itemId()) return { item: changed, whole: true };
+    return this.itemId() === "" ? undefined : knownAnswer(ctx, this.itemId());
   }
 
-  /** The grants shown to the viewer, and whether they are all of them. */
+  /** The grants shown to the viewer as core gave them, and whether they are all of them. */
   private grants(ctx: Ctx): { grants: Grant[]; grantsShown: "all" | "yours" } | undefined {
-    const item = this.item(ctx);
+    const known = this.item(ctx);
     const viewer = viewerOf(ctx);
-    if (item === undefined || viewer === undefined) return undefined;
-    return shownGrants(item.grants, item.owner, viewer.id);
+    if (known === undefined || viewer === undefined) return undefined;
+    return shownGrants(known.item, viewer.id, known.whole);
   }
 
   private shownList: Grant[] = [];
@@ -303,7 +308,7 @@ export class GrantsScreen extends RichScreen {
   protected body(ctx: Ctx, width: number): string[] {
     const t = ctx.theme;
     const out = [...this.errorHead(ctx, width)];
-    const item = this.item(ctx);
+    const item = this.item(ctx)?.item;
     out.push(
       this.fieldRow(
         ctx,

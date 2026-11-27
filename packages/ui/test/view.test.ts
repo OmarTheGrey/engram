@@ -153,6 +153,35 @@ describe("the scope lanes", () => {
     expect(buildLanes(dana, readOf([], [])).flatMap((l) => l.items)).toEqual([]);
   });
 
+  // RD1 review finding 5: core gives the owner every grant only when it may
+  // read the item's scope (visible.ts, ownsItem). An owner who reads its
+  // promoted item only through a grant is given the grants naming it, and
+  // the lanes must not call them every grant.
+  it("shows the grants as core's read gave them, labelled all only when the owner read the item by its scope", () => {
+    const grant = (to: string) => ({
+      to,
+      class: "semantic" as const,
+      mode: "read" as const,
+      expires: "2026-12-01T00:00:00.000Z",
+    });
+    const byScope = item(1, { grants: [grant("person:sam"), grant("person:eve")] });
+    const viaGrant = item(2, { scope: "org", grants: [grant(dana.id)] });
+    const read = readOf([byScope, viaGrant], [1, 2]);
+    read.explanations[1] = explanation(2, 2, {
+      policy_id: "p/read/grant",
+      grants_used: [`grants[0]:${dana.id}`],
+    });
+    const shown = buildLanes(dana, read).flatMap((l) => l.items);
+    expect(shown.find((i) => i.id === id(1))).toMatchObject({
+      grants: byScope.grants,
+      grantsShown: "all",
+    });
+    expect(shown.find((i) => i.id === id(2))).toMatchObject({
+      grants: viaGrant.grants,
+      grantsShown: "yours",
+    });
+  });
+
   it("prints an open validity window from its start", () => {
     expect(validityText({ valid_from: "a", valid_to: null })).toBe("from a");
   });

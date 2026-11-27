@@ -304,6 +304,7 @@ describe("reasons that quote a grantee: whole only to the maker and the owner (R
     expect(narrowed).toContain(zoe);
     const event = (reason: string, policy_id: string): MemoryEvent => ({
       id: id(70),
+      seq: 1,
       ts: AT,
       op: "write",
       item_id: record.id,
