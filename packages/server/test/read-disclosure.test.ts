@@ -116,6 +116,32 @@ describe("the read routes disclose what the reader may see (RD1)", () => {
     expect(JSON.stringify(data)).not.toContain(NOTE);
   });
 
+  it("POST /events: a refused grant change under engram/write/grant names the proposed grantee only to its maker (review finding 1)", async () => {
+    const { client } = testWorkspace();
+    const owns = { ...owner, memberships: ["person:dana", "team:x"] };
+    const lee = {
+      id: "person:lee",
+      level: "person" as const,
+      memberships: ["person:lee", "team:x"],
+    };
+    const team = itemFor(4, { id: id(4), scope: "team:x" });
+    const w = await client.POST("/api/v1/items", { body: { actor: owns, item: team } });
+    expect(C.WriteResponse.parse(w.data).event.decision).toBe("allow");
+    const zoe = "person:zoe";
+    const asked = await client.POST("/api/v1/grants", {
+      body: { actor: owns, item_id: id(4), add: [{ ...grant(zoe), class: "episodic" }] },
+    });
+    const refused = C.GrantResponse.parse(asked.data).event;
+    expect(refused).toMatchObject({ decision: "deny", policy_id: "engram/write/grant" });
+    expect(refused.reason).toContain(zoe);
+    const seen = async (actor: typeof lee) =>
+      (await client.POST("/api/v1/events", { body: { actor } })).data?.events ?? [];
+    const leeSees = await seen(lee);
+    expect(leeSees.find((e) => e.id === refused.id)?.reason).toContain(dana.id);
+    expect(JSON.stringify(leeSees)).not.toContain(zoe);
+    expect((await seen(owns)).find((e) => e.id === refused.id)?.reason).toBe(refused.reason);
+  });
+
   it("POST /supersede: a member's accepted close shows no lineage id it may not read", async () => {
     const { client, db } = testWorkspace();
     const mate = {
