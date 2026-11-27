@@ -4,7 +4,7 @@ author: claude-orchestrator
 type: change
 card: E9.9
 chapter: implementation
-pillar: product
+pillar: twin
 hypothesis: none
 evidence:
   - packages/cli/src/registry.ts
