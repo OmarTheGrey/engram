@@ -74,23 +74,33 @@ import { GRANT_CHANGE_ID, GRANT_CONFLICT_ID, GRANT_STATUS_ID } from "./policy/gr
 import type { Grant, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
 
 /**
- * The rule ids whose reasons may quote a grant, and so a grantee: the
- * grant-change gate (policy/grants.ts), the grant rules it shares with the
- * write gate (evaluate.ts: `engram/write/grant` for a malformed principal or
- * another class, RD1 review finding 1; expired, duplicate, owner, source),
- * on a grant change and on a write alike, and the plane's narrowing of
- * grants an adoption reintroduced (commit.ts).
+ * The rule ids whose reasons may quote a grant, and so a grantee, on any
+ * op: the grant rules the grant-change gate shares with the write gate
+ * (evaluate.ts: `engram/write/grant` for a malformed principal or another
+ * class, RD1 review finding 1; an expired or a duplicate grant), and the
+ * plane's narrowing of grants an adoption reintroduced (commit.ts).
  */
 const GRANT_REASON_IDS: ReadonlySet<string> = new Set([
   ADOPT_NARROWED_ID,
+  GRANT_EXPIRED_ID,
+  GRANT_UNCHANGED_ID,
+  WRITE_GRANT_ID,
+]);
+
+/**
+ * The grant-change gate's own ids (policy/grants.ts), hidden on its `update`
+ * events only: an allowed change and a conflict name the grants, and the
+ * owner, source and status refusals are withheld there as before. On a write
+ * the owner, source and status rules name the owner, the writer's source or
+ * the item's status, never a grantee, so a member keeps those reasons (RD1
+ * verification N1).
+ */
+const GRANT_CHANGE_IDS: ReadonlySet<string> = new Set([
   GRANT_CHANGE_ID,
   GRANT_CONFLICT_ID,
-  GRANT_EXPIRED_ID,
   GRANT_OWNER_ID,
   GRANT_SOURCE_ID,
   GRANT_STATUS_ID,
-  GRANT_UNCHANGED_ID,
-  WRITE_GRANT_ID,
 ]);
 
 const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
@@ -180,7 +190,7 @@ export function disclosedGrantsUsed(
 
 /**
  * The reason of `event` as `viewer` is shown it. A reason that quotes grants
- * (GRANT_REASON_IDS, GRANT_CLAUSES) is shown whole only to the event's maker
+ * (GRANT_REASON_IDS, GRANT_CHANGE_IDS, GRANT_CLAUSES) is shown whole only to the event's maker
  * and the item's owner; anyone else is told what was decided under which
  * rule, not which grants, and no clause about grants.
  */
@@ -189,7 +199,11 @@ export function disclosedReason(viewer: Actor, event: MemoryEvent, view: EventVi
   const item =
     event.item_id === null ? undefined : (view.current(event.item_id) ?? event.item ?? undefined);
   if (item !== undefined && ownsItem(view.policy, viewer, item)) return event.reason;
-  if (GRANT_REASON_IDS.has(event.policy_id)) return withheldGrantReason(event);
+  if (
+    GRANT_REASON_IDS.has(event.policy_id) ||
+    (event.op === "update" && GRANT_CHANGE_IDS.has(event.policy_id))
+  )
+    return withheldGrantReason(event);
   return GRANT_CLAUSES.reduce((reason, clause) => reason.replace(clause, ""), event.reason);
 }
 

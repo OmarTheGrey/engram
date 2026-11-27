@@ -278,6 +278,26 @@ describe("reasons that quote a grantee: whole only to the maker and the owner (R
     expect(shownTo(env, dana).find((e) => e.id === event.id)?.reason).toBe(event.reason);
   });
 
+  // Verification N1: the owner, source and status rules name no grantee on
+  // a write, so a member keeps those reasons; only the grant-change gate's
+  // update events withhold them.
+  test("a co-holder's refused rewrite of a granted item keeps its reason for kim, a member", async () => {
+    const env = await seeded();
+    const stored = currentItems(env.db).find((i) => i.id === GRANTED) as MemoryItem;
+    const rewrite = { ...stored, content: "lee's words", version: stored.version + 1 };
+    const { event } = await env.plane.write(lee, rewrite, LATER);
+    expect(event).toMatchObject({ decision: "deny", policy_id: "engram/grant/owner" });
+    expect(event.reason).not.toContain(sam.id);
+    expect(event.reason).not.toContain(eve.id);
+    expect(shownTo(env, kim).find((e) => e.id === event.id)?.reason).toBe(event.reason);
+    // The same rule on a grant change's update event stays withheld.
+    const change = await env.plane.changeGrants(lee, GRANTED, { remove: [toEve] }, LATER);
+    expect(change.event).toMatchObject({ op: "update", policy_id: "engram/grant/owner" });
+    const kimsChange = shownTo(env, kim).find((e) => e.id === change.event.id);
+    expect(kimsChange?.reason).not.toBe(change.event.reason);
+    expect(kimsChange?.reason).toContain("asked to change the grants");
+  });
+
   test("a reviewed promotion's reason tells a member who is neither maker nor owner no grant count", async () => {
     const env = await seeded();
     const result = await env.plane.promote(lee, GRANTED, "org", LATER, { review: true });
