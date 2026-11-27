@@ -71,6 +71,7 @@ import {
   WRITE_GRANT_ID,
 } from "./policy/evaluate.ts";
 import { GRANT_CHANGE_ID, GRANT_CONFLICT_ID, GRANT_STATUS_ID } from "./policy/grants.ts";
+import { notCarriedClause } from "./policy/promotion.ts";
 import type { Grant, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
 
 /**
@@ -118,8 +119,18 @@ const GRANT_CLAUSES: readonly RegExp[] = [
     `; the plane removed .*?, which an adoption of this write's bytes had reintroduced \\(${escaped(ADOPT_NARROWED_ID)}\\)`,
     "gs",
   ),
-  /; \d+ grants? of its owner \S+ (?:is|are) not carried to the new version, which \S+ made: a grant is its owner's consent to one item/g,
+  notCarriedPattern(),
 ];
+
+/** notCarriedClause as a pattern, built from the clause itself so a rewording follows (singular and plural). */
+function notCarriedPattern(): RegExp {
+  const form = (n: number) =>
+    escaped(notCarriedClause(n, "\u0001", "\u0002"))
+      .replace(`; ${n} `, "; \\d+ ")
+      .replace("\u0001", "\\S+")
+      .replace("\u0002", "\\S+");
+  return new RegExp(`${form(1)}|${form(2)}`, "g");
+}
 
 /** What the item rule needs: the policy, the time, and the projected item of an id. */
 export interface EventView {

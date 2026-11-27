@@ -42,6 +42,14 @@ import { INJECTION_SCREEN_ID } from "./injection-screen.ts";
 import { itemExpiry } from "./retention.ts";
 import { GUARD_FAILURE_ID, PII_ID, SECRET_ID } from "./secrets.ts";
 
+/**
+ * The clause a promotion's reason ends with when its new version does not
+ * carry `lost` grants of the owner. It counts the owner's grants, so
+ * visible.ts cuts it for anyone but the maker and the owner (card RD1).
+ */
+export const notCarriedClause = (lost: number, owner: string, maker: string) =>
+  `; ${lost} grant${lost === 1 ? "" : "s"} of its owner ${owner} ${lost === 1 ? "is" : "are"} not carried to the new version, which ${maker} made: a grant is its owner's consent to one item`;
+
 export const PROMOTE_MEMBERSHIP_ID = "engram/promote/membership";
 export const PROMOTE_EXPIRED_ID = "engram/promote/expired";
 export const PROMOTE_WIDENING_SOURCE_ID = "engram/promote/widening-source";
@@ -567,10 +575,7 @@ export function evaluatePromotion(
   const rule =
     met === "confirmed" ? "episodic-to-semantic" : met === "validated" ? "procedural" : "review";
   const lost = item.grants.length - (promoted.grants?.length ?? 0);
-  const dropped =
-    lost > 0
-      ? `; ${lost} grant${lost === 1 ? "" : "s"} of its owner ${item.owner} ${lost === 1 ? "is" : "are"} not carried to the new version, which ${actor.id} made: a grant is its owner's consent to one item`
-      : "";
+  const dropped = lost > 0 ? notCarriedClause(lost, item.owner, actor.id) : "";
   return {
     ...base,
     decision: "allow",

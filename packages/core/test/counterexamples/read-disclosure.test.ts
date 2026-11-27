@@ -22,6 +22,7 @@ import { currentItems } from "../../src/events.ts";
 import { ADOPT_NARROWED_ID, removedGrantsNote } from "../../src/plane/commit.ts";
 import { adoptedItem } from "../../src/plane/write.ts";
 import { type Actor, accessTime } from "../../src/plane.ts";
+import { notCarriedClause } from "../../src/policy/promotion.ts";
 import type { Grant, MemoryEvent, MemoryItem } from "../../src/schema.ts";
 import { disclosedItem, disclosedReason, visibleEvents } from "../../src/visible.ts";
 import { fresh, id, item, testPolicy } from "../unit/plane/helpers.ts";
@@ -346,8 +347,10 @@ describe("reasons that quote a grantee: whole only to the maker and the owner (R
     expect(disclosedReason(kim, failed, view)).toBe("the store refused");
     const mend = { ...event(`the plane removed ${zoe}`, ADOPT_NARROWED_ID), op: "update" as const };
     expect(disclosedReason(kim, mend, view)).not.toContain(zoe);
+    const one = event(`promoted${notCarriedClause(1, dana.id, lee.id)}`, "test/promote/review");
+    expect(disclosedReason(kim, one, view)).toBe("promoted");
     // The maker and the owner see each as the log holds it.
-    for (const e of [adopted, failed, mend]) {
+    for (const e of [adopted, failed, mend, one]) {
       expect(disclosedReason(lee, e, view)).toBe(e.reason);
       expect(disclosedReason(dana, e, view)).toBe(e.reason);
     }
