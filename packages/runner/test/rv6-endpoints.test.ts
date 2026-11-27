@@ -6,6 +6,7 @@
 // research/configs/openrouter-endpoints.json. And a pinned answer route names
 // the model it was chosen for, so a live run on another MODEL= is refused.
 // Nothing here reaches the network.
+import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -24,14 +25,21 @@ const CONFIGS = join(REPO, "research", "configs");
 interface Endpoint {
   provider: string;
   tag: string;
+  quantization?: string;
   seed: boolean;
   input: number;
   output: number;
+  cache_read?: number | null;
+  supported_parameters?: string[];
 }
 interface Snapshot {
   fetched: string;
   price_weights: { input: number; output: number };
-  models: Record<string, { maker: string; response_sha256: string; endpoints: Endpoint[] }>;
+  sent_parameters?: Record<string, string[] | string>;
+  models: Record<
+    string,
+    { maker: string; response?: string; response_sha256: string; endpoints: Endpoint[] }
+  >;
   pins: Record<string, { tag: string; by: "maker" | "cheapest-seed" }>;
 }
 
@@ -126,6 +134,41 @@ describe("card R6: the endpoint snapshot", () => {
       expect(entry, model).toBeDefined();
       expect(entry?.response_sha256).toMatch(/^[0-9a-f]{64}$/);
       expect(entry?.endpoints.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("each model's response is committed as served: its sha256 matches, and every endpoint entry is read from it", () => {
+    const perMillion = (v: string | null | undefined) =>
+      v === null || v === undefined ? null : Number((Number(v) * 1_000_000).toPrecision(12));
+    for (const [model, entry] of Object.entries(snapshot.models)) {
+      expect(entry.response, model).toBeDefined();
+      const bytes = readFileSync(join(REPO, entry.response as string));
+      expect(createHash("sha256").update(bytes).digest("hex"), model).toBe(entry.response_sha256);
+      const served = (
+        JSON.parse(bytes.toString("utf8")) as {
+          data: {
+            endpoints: {
+              provider_name: string;
+              tag: string;
+              quantization: string;
+              supported_parameters: string[];
+              pricing: { prompt: string; completion: string; input_cache_read?: string };
+            }[];
+          };
+        }
+      ).data.endpoints;
+      expect(entry.endpoints, model).toEqual(
+        served.map((e) => ({
+          provider: e.provider_name,
+          tag: e.tag,
+          quantization: e.quantization,
+          seed: e.supported_parameters.includes("seed"),
+          input: perMillion(e.pricing.prompt),
+          output: perMillion(e.pricing.completion),
+          cache_read: perMillion(e.pricing.input_cache_read),
+          supported_parameters: [...e.supported_parameters].sort(),
+        })),
+      );
     }
   });
 
