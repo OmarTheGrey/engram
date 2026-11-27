@@ -8,8 +8,8 @@
 // line of every result is the decision, and every text from the plane or a
 // command passes `safe` (no control character, no URL's secrets).
 import { sliceByColumn } from "@earendil-works/pi-tui";
-import type { Actor, MemoryItem, ReadResponse } from "@engram/sdk";
-import { contentText } from "@engram/view";
+import type { Actor, Explanation, MemoryItem, ReadResponse } from "@engram/sdk";
+import { contentText, readWhole } from "@engram/view";
 import type { CommandSpec, Values } from "../../registry.ts";
 import { redactSecrets } from "../../setup.ts";
 import { actorKeyNow, actorKeyOfResult, actorNow, madeAsLines, madeAsOther } from "../actor.ts";
@@ -654,11 +654,31 @@ export function readItems(ctx: Ctx): MemoryItem[] {
 
 /** The newest state of an item any of the session's answers as this actor carries. */
 export function knownState(ctx: Ctx, id: string): MemoryItem | undefined {
+  return knownAnswer(ctx, id)?.item;
+}
+
+/**
+ * knownState's item, and whether the answer that carried it gave it whole
+ * (shownGrants' `complete`, card RD1): a read's by its explanation of the
+ * item (readWhole), any other answer (a write, a grant change, a promotion)
+ * as core returned it to the caller.
+ */
+export function knownAnswer(
+  ctx: Ctx,
+  id: string,
+): { item: MemoryItem; whole: boolean } | undefined {
   for (const r of resultsAs(ctx, actorKeyNow(ctx.ws)))
     for (const c of [...r.calls].reverse()) {
-      const b = c.body as { items?: MemoryItem[]; item?: MemoryItem | null } | undefined;
+      const b = c.body as
+        | { items?: MemoryItem[]; item?: MemoryItem | null; explanations?: Explanation[] }
+        | undefined;
       const found = b?.item?.id === id ? b.item : b?.items?.find((i) => i.id === id);
-      if (found) return found;
+      if (found) {
+        const explained = b?.explanations;
+        const whole =
+          explained === undefined ? true : readWhole(explained.find((e) => e.item_id === id));
+        return { item: found, whole };
+      }
     }
   return undefined;
 }

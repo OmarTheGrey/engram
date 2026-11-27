@@ -139,16 +139,14 @@ describe("the grants a viewer is shown (review M2)", () => {
     expect(samsView?.grants.map((g) => g.to)).toEqual(["person:sam"]);
   });
 
-  it("count a prefixed pattern covering the viewer as its own", () => {
-    const grants: Grant[] = [{ ...toSam, to: "person:s*" }, { ...toSam, to: "person:lee" }, toSam];
-    expect(shownGrants(grants, "person:dana", "person:sam").grants.map((g) => g.to)).toEqual([
-      "person:s*",
-      "person:sam",
-    ]);
-    expect(shownGrants(grants, "person:dana", "person:dana")).toEqual({
-      grants,
-      grantsShown: "all",
-    });
+  // Since card RD1 core narrows the grants (visible.ts); the view shows them
+  // as given and only labels them (review finding 5 of RD1).
+  it("are core's, shown as given; all only for the owner of an answer that came whole", () => {
+    const grants: Grant[] = [{ ...toSam, to: "person:s*" }, toSam];
+    const item = { grants, owner: "person:dana" };
+    expect(shownGrants(item, "person:sam", true)).toEqual({ grants, grantsShown: "yours" });
+    expect(shownGrants(item, "person:dana", true)).toEqual({ grants, grantsShown: "all" });
+    expect(shownGrants(item, "person:dana", false)).toEqual({ grants, grantsShown: "yours" });
   });
 });
 

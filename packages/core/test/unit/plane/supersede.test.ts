@@ -12,7 +12,12 @@ import { itemById } from "../../../src/items.ts";
 import type { Actor } from "../../../src/plane.ts";
 import { WRITE_MEMBERSHIP_ID } from "../../../src/policy/evaluate.ts";
 import type { MemoryItem } from "../../../src/schema.ts";
-import { acceptedClosures, closedVersion, planSupersession } from "../../../src/supersede.ts";
+import {
+  acceptedClosures,
+  closedVersion,
+  planSupersession,
+  writeClosures,
+} from "../../../src/supersede.ts";
 import { AT, fresh, id, item } from "./helpers.ts";
 
 const omar: Actor = {
@@ -171,6 +176,65 @@ describe("applying an accepted close", () => {
     const { event } = await env.plane.write(sam, closed as never, NOW);
     expect(event).toMatchObject({ op: "write", decision: "deny", policy_id: WRITE_MEMBERSHIP_ID });
     expect(itemById(env.db, id(1))).toMatchObject({ valid_to: null, version: 1 });
+  });
+
+  // RD1 review finding 6: the answer is disclosed in core, so no surface
+  // that writes closes has to remember to.
+  test("writeClosures answers with each close as the actor is shown it: its own grant, no hidden ancestor", async () => {
+    const grant = (to: string) => ({
+      to,
+      class: "semantic" as const,
+      mode: "read" as const,
+      expires: "2027-01-01T00:00:00Z",
+    });
+    const sam: Actor = {
+      id: "person:sam",
+      level: "person",
+      memberships: ["person:sam"],
+      source: "user",
+    };
+    const env = fresh();
+    for (const it of [
+      item(5, {
+        scope: "person:omar",
+        content: "Omar's own note.",
+        valid_from: "2026-09-01T00:00:00Z",
+        valid_to: "2026-09-15T00:00:00Z",
+      }),
+      item(1, {
+        content: "The deploy window is Tuesday.",
+        grants: [grant("person:eve"), grant(sam.id)],
+        lineage: [id(5)],
+      }),
+    ])
+      expect((await env.plane.write(omar, it, AT)).event.decision).toBe("allow");
+    const mine = item(3, {
+      scope: "person:sam",
+      owner: sam.id,
+      valid_from: LATER,
+      lineage: [id(1)],
+    });
+    expect((await env.plane.write(sam, mine, AT)).event.decision).toBe("allow");
+    const plan = planSupersession(env.db, env.policy, sam, id(3), NOW);
+    const closes = acceptedClosures(env.db, plan, [id(1)]);
+    expect(closes[0]?.grants.map((g) => g.to)).toEqual(["person:eve", sam.id]);
+    expect(closes[0]?.lineage).toEqual([id(5)]);
+    const out = await writeClosures(env, sam, closes, NOW);
+    expect(out.submitted.map((i) => [i.id, i.lineage, i.grants.map((g) => g.to)])).toEqual([
+      [id(1), [], [sam.id]],
+    ]);
+    expect(out.applied[0]?.event).toMatchObject({ decision: "deny", item_id: id(1) });
+    expect(JSON.stringify(out)).not.toContain("person:eve");
+    expect(JSON.stringify(out)).not.toContain(id(5));
+    // The owner's own close comes back whole.
+    const own = item(4, { valid_from: LATER, lineage: [id(1)] });
+    expect((await env.plane.write(omar, own, AT)).event.decision).toBe("allow");
+    const omars = acceptedClosures(env.db, planSupersession(env.db, env.policy, omar, id(4), NOW), [
+      id(1),
+    ]);
+    const whole = await writeClosures(env, omar, omars, NOW);
+    expect(whole.applied[0]?.item?.grants.map((g) => g.to)).toEqual(["person:eve", sam.id]);
+    expect(whole.applied[0]?.item?.lineage).toEqual([id(5)]);
   });
 
   test("refuses an id the plan proposes no close for, before anything is written", async () => {

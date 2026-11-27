@@ -16,12 +16,12 @@ import {
   type MemoryItem,
   migrate,
   openSqlite,
+  writeClosures,
 } from "@engram/core";
 import { createEngramClient } from "@engram/sdk";
 import { afterAll, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.ts";
 import * as C from "../src/contract.ts";
-import { writeClosures } from "../src/routes.ts";
 import { workspaceOf } from "../src/workspace.ts";
 import { dana, itemFor, NOW, testWorkspace } from "./helpers.ts";
 
@@ -207,7 +207,8 @@ describe("writing accepted closes (L6-3, L6-9)", () => {
     const first = close(itemById(db, writable.id) as MemoryItem);
     const second = close(imported);
     const third = close(itemById(db, later.id) as MemoryItem);
-    const out = await writeClosures(workspace, owner, [first, second, third], NOW);
+    const on = { plane: workspace.plane, db, policy: workspace.policy };
+    const out = await writeClosures(on, owner, [first, second, third], NOW);
     // The third is never sent: the loop stops at the store's refusal.
     expect(out.submitted.map((i) => i.id)).toEqual([writable.id, imported.id]);
     expect(itemById(db, later.id)).toMatchObject({ version: 1, valid_to: null });

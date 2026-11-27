@@ -14,6 +14,8 @@ import type { PlaneDeps } from "../plane.ts";
 import { readRuleId } from "../policy/evaluate.ts";
 import { type BundleRow, bundleRows } from "../portable.ts";
 import { type MemoryEvent, SCHEMA_VERSION } from "../schema.ts";
+import { disclosedEvent, disclosedItem } from "../visible.ts";
+import { accessTime } from "./read.ts";
 
 /** What Plane.export returns: the bundle's rows and the event that recorded the export. */
 export interface ExportResult {
@@ -59,7 +61,18 @@ export async function exportBundle(
   checkCall(actor, at, "export");
   const { db, policy, newId } = deps;
   return db.transaction(() => {
-    const rows = bundleRows(policy, actor, currentItems(db), allEvents(db));
+    const items = currentItems(db);
+    // Each row as the exporter is shown it (card RD1, visible.ts): a row it
+    // holds but does not own shows only the grants naming it, and no grantee
+    // in a grant change's reason; every row only the lineage ids it may ask
+    // for by id (ADR 0047).
+    const projected = new Map(items.map((i) => [i.id, i]));
+    const view = { policy, at: accessTime(db, at), current: (i: string) => projected.get(i) };
+    const rows = bundleRows(policy, actor, items, allEvents(db)).map((row) => ({
+      ...row,
+      item: disclosedItem(actor, row.item, view),
+      events: row.events.map((e) => disclosedEvent(actor, e, view)),
+    }));
     const event = appendEvent(db, {
       id: newId(),
       ts: at,

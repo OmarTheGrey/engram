@@ -56,29 +56,41 @@ export interface LaneItem {
   admittedBy: string | null;
   owner: string;
   /**
-   * The grants the lanes show (card E9.4): every grant the item carries when
-   * the viewer is its owner, otherwise only those naming the viewer (review
-   * finding M2 of PR #44). The read returns them all; the inspector does not
-   * show one grantee who else may read the item.
+   * The grants the lanes show (card E9.4, review finding M2 of PR #44): the
+   * item's grants as core's read returned them. Since card RD1 core gives
+   * the owner every grant and anyone else only those naming it (visible.ts,
+   * disclosedItem), so the inspector shows them as given and filters none.
    */
   grants: Grant[];
-  /** Whether `grants` is every grant on the item, or only the viewer's own. */
+  /** Whether `grants` is every grant on the item, or only the viewer's own (shownGrants). */
   grantsShown: "all" | "yours";
 }
 
-/** Does a grant's `to` name `viewerId`: exactly, or by a prefix ending in `*`. Display only. */
-export const namesViewer = (to: string, viewerId: string) =>
-  to.endsWith("*") ? viewerId.startsWith(to.slice(0, -1)) : to === viewerId;
-
-/** The grants to show `viewerId` on an item `owner` owns: all to the owner, its own to anyone else. */
+/**
+ * The grants to show `viewerId` on `item`, taken from core's answer (card
+ * RD1, review finding 5): core already narrowed them (visible.ts), so they
+ * are shown as given and none is filtered here (AGENTS.md rule 1). They are
+ * labelled every grant only when core's rule gave every grant: the viewer is
+ * the owner, and `complete` says the answer carried the item whole. For a
+ * read that is when its explanation names no grant (core admits by scope
+ * first, and its grants_used is empty unless a grant admitted the item: the
+ * owner may then not read the scope, and was given only the grants naming
+ * it); a grant change's answer is the owner's own and whole.
+ */
 export function shownGrants(
-  grants: readonly Grant[],
-  owner: string,
+  item: Pick<MemoryItem, "grants" | "owner">,
   viewerId: string,
+  complete: boolean,
 ): { grants: Grant[]; grantsShown: "all" | "yours" } {
-  if (owner === viewerId) return { grants: [...grants], grantsShown: "all" };
-  return { grants: grants.filter((g) => namesViewer(g.to, viewerId)), grantsShown: "yours" };
+  return {
+    grants: [...item.grants],
+    grantsShown: item.owner === viewerId && complete ? "all" : "yours",
+  };
 }
+
+/** Whether a read's explanation says the item came whole: admitted by its scope, naming no grant (shownGrants). */
+export const readWhole = (explanation: Pick<Explanation, "grants_used"> | undefined) =>
+  explanation !== undefined && explanation.grants_used.length === 0;
 
 export interface Lane {
   scope: string;
@@ -132,7 +144,7 @@ export function buildLanes(viewer: Pick<Actor, "id" | "memberships">, read: Read
       rank: e?.rank ?? null,
       admittedBy: e?.policy_id ?? null,
       owner: item.owner,
-      ...shownGrants(item.grants, item.owner, viewer.id),
+      ...shownGrants(item, viewer.id, readWhole(e)),
     });
   }
   return [...lanes.values()];

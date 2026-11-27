@@ -31,9 +31,106 @@
 // carries it and the item as the projection holds it now must pass, so a
 // version since retired, expired or moved out of reach is not shown. An event
 // whose item is withheld keeps every other field.
+//
+// What of each item (card RD1; lead-decisions item 36, answered (a), and
+// card E8.15c's finding on the read route's lineage). Every answer that
+// gives an actor an item, a read, a by-id read, a shown event, a promotion,
+// a bundle row or a supersede plan's close, gives it through `disclosedItem`,
+// so the CLI, the HTTP API, MCP, the pi extension and the inspector agree:
+// - Grants. The item's owner (its id is the item's owner and it may read the
+//   item's scope, as Plane.changeGrants and whoCanReadItem know it) is shown
+//   every grant; anyone else only the grants whose `to` names it
+//   (grantMatches), expired or not. A member of the scope who is neither
+//   owner nor grantee is shown none. A read's grants_used is numbered by the
+//   grants shown (`disclosedGrantsUsed`), so its place never tells a grantee
+//   how many grants come before its own (as E2.13-4 keeps it out of
+//   who-can-read). A reason that quotes a grant (a grant change, a write the
+//   grant rules refuse, the plane's narrowing after an adoption) or carries a
+//   clause about grants (adoption's dropped grants, a mend's removed ones, a
+//   promotion's count of grants not carried) is shown whole only to its
+//   maker and the item's owner (`disclosedReason`; RD1 review findings 1
+//   and 4).
+// - Lineage. An id a lineage names is shown only when ADR 0047's by-id rule
+//   would let the actor ask for it (`idShownTo`): the item under it is
+//   projected and either in a scope the actor may read (readableScope; the
+//   actor already sees that scope's events, which name it) or admitted to the
+//   actor by the read filter at the answer's time. Any other id is dropped,
+//   with no count and no placeholder, as the inspector's item page leaves it
+//   (packages/ui/src/provenance.ts).
+// The log is unchanged: only what an answer shows is narrowed.
 import type { Actor } from "./actor.ts";
-import { evaluateRead, readableScope } from "./policy/evaluate.ts";
-import type { MemoryEvent, MemoryItem, Policy } from "./schema.ts";
+import { ADOPT_NARROWED_ID } from "./plane/commit.ts";
+import {
+  evaluateRead,
+  GRANT_EXPIRED_ID,
+  GRANT_OWNER_ID,
+  GRANT_SOURCE_ID,
+  GRANT_UNCHANGED_ID,
+  grantMatches,
+  readableScope,
+  WRITE_GRANT_ID,
+} from "./policy/evaluate.ts";
+import { GRANT_CHANGE_ID, GRANT_CONFLICT_ID, GRANT_STATUS_ID } from "./policy/grants.ts";
+import { notCarriedClause } from "./policy/promotion.ts";
+import type { Grant, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
+
+/**
+ * The rule ids whose reasons may quote a grant, and so a grantee, on any
+ * op: the grant rules the grant-change gate shares with the write gate
+ * (evaluate.ts: `engram/write/grant` for a malformed principal or another
+ * class, RD1 review finding 1; an expired or a duplicate grant), and the
+ * plane's narrowing of grants an adoption reintroduced (commit.ts).
+ */
+const GRANT_REASON_IDS: ReadonlySet<string> = new Set([
+  ADOPT_NARROWED_ID,
+  GRANT_EXPIRED_ID,
+  GRANT_UNCHANGED_ID,
+  WRITE_GRANT_ID,
+]);
+
+/**
+ * The grant-change gate's own ids (policy/grants.ts), hidden on its `update`
+ * events only: an allowed change and a conflict name the grants, and the
+ * owner, source and status refusals are withheld there as before. On a write
+ * the owner, source and status rules name the owner, the writer's source or
+ * the item's status, never a grantee, so a member keeps those reasons (RD1
+ * verification N1).
+ */
+const GRANT_CHANGE_IDS: ReadonlySet<string> = new Set([
+  GRANT_CHANGE_ID,
+  GRANT_CONFLICT_ID,
+  GRANT_OWNER_ID,
+  GRANT_SOURCE_ID,
+  GRANT_STATUS_ID,
+]);
+
+const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+
+/**
+ * The clauses core appends about grants to a reason under another rule id,
+ * each cut whole for anyone but the maker and the item's owner: adoption's
+ * dropped grants (plane/write.ts, adoptedItem), a store failure's mend
+ * (commit.ts, removedGrantsNote), and the count of grants a promotion's new
+ * version does not carry (policy/promotion.ts; RD1 review finding 4).
+ */
+const GRANT_CLAUSES: readonly RegExp[] = [
+  /; adoption dropped .*?; the plane narrows, never widens/gs,
+  new RegExp(
+    `; the plane removed .*?, which an adoption of this write's bytes had reintroduced \\(${escaped(ADOPT_NARROWED_ID)}\\)`,
+    "gs",
+  ),
+  notCarriedPattern(),
+];
+
+/** notCarriedClause as a pattern, built from the clause itself so a rewording follows (singular and plural). */
+function notCarriedPattern(): RegExp {
+  const form = (n: number) =>
+    escaped(notCarriedClause(n, "\u0001", "\u0002"))
+      .replace(`; ${n} `, "; \\d+ ")
+      .replace("\u0001", "\\S+")
+      .replace("\u0002", "\\S+");
+  return new RegExp(`${form(1)}|${form(2)}`, "g");
+}
 
 /** What the item rule needs: the policy, the time, and the projected item of an id. */
 export interface EventView {
@@ -42,6 +139,108 @@ export interface EventView {
   at: string;
   /** The item as the projection holds it now; undefined when it is unknown. */
   current: (itemId: string) => MemoryItem | undefined;
+  /** The time validity windows are judged at, for a read that names one (ReadQuery.valid_at); `at` when absent. */
+  validAt?: string;
+}
+
+/** Whether `viewer` is `item`'s owner as Plane.changeGrants knows it: its id, and a member who may read the scope. */
+export function ownsItem(policy: Policy, viewer: Actor, item: MemoryItem): boolean {
+  return viewer.id === item.owner && readableScope(policy, viewer, item.scope);
+}
+
+/** The grants on `item` that `viewer` is shown: every one to its owner, those naming it to anyone else. */
+export function grantsShownTo(policy: Policy, viewer: Actor, item: MemoryItem): Grant[] {
+  if (ownsItem(policy, viewer, item)) return item.grants;
+  return item.grants.filter((g) => grantMatches(g.to, viewer.id));
+}
+
+/**
+ * Whether `viewer` may be shown the id `itemId` where a lineage names it:
+ * ADR 0047's by-id rule at `view.at` (see the module comment).
+ */
+export function idShownTo(viewer: Actor, itemId: string, view: EventView): boolean {
+  const named = view.current(itemId);
+  if (named === undefined) return false;
+  return (
+    readableScope(view.policy, viewer, named.scope) ||
+    evaluateRead(view.policy, viewer, named, view.at, view.validAt ?? view.at).admitted
+  );
+}
+
+/**
+ * `item` as `viewer` is shown it: its grants and its lineage narrowed (see
+ * the module comment), every other field as given. The same object when
+ * nothing is narrowed.
+ */
+export function disclosedItem(viewer: Actor, item: MemoryItem, view: EventView): MemoryItem {
+  const grants = grantsShownTo(view.policy, viewer, item);
+  const lineage = item.lineage.filter((ancestor) => idShownTo(viewer, ancestor, view));
+  if (grants.length === item.grants.length && lineage.length === item.lineage.length) return item;
+  return { ...item, grants, lineage };
+}
+
+/**
+ * A read's grants_used for `item` (`grants[<index>]:<to>`, the index on the
+ * item as stored), renumbered by the grants `viewer` is shown of it. A grant
+ * that admits a read always names its reader, so it is always shown.
+ */
+export function disclosedGrantsUsed(
+  policy: Policy,
+  viewer: Actor,
+  item: MemoryItem,
+  used: readonly string[],
+): string[] {
+  if (ownsItem(policy, viewer, item)) return [...used];
+  const shown = item.grants.flatMap((g, i) => (grantMatches(g.to, viewer.id) ? [i] : []));
+  return used.map((label) => {
+    const match = /^grants\[(\d+)\]:(.*)$/s.exec(label);
+    const place = match ? shown.indexOf(Number(match[1])) : -1;
+    return match && place >= 0 ? `grants[${place}]:${match[2]}` : label;
+  });
+}
+
+/**
+ * The reason of `event` as `viewer` is shown it. A reason that quotes grants
+ * (GRANT_REASON_IDS, GRANT_CHANGE_IDS, GRANT_CLAUSES) is shown whole only to the event's maker
+ * and the item's owner; anyone else is told what was decided under which
+ * rule, not which grants, and no clause about grants.
+ */
+export function disclosedReason(viewer: Actor, event: MemoryEvent, view: EventView): string {
+  if (event.actor === viewer.id) return event.reason;
+  const item =
+    event.item_id === null ? undefined : (view.current(event.item_id) ?? event.item ?? undefined);
+  if (item !== undefined && ownsItem(view.policy, viewer, item)) return event.reason;
+  if (
+    GRANT_REASON_IDS.has(event.policy_id) ||
+    (event.op === "update" && GRANT_CHANGE_IDS.has(event.policy_id))
+  )
+    return withheldGrantReason(event);
+  return GRANT_CLAUSES.reduce((reason, clause) => reason.replace(clause, ""), event.reason);
+}
+
+/** What a viewer who is neither maker nor owner is told of a reason under a rule that quotes grants. */
+function withheldGrantReason(event: MemoryEvent): string {
+  const which =
+    "which grants is shown only to the item's owner, and each grantee is shown its own on the item";
+  const of = event.item_id === null ? "an item" : `item ${event.item_id}`;
+  if (event.policy_id === ADOPT_NARROWED_ID)
+    return `the plane removed grants of ${of} that an adoption had reintroduced (${event.policy_id}); ${which}`;
+  if (event.op === "update")
+    return `${event.actor} ${event.decision === "allow" ? "changed" : "asked to change"} the grants of ${of} (${event.policy_id}); ${which}`;
+  return `${event.actor}'s ${event.op} of ${of} was ${event.decision === "allow" ? "allowed" : "refused"} under ${event.policy_id}, for its grants; ${which}`;
+}
+
+/** `event` as `viewer` is shown it: its item, if any, through disclosedItem, and its reason through disclosedReason. */
+export function disclosedEvent<E extends MemoryEvent | Omit<MemoryEvent, "item">>(
+  viewer: Actor,
+  event: E,
+  view: EventView,
+): E {
+  const full = event as MemoryEvent;
+  const reason = disclosedReason(viewer, full, view);
+  const item = full.item ? disclosedItem(viewer, full.item, view) : full.item;
+  if (reason === full.reason && item === full.item) return event;
+  return { ...event, reason, ...(full.item ? { item } : {}) };
 }
 
 /** Whether `viewer` may see `event` at all under `policy` (see the module comment). */
@@ -62,10 +261,22 @@ export function itemVisibleTo(viewer: Actor, item: MemoryItem, view: EventView):
   return now === undefined || evaluateRead(view.policy, viewer, now, view.at).admitted;
 }
 
+/** A write's answer (WriteResult's shape) as `viewer` is shown it: its item and its events through the rules above. */
+export function disclosedWrite<
+  W extends { item: MemoryItem | null; event: MemoryEvent; retention: readonly MemoryEvent[] },
+>(viewer: Actor, written: W, view: EventView): W {
+  return {
+    ...written,
+    item: written.item && disclosedItem(viewer, written.item, view),
+    event: disclosedEvent(viewer, written.event, view),
+    retention: written.retention.map((e) => disclosedEvent(viewer, e, view)),
+  };
+}
+
 /**
  * The events `viewer` may see, in the order given (the log's seq order), each
  * without its `item` unless the read filter would return that item to the
- * viewer now.
+ * viewer now, and each as disclosedEvent shows it (card RD1).
  */
 export function visibleEvents(
   viewer: Actor,
@@ -75,8 +286,9 @@ export function visibleEvents(
   return events
     .filter((event) => eventVisibleTo(viewer, event, view.policy))
     .map((event) => {
-      if (!event.item || itemVisibleTo(viewer, event.item, view)) return event;
+      if (!event.item || itemVisibleTo(viewer, event.item, view))
+        return disclosedEvent(viewer, event, view);
       const { item: _withheld, ...rest } = event;
-      return rest;
+      return disclosedEvent(viewer, rest, view);
     });
 }
