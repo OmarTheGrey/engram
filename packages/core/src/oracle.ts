@@ -384,7 +384,9 @@ function replayed(events: readonly MemoryEvent[]): Map<string, MemoryItem> {
  * - an actor asking to review is a reviewer: user-sourced, a member of the
  *   target, not the owner, and not the actor of any allowed write or update
  *   of the source or a version its lineage reaches (P5-1), nor of a write
- *   that confirms it (P5-16); a target whose
+ *   that confirms it (P5-16); or, the one exception (card E9.9, ADR 0049),
+ *   the owner accepting a semantic candidate in place in their own person
+ *   scope, at the person level and user-sourced, whoever wrote it; a target whose
  *   rule requires review is reached only through a reviewer;
  * - an episodic item needs at least k distinct actors among the allowed
  *   writes, in its scope, of its content (strict reading), with a user,
@@ -463,12 +465,25 @@ export function promotionPermitted(
     if (w.id !== sourceId && items.get(w.id)?.status !== "active") continue;
     if (sameStrictContent(w.content, source.content)) actors.add(e.actor);
   }
-  const reviewer =
+  // The one exception (card E9.9, ADR 0049): in a person scope, the person
+  // whose scope it is and who owns the item, at the person level and as
+  // user, accepts a semantic candidate in that scope, whoever wrote it.
+  const owner =
     actor.source === "user" &&
-    actor.id !== source.owner &&
-    !authors.has(actor.id) &&
-    !actors.has(actor.id) &&
-    actor.memberships.indexOf(target) !== -1;
+    actor.level === "person" &&
+    actor.id === source.owner &&
+    source.scope === actor.id &&
+    level(source.scope) === "person" &&
+    target === source.scope &&
+    source.class === "semantic" &&
+    source.status === "candidate";
+  const reviewer =
+    owner ||
+    (actor.source === "user" &&
+      actor.id !== source.owner &&
+      !authors.has(actor.id) &&
+      !actors.has(actor.id) &&
+      actor.memberships.indexOf(target) !== -1);
   if (review && !reviewer) return false;
   const reviewed = review && reviewer;
   const rule = policy.write.filter((r) => r.scope === level(target))[0];

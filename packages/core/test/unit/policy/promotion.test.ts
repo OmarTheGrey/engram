@@ -13,12 +13,14 @@ import {
   type Confirmation,
   evaluatePromotion,
   leastTrusted,
+  OWNER_PERSON_RULE,
   PROMOTE_DUPLICATE_ID,
   PROMOTE_EXPIRED_ID,
   PROMOTE_HIDDEN_TEXT_ID,
   PROMOTE_MEMBERSHIP_ID,
   PROMOTE_NO_EVIDENCE_ID,
   PROMOTE_NOT_CANDIDATE_ID,
+  PROMOTE_OWNER_PERSON_ID,
   PROMOTE_REVIEWER_ID,
   PROMOTE_VALIDATION_SOURCE_ID,
   PROMOTE_WIDENING_SOURCE_ID,
@@ -656,5 +658,141 @@ describe("card D3: a replay's validation record", () => {
       promoted: null,
     });
     expect(d.reason).toContain("only a user-sourced actor may present");
+  });
+});
+
+describe("card E9.9: the owner accepts a candidate in their own person scope (ADR 0049)", () => {
+  const candidate = (over: Partial<MemoryItem> = {}) =>
+    item(1, {
+      class: "semantic",
+      status: "candidate",
+      confidence: 0.4,
+      provenance: {
+        kind: "import",
+        ref: "b",
+        hash: `sha256:${"0".repeat(64)}`,
+        actor: "import:person:omar",
+      },
+      ...over,
+    } as Partial<MemoryItem>);
+
+  test("allowed in place under its own rule id, trust unchanged", () => {
+    const d = judge(POLICY, omar, candidate(), "person:omar", ev({ review: true }));
+    expect(d).toMatchObject({
+      decision: "allow",
+      check: "accepted",
+      policy_id: PROMOTE_OWNER_PERSON_ID,
+      transition: "in-place",
+    });
+    expect(d.promoted).toEqual({ ...candidate(), status: "active", version: 2 });
+    expect(d.reason).toContain(OWNER_PERSON_RULE);
+    expect(d.reason).toContain("accepted by person:omar");
+    expect(d.reason).toContain("trust unchanged (provenance import, confidence 0.4)");
+  });
+
+  test("the owner's authorship and restatements do not bar the owner", () => {
+    const d = judge(
+      POLICY,
+      omar,
+      candidate(),
+      "person:omar",
+      ev({ review: true, authors: ["person:omar"], confirmations: [conf(1, "person:omar")] }),
+    );
+    expect(d).toMatchObject({ decision: "allow", policy_id: PROMOTE_OWNER_PERSON_ID });
+  });
+
+  test.each([
+    ["model", "model"],
+    ["compaction", "compaction"],
+    ["tool", "tool"],
+    ["no source", undefined],
+  ] as const)("the owner acting with %s is refused", (_label, source) => {
+    const who: Actor = { ...omar, source };
+    const d = judge(POLICY, who, candidate(), "person:omar", ev({ review: true }));
+    expect(d).toMatchObject({
+      decision: "deny",
+      check: "reviewer",
+      policy_id: PROMOTE_REVIEWER_ID,
+    });
+    expect(d.reason).toContain(`only the owner acting as user may accept`);
+    expect(d.reason).toContain(OWNER_PERSON_RULE);
+  });
+
+  test.each([
+    ["a team-scope candidate", candidate({ scope: "team:platform" }), omar, "team:platform"],
+    // Confidence above the team floor, so only the reviewer rule can refuse it.
+    ["a widening out of the person scope", candidate({ confidence: 0.9 }), omar, "team:platform"],
+    [
+      "an episodic candidate (a class change)",
+      candidate({ class: "episodic" }),
+      omar,
+      "person:omar",
+    ],
+    [
+      "a procedural candidate (replay validation)",
+      procedural(1, { status: "candidate" }),
+      omar,
+      "person:omar",
+    ],
+    [
+      "an owner named in another person's scope",
+      candidate({ owner: "person:sara" }),
+      sara,
+      "person:omar",
+    ],
+    ["the owner at another level", candidate(), { ...omar, level: "role" as const }, "person:omar"],
+  ])("%s keeps ADR 0026's rule: the owner cannot approve", (_label, it, who, target) => {
+    const d = judge(POLICY, who, it, target, ev({ review: true }));
+    expect(d.decision).not.toBe("allow");
+    expect(d.policy_id).not.toBe(PROMOTE_OWNER_PERSON_ID);
+  });
+
+  test("an active item is not a candidate to accept", () => {
+    const d = judge(
+      POLICY,
+      omar,
+      candidate({ status: "active" }),
+      "person:omar",
+      ev({ review: true }),
+    );
+    expect(d).toMatchObject({ decision: "deny", policy_id: PROMOTE_NOT_CANDIDATE_ID });
+  });
+
+  test("a non-owner reviewer of the same candidate is judged as before", () => {
+    const d = judge(POLICY, sara, candidate(), "person:omar", ev({ review: true }));
+    expect(d).toMatchObject({
+      decision: "allow",
+      check: "reviewed",
+      policy_id: "p/promotion/review",
+    });
+  });
+
+  test("the scope's person accepting an item another named as its owner is a review, as before", () => {
+    // sara wrote a candidate into omar's scope naming herself owner: omar is
+    // neither its owner nor its author, so ADR 0026 already lets him review it.
+    const hers = candidate({ owner: "person:sara" });
+    const d = judge(
+      POLICY,
+      omar,
+      hers,
+      "person:omar",
+      ev({ review: true, authors: ["person:sara"] }),
+    );
+    expect(d).toMatchObject({
+      decision: "allow",
+      check: "reviewed",
+      policy_id: "p/promotion/review",
+    });
+  });
+
+  test("a person scope that requires review: the owner's acceptance is the review", () => {
+    const policy: Policy = {
+      ...POLICY,
+      write: POLICY.write.map((r) => (r.scope === "person" ? { ...r, requires_review: true } : r)),
+    };
+    expect(judge(policy, omar, candidate(), "person:omar", ev()).decision).toBe("ask");
+    const d = judge(policy, omar, candidate(), "person:omar", ev({ review: true }));
+    expect(d).toMatchObject({ decision: "allow", policy_id: PROMOTE_OWNER_PERSON_ID });
+    expect(d.reason).toContain("person scope requires review, which its owner gave");
   });
 });

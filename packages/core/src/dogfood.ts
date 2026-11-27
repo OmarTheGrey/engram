@@ -168,6 +168,7 @@ export const ENGRAM_RULES: readonly string[] = [
   "engram/promote/membership",
   "engram/promote/no-evidence",
   "engram/promote/not-candidate",
+  "engram/promote/owner-person",
   "engram/promote/replay-item",
   "engram/promote/replay-split",
   "engram/promote/reviewer",

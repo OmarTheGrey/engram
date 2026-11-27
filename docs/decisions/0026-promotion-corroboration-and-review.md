@@ -52,7 +52,7 @@ Amendments made in the verification of the fix pass, 2026-10-29 (review findings
 
 
 - Confirmations by distinct provenance `ref` or `session_entry_id` only: launderable by one agent across sessions (channel L-c of 2606.24322). Rejected.
-- Any member of the target scope as reviewer, owner included: self-approval; rejected on 2609.01836.
+- Any member of the target scope as reviewer, owner included: self-approval; rejected on 2609.01836. Amended by ADR 0049 (2026-11-25, card E9.9) for one place only: in a person scope its owner, user-sourced at the person level, accepts a semantic candidate of that scope in place (`engram/promote/owner-person`), its trust unchanged; every other promotion keeps decision 3.
 - A smoothed reliability score instead of k of n for procedures (MSCE): the score belongs on the item (D4, a schema change) and lands with drift detection; k of n is the admission rule until then.
 - Promotion in place for class changes: loses the episodic evidence as a separate version (A-MEM's lineage-free evolution, 2502.12110); rejected under ADR 0005.
 
