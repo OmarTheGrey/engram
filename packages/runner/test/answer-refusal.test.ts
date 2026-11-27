@@ -133,6 +133,11 @@ const MODERATION = `403: ${JSON.stringify({
   },
 })}`;
 
+// pi-ai's openai-completions adapter maps a provider's `finish_reason:
+// "content_filter"` (an output filter on this one prompt) to this message,
+// with no status (mapStopReason).
+const CONTENT_FILTER = "Provider finish_reason: content_filter";
+
 const failed = (errorMessage: string) =>
   fauxAssistantMessage([], { stopReason: "error", errorMessage });
 
@@ -158,6 +163,15 @@ describe("how a failed answer call is read (the classifier)", () => {
 
   test("OpenRouter's moderation 403, with its documented metadata, is a refusal", () => {
     expect(answerFailure(failed(MODERATION), JUDGE_RETRY)).toEqual({ kind: "refused" });
+  });
+
+  test("pi-ai's content_filter finish is a moderation refusal of this prompt (the orchestrator's decision of 2026-11-27)", () => {
+    expect(answerFailure(failed(CONTENT_FILTER), JUDGE_RETRY)).toEqual({ kind: "refused" });
+    expect(answerFailure(failed(CONTENT_FILTER), undefined)).toEqual({ kind: "refused" });
+    // Only that exact finish: another finish reason with no status still stops.
+    expect(answerFailure(failed("Provider finish_reason: weird"), JUDGE_RETRY)).toEqual({
+      kind: "stop",
+    });
   });
 
   test("the classifier reads the status with retry.ts's one parse", () => {
@@ -486,6 +500,78 @@ describe("a moderation 403 on GateMem", () => {
     expect(result.rows.map((r) => r.excluded)).toEqual(["answer refused", undefined]);
     expect(result.excluded).toEqual({ C2: { "answer refused": 1 } });
   }, 120_000);
+});
+
+describe("a content_filter finish on GateMem", () => {
+  test("excludes its session as `answer refused`, replays with zero calls, and the run goes on", async () => {
+    const config = liveOf(two);
+    const provider = fauxLive({ failures: [CONTENT_FILTER] });
+    const result = await runConfig(config, {
+      ...liveOptions(config, provider.models, {}),
+      ...noWait,
+    });
+    expect(result.rows.map((r) => r.excluded)).toEqual(["answer refused", undefined]);
+    expect(result.excluded).toEqual({ C2: { "answer refused": 1 } });
+    const replay = await runConfig(config, replayOptions(config));
+    expect(replay.calls).toEqual({ new: 0, cached: 3 });
+    expect(replay.excluded).toEqual(result.excluded);
+  }, 120_000);
+});
+
+describe("the backstop counts every kind of refusal (the orchestrator's decision of 2026-11-27)", () => {
+  const ITEMS = gatememItems(gatemem.loadDataset(b3.data)).slice(0, 6);
+  test("five distinct items refused by an overflow, a moderation 403 and a content_filter finish stop the run", async () => {
+    const config = liveOf({ ...two, items: ITEMS, conditions: ["C2"] as Condition[] });
+    const provider = fauxLive({
+      failures: [OVERFLOW, MODERATION, CONTENT_FILTER, OVERFLOW_SDK, CONTENT_FILTER, OVERFLOW],
+    });
+    const run = runConfig(config, { ...liveOptions(config, provider.models, {}), ...noWait });
+    await expect(run).rejects.toBeInstanceOf(RefusalStreak);
+    expect(provider.state.calls).toBe(5);
+  }, 180_000);
+});
+
+describe("the backstop's count is per process: a resume starts it at zero (review finding 5)", () => {
+  const ITEMS = gatememItems(gatemem.loadDataset(b3.data)).slice(0, 6);
+  test("after a streak stop, a resume replays the five recorded refusals from the cassette and does not stop again", async () => {
+    const config = liveOf({ ...two, items: ITEMS, conditions: ["C2"] as Condition[] });
+    const provider = fauxLive({ failures: Array.from({ length: 5 }, () => OVERFLOW) });
+    const dir = fresh();
+    const journal = journalFor(dir, config);
+    const stop = runConfig(config, {
+      ...liveOptions(config, provider.models, {}),
+      journal,
+      ...noWait,
+    });
+    await expect(stop).rejects.toBeInstanceOf(RefusalStreak);
+    journal.close();
+    expect(provider.state.calls).toBe(5);
+    // The fifth item's refusal was recorded before the stop (review finding 4).
+    expect(readdirSync(config.cassettes)).toHaveLength(5);
+
+    // The provider is fixed, but a resume asks none of the five again: the
+    // fifth item's refusal replays from its cassette, and the count, starting
+    // at zero, reaches one, so the run goes on to the sixth item.
+    const fixed = fauxLive();
+    const again = journalFor(dir, config, true);
+    const rest = await runConfig(config, {
+      ...liveOptions(config, fixed.models, {}),
+      journal: again,
+      ...noWait,
+    });
+    again.close();
+    expect(rest.resumed).toBe(4);
+    expect(fixed.state.calls).toBe(2);
+    const all = lines(dir, "results.jsonl").map((l) => JSON.parse(l));
+    expect(all.map((r) => r.excluded)).toEqual([
+      "answer refused",
+      "answer refused",
+      "answer refused",
+      "answer refused",
+      "answer refused",
+      undefined,
+    ]);
+  }, 180_000);
 });
 
 describe("a transient failure that outlasts the retry is unchanged (card RV1)", () => {

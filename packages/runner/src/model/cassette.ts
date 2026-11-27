@@ -311,6 +311,13 @@ export const REFUSED_ANSWER_MARK = "\u0000engram/refused-answer\u0000";
 
 /** The statuses a context overflow comes with, when pi-ai's message carries one. */
 const REFUSAL_STATUSES: readonly number[] = [400, 413];
+/**
+ * pi-ai's message for a provider's `finish_reason: "content_filter"`
+ * (openai-completions' mapStopReason): an output filter on this one prompt,
+ * a moderation refusal as OpenRouter's 403 is (the orchestrator's decision
+ * of 2026-11-27, review finding 2).
+ */
+const CONTENT_FILTER = /^Provider finish_reason: content_filter$/;
 /** Words of a key or credit problem: a message with any of them is never trusted as a refusal. */
 const ACCOUNT_WORDS =
   /credit|afford|billing|payment|quota|api[ _-]?key|unauthori[sz]ed|forbidden|permission|auth(?:entication)? credentials/i;
@@ -334,8 +341,9 @@ export type AnswerFailure =
  * 2. `transient`: the retry policy's statuses and network errors (card RV1).
  *    The session stops unrecorded, as before.
  * 3. `refused`: OpenRouter's moderation flag (a 403 with its documented
- *    metadata); or pi-ai's own context-overflow patterns match
- *    (`isContextOverflow`), the leading status, if any, is 400 or 413, and
+ *    metadata); pi-ai's content_filter finish, a moderation refusal; or
+ *    pi-ai's own context-overflow patterns match (`isContextOverflow`),
+ *    the leading status, if any, is 400 or 413, and
  *    the message names no key or credit. Recorded; the session is excluded.
  * 4. `stop`: anything else (a plain 400, an error with no status, an
  *    aborted call). The run stops, as before.
@@ -349,7 +357,7 @@ export function answerFailure(
   const status = stoppingStatus(message);
   if (status !== undefined) return { kind: "halt", status };
   if (retry && isTransient(message, retry)) return { kind: "transient" };
-  if (isModerationFlag(message)) return { kind: "refused" };
+  if (isModerationFlag(message) || CONTENT_FILTER.test(message)) return { kind: "refused" };
   const leading = httpStatus(message);
   if (
     isContextOverflow(reply) &&
