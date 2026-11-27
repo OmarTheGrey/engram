@@ -45,10 +45,17 @@ async function plan(): Promise<{ premise: string; hypothesis: string }[]> {
       migrate(db);
       for (const { seq: _seq, ...e } of state.events) appendEvent(db, e);
       for (const scope of state.scopes)
-        for (const u of planModelLints({ db, policy }, state.actor, state.at, scope, {
-          model: "none/none",
-          seed: 0,
-        }))
+        for (const u of planModelLints(
+          { db, policy },
+          state.actor,
+          state.at,
+          scope,
+          {
+            model: "none/none",
+            seed: 0,
+          },
+          { reach: "scope-registered" },
+        ))
           if (u.lint_id === "contradiction") {
             const { A, B } = JSON.parse(u.request.messages[0]?.content ?? "{}") as {
               A: unknown;

@@ -53,12 +53,82 @@ const STATUS = /^(?:HTTP )?(\d{3})\b/;
 const NETWORK =
   /^(?:connection error|request timed out)|ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|fetch failed/i;
 
+/**
+ * The HTTP status pi-ai's error message starts with, if any: the one parse
+ * the retry, the refusal and the stop read (card X20, review X20-5).
+ */
+export function httpStatus(errorMessage: string | undefined): number | undefined {
+  const status = STATUS.exec((errorMessage ?? "").trim());
+  return status ? Number(status[1]) : undefined;
+}
+
 /** Whether a failed reply's error is transient under `policy` (see the module comment). */
 export function isTransient(errorMessage: string | undefined, policy: RetryPolicy): boolean {
+  const status = httpStatus(errorMessage);
+  if (status !== undefined) return policy.statuses.includes(status);
+  return NETWORK.test((errorMessage ?? "").trim());
+}
+
+/**
+ * The statuses that stop a run at any model call it makes (card X20): a key
+ * (401), credit (402) or key-limit (403) problem, the operator's to fix (the
+ * coordinator's decision of 2026-11-21), and a pinned endpoint or model that
+ * is gone (404; with R6's `allow_fallbacks: false` it fails every call).
+ */
+export const STOP_STATUSES: readonly number[] = [401, 402, 403, 404];
+
+/** A status in an error body pi-ai folded into the message (OpenRouter's `"code": 402`). */
+const BODY_CODE = /"code"\s*:\s*"?(\d{3})(?!\d)/g;
+
+const bodyCodes = (message: string): number[] =>
+  [...message.matchAll(BODY_CODE)].map((m) => Number(m[1]));
+
+/**
+ * Whether the error is OpenRouter's moderation refusal: a 403 whose body
+ * carries its documented ModerationErrorMetadata (`reasons` and
+ * `flagged_input`). It refuses one prompt, not the key, so it does not stop
+ * the run (review X20-2); a 403 without that body does.
+ */
+export function isModerationFlag(errorMessage: string | undefined): boolean {
   const message = (errorMessage ?? "").trim();
-  const status = STATUS.exec(message);
-  if (status) return policy.statuses.includes(Number(status[1]));
-  return NETWORK.test(message);
+  const is403 = httpStatus(message) === 403 || bodyCodes(message).includes(403);
+  return is403 && /"flagged_input"\s*:/.test(message) && /"reasons"\s*:/.test(message);
+}
+
+/**
+ * The status that stops the run, if the error carries one (card X20): its
+ * leading status, or a `"code"` in its body, in STOP_STATUSES, unless it is
+ * a moderation flag. A doubt between a stop and anything else is a stop.
+ */
+export function stoppingStatus(errorMessage: string | undefined): number | undefined {
+  if (isModerationFlag(errorMessage)) return undefined;
+  const message = (errorMessage ?? "").trim();
+  const leading = httpStatus(message);
+  if (leading !== undefined && STOP_STATUSES.includes(leading)) return leading;
+  return bodyCodes(message).find((code) => STOP_STATUSES.includes(code));
+}
+
+/**
+ * A model call the provider answered with a stopping status (card X20): the
+ * run stops, the call is never recorded in a cassette and never a
+ * per-session exclusion, and the outer session retry does not retry it;
+ * RESUME=1 runs the session once the key, the credit or the endpoint is
+ * fixed.
+ */
+export class ProviderStopError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    const what =
+      status === 404
+        ? "the model or its pinned endpoint is not served"
+        : "a key or credit problem, the operator's to fix";
+    super(
+      `the provider answered a model call with HTTP ${status}, ${what}; the run stops with this session unrecorded: fix it, then rerun with RESUME=1 (${message})`,
+    );
+    this.name = "ProviderStopError";
+    this.status = status;
+  }
 }
 
 /**

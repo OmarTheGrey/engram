@@ -32,12 +32,13 @@ export const usage = (cost: number): AssistantMessage["usage"] => ({
 
 /**
  * A faux live provider on the seeded API: the first replies are `failures`
- * (pi-ai error messages), then a memory_read, then the answer once a read
- * came back; with `loop`, a memory_read every time. Each reply costs `cost`.
+ * (pi-ai error messages; an undefined one answers as usual, card X20), then
+ * a memory_read, then the answer once a read came back; with `loop`, a
+ * memory_read every time. Each reply costs `cost`.
  */
 export function fauxLive(
   options: {
-    failures?: string[];
+    failures?: (string | undefined)[];
     cost?: number;
     loop?: boolean;
     answer?: string;

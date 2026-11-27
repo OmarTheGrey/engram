@@ -236,7 +236,7 @@ Added on 2026-11-25 (`docs/tasks/absorb-plan-2.md`, section 9, "Gate work cards 
 
 | Week | Dates | Research lane | Product lane |
 |---|---|---|---|
-| W8 | 23 to 29 Nov | R5 audit configs drop (by 28 Nov), R6 OpenRouter endpoints (by 29 Nov), X21 capped utility count, then X20 refused answer call (both by 30 Nov, the day after W8 ends; the week does not move) | |
+| W8 | 23 to 29 Nov | R5 audit configs drop (by 28 Nov), R6 OpenRouter endpoints (by 29 Nov), X21 capped utility count, then X20 refused answer call (both by 30 Nov, the day after W8 ends; the week does not move); H5P H5's prerequisites drafted for the lead (by 30 Nov) | |
 | W10 | 7 to 13 Dec | X22 programme-wide spend cap (after `MERGE=4`, before any later live run) | |
 | W11 | 14 to 20 Dec | X23 request-identity check, L10 contradiction prompt | |
 | W13 | 28 Dec to 3 Jan | | E9.17 Knowledge dogfood kit; the members run it in W14 and W15 beside the twin dogfood |
@@ -383,6 +383,7 @@ Twenty-six cards added by `docs/tasks/absorb-plan.md`, which also rewrote cards 
 | L5    | Near-duplicate lint: MinHash candidates and an IDF-veto precision tier; byte-identical when unset                                                      | L1, L4          | packages/core/src/lint/det.ts                      | `make test`; hashes unchanged             |
 | L6    | Supersession helper: proposes end dates and review flags; a cycle-safe head resolver; never retires by itself                                          | none            | packages/core/src/supersede.ts                     | property test                             |
 | L7    | Local NLI tier for the contradiction lint: injected scorer, cached scores, only the uncertain band reaches the model                                   | R2, L3          | packages/core/src/lint/, packages/model/src/nli.ts | replayed run, zero new scores             |
+| L8    | Lint reads through the read filter: findings name or describe only what `evaluateRead` admits; the registered H3 call sites keep their reach          | L1, L3, L6      | packages/core/src/plane/lint.ts, packages/core/src/lint/ | packages/core/test/unit/plane/lint-read-filter.test.ts, packages/core/test/property/lint-read-filter.test.ts, make test-invariants |
 | B10   | Cassette proxy in @engram/model: outside harnesses reach models only through the cached, seeded call (ADR 0036)                                        | none            | packages/model/src/proxy.ts                        | a miss is an error; second run zero calls |
 | B11   | tau2-bench through the plane and the proxy, as an external process at its pin                                                                          | B10             | packages/bench/src/tau2/                           | slice replayed with zero new calls        |
 | X14   | Red-team harness: AMSB scenarios and pinned payload sets against write and read, with benign controls                                                  | R2, E2.9, E2.10 | packages/bench/src/redteam/                        | `make redteam` offline                    |
@@ -393,6 +394,7 @@ Twenty-six cards added by `docs/tasks/absorb-plan.md`, which also rewrote cards 
 | E8.14 | Framework kit (by-id read, scope list) and a Vercel AI SDK middleware                                                                                  | none            | packages/kit/, packages/ai-sdk/                    | `make api-check`; adapter conformance     |
 | E8.15 | The engram terminal interface (`engram tui`): every command and flag reachable, each action its plain command's client call; design and ADR 0044 first | E9.8, E2.13, E8.12, E8.14 | packages/cli/src/tui/, packages/cli/src/registry.ts | `make test-one T=packages/cli/test/tui/parity.test.ts` |
 | E9.8  | Memory import and export: a portable bundle; imports are governed candidate writes                                                                     | none            | packages/cli/src/import/                           | round-trip test                           |
+| E9.9  | An owner accepts a candidate in their own person scope, as user, its trust unchanged; ADR 0049 amends ADR 0026                                         | E2.5, E2.10, E9.8 | packages/core/src/policy/promotion.ts            | `make test-one T=packages/core/test/unit/plane/owner-accepts.test.ts` |
 
 ### The second absorb plan, 2026-11-25
 
@@ -431,7 +433,7 @@ Twenty-eight cards added by `docs/tasks/absorb-plan-2.md`, which also rewrote ca
 
 ### Gate work cards, 2026-11-25
 
-Eight cards for the gate work no card owned (`docs/tasks/absorb-plan-2.md`, section 9). H5's prerequisites (lead-decisions item 30) are drafted apart.
+Eight cards for the gate work no card owned (`docs/tasks/absorb-plan-2.md`, section 9), and card H5P, the last row: H5's prerequisites (lead-decisions item 30), drafted apart as a proposed amendment, registered only by the lead.
 
 | Card  | Goal | Depends | Files | Acceptance |
 |-------|------|---------|-------|------------|
@@ -443,6 +445,7 @@ Eight cards for the gate work no card owned (`docs/tasks/absorb-plan-2.md`, sect
 | X23   | The request-identity check on files, Mem0 and Letta, a rule-9 result (ADR 0035) | H1's `MERGE=4` | research/scripts/h4_request_identity.py | `make test-one T=packages/runner/test/request-identity.test.ts`; `make test-repro` row |
 | L10   | The contradiction prompt counts a later update of the same attribute (item 44) | R6, H1's `MERGE=4` | packages/core/src/lint/model.ts | `make test-one T=packages/core/test/unit/lint/model.test.ts`; `make test-repro` |
 | E9.17 | The Knowledge profile's dogfood beside the twin dogfood (item 28) | E9.5 | docs/dogfood.md | `make test-one T=packages/core/test/unit/dogfood-knowledge.test.ts` |
+| H5P   | H5's prerequisites drafted as a proposed amendment for the lead, nothing registered (item 30) | none | docs/research/preregistration.md, proposed section only | `make lint-docs`; `uv run pytest research/tests/test_prereg.py` |
 
 ### Card prompt template
 

@@ -20,6 +20,8 @@
 //   engram/promote/duplicate                     an active item of the target class already holds the content there
 //   engram/promote/no-evidence                   too few confirmations, no reviewer, or no validation record
 //   engram/promote/reviewer                      the actor asked to approve but is not a reviewer
+//   engram/promote/owner-person                  the owner accepts a candidate in their own person
+//                                                scope, as user (card E9.9, ADR 0049)
 //   engram/promote/validation-source             a replay validation record presented by an actor that
 //                                                is not user-sourced (card D3)
 //   engram/promote/replay-item                   a replay run for another item, or other content (D3-3)
@@ -81,6 +83,9 @@ export function hiddenCharacters(content: unknown): number {
 export const PROMOTE_NOT_CANDIDATE_ID = "engram/promote/not-candidate";
 export const PROMOTE_NO_EVIDENCE_ID = "engram/promote/no-evidence";
 export const PROMOTE_REVIEWER_ID = "engram/promote/reviewer";
+export const PROMOTE_OWNER_PERSON_ID = "engram/promote/owner-person";
+/** The rule an owner's acceptance is decided by, as its reasons name it (ADR 0049). */
+export const OWNER_PERSON_RULE = "owner accepts in own person scope";
 export const PROMOTE_VALIDATION_SOURCE_ID = "engram/promote/validation-source";
 export const PROMOTE_REPLAY_ITEM_ID = "engram/promote/replay-item";
 export const PROMOTE_REPLAY_SPLIT_ID = "engram/promote/replay-split";
@@ -216,6 +221,7 @@ export type PromotionCheck =
   | "review-needed"
   | "confirmed"
   | "reviewed"
+  | "accepted"
   | "validated";
 
 export interface PromotionDecision {
@@ -295,6 +301,28 @@ export function reviewerProblem(
 }
 
 /**
+ * Is this the one place an owner may approve their own item (card E9.9, ADR
+ * 0049, amending ADR 0026)? A semantic candidate in a person scope, accepted
+ * in place, in that same scope, by the actor whose id the scope is and who
+ * owns the item, at the person level. The actor's source is judged apart:
+ * only a user-sourced owner accepts, never the owner's agent. Shared scopes,
+ * promotions out of the person scope, episodic items (a class change, which
+ * stays corroboration or an independent review) and procedural candidates
+ * (replay validation) keep ADR 0026's rule.
+ */
+export function ownCandidate(actor: Actor, item: MemoryItem, target: string): boolean {
+  return (
+    item.status === "candidate" &&
+    item.class === "semantic" &&
+    target === item.scope &&
+    scopeLevel(item.scope) === "person" &&
+    item.scope === actor.id &&
+    item.owner === actor.id &&
+    actor.level === "person"
+  );
+}
+
+/**
  * Does a validation record meet the policy: at least replay_k passes, at
  * least replay_n runs, and a pass rate at least replay_k / replay_n (so 4
  * passes in 100 runs does not meet 4 of 5).
@@ -356,7 +384,11 @@ export function canReach(policy: Policy, actor: Actor, item: MemoryItem, at: str
  * 6. An actor asking to review must be a reviewer: not the owner, not an
  *    author of any version, not a confirmer (P5-16), user-sourced, a member
  *    of the target
- *    (`engram/promote/reviewer`).
+ *    (`engram/promote/reviewer`). The one exception (card E9.9, ADR 0049):
+ *    the owner of a semantic candidate in their own person scope, asking
+ *    in that scope at the person level, accepts it when user-sourced
+ *    (`engram/promote/owner-person`), in place, its trust unchanged; any
+ *    other source is refused under `engram/promote/reviewer`.
  * 7. Evidence: an episodic item needs k confirmations or, when `or_review`
  *    holds, a reviewer; a procedural candidate needs a validation record
  *    meeting replay_k of replay_n, which a review cannot replace and only a
@@ -503,7 +535,29 @@ export function evaluatePromotion(
   const screened = write.policy_id === INJECTION_SCREEN_ID;
   const guardHeld = [SECRET_ID, PII_ID, GUARD_FAILURE_ID].includes(write.policy_id);
 
-  if (evidence.review) {
+  // The owner's acceptance in their own person scope (card E9.9, ADR 0049):
+  // the owner stands where a reviewer would, so authorship and confirmation
+  // do not bar them; only a user-sourced owner accepts.
+  const accepting = evidence.review && ownCandidate(actor, item, target);
+  if (accepting && actor.source !== "user")
+    return deny(
+      "reviewer",
+      `${actor.id} acts with source ${actor.source ?? "none"}; only the owner acting as user may accept a candidate in their own person scope (${OWNER_PERSON_RULE})`,
+      PROMOTE_REVIEWER_ID,
+    );
+  // A content guard's hold on an item that carries live grants would reach
+  // other people once released, so it keeps ADR 0026's independent reviewer
+  // (review E99-2, ADR 0049 decision 5). The screen's holds carry no grants.
+  const live = item.grants.filter(
+    (g) => g.expires === undefined || compareTimestamps(g.expires, at) > 0,
+  ).length;
+  if (accepting && guardHeld && live > 0)
+    return deny(
+      "reviewer",
+      `item ${item.id} carries ${live} live grant${live === 1 ? "" : "s"} and the content guard held it (${write.policy_id}); releasing it to others needs a reviewer who does not own it, a user-sourced member of ${target} (${OWNER_PERSON_RULE} stops at grants)`,
+      PROMOTE_REVIEWER_ID,
+    );
+  if (evidence.review && !accepting) {
     const problem = reviewerProblem(actor, item, target, evidence.authors, counted.confirmers);
     if (problem) return deny("reviewer", problem, PROMOTE_REVIEWER_ID);
   }
@@ -561,6 +615,28 @@ export function evaluatePromotion(
     return deny("no-evidence", `not promoted: ${missing}`, PROMOTE_NO_EVIDENCE_ID);
   }
   if (targetReview && !evidence.review) return askReview(`evidence met (${met})`);
+
+  // An owner's acceptance is in place, so the item keeps the provenance and
+  // confidence the plane holds for it: acceptance never raises trust (ADR
+  // 0049). A hold the gate put on it is named, the screen's by its reason.
+  if (accepting) {
+    const hold = !targetReview
+      ? write.reason
+      : screened
+        ? `the injection screen held it (${write.reason.replace(/; held as a candidate until a reviewer promotes it$/, "")}), and its owner accepted it`
+        : guardHeld
+          ? `the content guard held it (${write.policy_id}), and its owner accepted it`
+          : `${scopeLevel(target)} scope requires review, which its owner gave`;
+    return {
+      ...base,
+      decision: "allow",
+      check: "accepted",
+      reason: `item ${item.id} becomes active in ${target}: ${OWNER_PERSON_RULE}; accepted by ${actor.id}, acting as user; trust unchanged (provenance ${item.provenance.kind}, confidence ${item.confidence}); ${hold}`,
+      policy_id: PROMOTE_OWNER_PERSON_ID,
+      transition,
+      promoted,
+    };
+  }
 
   const what =
     transition === "in-place"

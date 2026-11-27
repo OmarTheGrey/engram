@@ -470,6 +470,55 @@ describe("review fix pass of PR #61", () => {
     expect(p.event.reason).not.toContain("is not carried");
   });
 
+  // Item 35 (ADR 0034, decision 6, accepted 2026-11-25; card E2.21): the owner's
+  // class-changing promotion keeps the grant, which then admits nothing, since
+  // a grant admits reads of its own class only. Through the real Plane.promote
+  // and the grantee's own Plane.read, not only through the oracle.
+  test("item 35: after the owner's class-changing promotion, the kept grant admits the grantee nothing", async () => {
+    const env = fresh(twin());
+    const episodic = { ...toSam, class: "episodic" as const };
+    const content = "Deploys run on Tuesdays.";
+    const own = item(40, {
+      class: "episodic",
+      scope: "person:dana",
+      owner: dana.id,
+      content,
+      grants: [episodic],
+    } as Partial<MemoryItem>);
+    expect((await env.plane.write(dana, own, AT)).event.decision).toBe("allow");
+    for (const [n, who] of [
+      [41, "person:a"],
+      [42, "person:b"],
+      [43, "person:c"],
+    ] as const) {
+      const writer: Actor = {
+        id: who,
+        level: "person",
+        memberships: ["person:dana"],
+        source: "user",
+      };
+      const confirming = item(n, {
+        class: "episodic",
+        scope: "person:dana",
+        owner: who,
+        content,
+      } as Partial<MemoryItem>);
+      expect((await env.plane.write(writer, confirming, AT)).event.decision).toBe("allow");
+    }
+    // Before: the episodic grant admits Sam to the episodic item, so the
+    // check below is not vacuous.
+    const before = await env.plane.read(sam, { at: AT });
+    expect(before.items.map((i) => i.id)).toEqual([id(40)]);
+    const p = await env.plane.promote(dana, id(40), "person:dana", LATER);
+    expect(p.event.decision).toBe("allow");
+    const promoted = p.item as MemoryItem;
+    expect(promoted).toMatchObject({ class: "semantic", owner: dana.id, grants: [episodic] });
+    // After: the grant is still on the new version, and admits nothing.
+    const after = await env.plane.read(sam, { at: LATER });
+    expect(after.items.map((i) => i.id)).not.toContain(promoted.id);
+    expect(after.items).toEqual([]);
+  });
+
   test("RV7-R4: a co-holder's status-only rewrite through Plane.write is no promotion", async () => {
     const env = await seeded();
     // No harness source: the provenance stays as claimed, so only status and version differ.
