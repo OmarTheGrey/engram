@@ -285,7 +285,11 @@ describe("reasons that quote a grantee: whole only to the maker and the owner (R
   test("a co-holder's refused rewrite of a granted item keeps its reason for kim, a member", async () => {
     const env = await seeded();
     const stored = currentItems(env.db).find((i) => i.id === GRANTED) as MemoryItem;
-    const rewrite = { ...stored, content: "lee's words", version: stored.version + 1 };
+    const rewrite = {
+      ...stored,
+      content: "lee's words",
+      version: stored.version + 1,
+    } as MemoryItem;
     const { event } = await env.plane.write(lee, rewrite, LATER);
     expect(event).toMatchObject({ decision: "deny", policy_id: "engram/grant/owner" });
     expect(event.reason).not.toContain(sam.id);
