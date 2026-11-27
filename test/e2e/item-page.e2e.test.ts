@@ -362,9 +362,11 @@ describe.skipIf(skip !== undefined)("an item's page on the provenance fixture", 
     await open(TEAM);
     await settledGraph(2 + decisions.length);
     expect(await graphItems()).toEqual([TEAM, CHECKLIST].sort());
-    expect((await edges()).filter((e) => e.startsWith("lineage:"))).toEqual([
-      `lineage:${TEAM}>${CHECKLIST}`,
-    ]);
+    // React Flow draws the edges after it has measured the nodes, so they are
+    // polled for, as on the checklist's page above (RD1: a race, not a leak).
+    await expect
+      .poll(async () => (await edges()).filter((e) => e.startsWith("lineage:")))
+      .toEqual([`lineage:${TEAM}>${CHECKLIST}`]);
     expect(await attr('[data-testid="version-after"] option', "value")).toEqual(
       [writeOf(TEAM, 1).id, writeOf(TEAM, 2).id].sort(),
     );
