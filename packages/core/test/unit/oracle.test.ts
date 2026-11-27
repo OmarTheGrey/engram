@@ -363,6 +363,82 @@ describe("promotionPermitted", () => {
     } as MemoryItem);
     expect(promotionPermitted(p, sara, "e", "person:a", [skill], true, AT)).toBe(false);
   });
+
+  test("card E9.9: the owner, as user, accepts a semantic candidate in their own person scope (ADR 0049)", () => {
+    const candidate = { ...ep, class: "semantic", status: "candidate" } as MemoryItem;
+    // Written by the import actor, or by the owner's own agent: no bar either way.
+    for (const by of ["import:person:a", "person:a"]) {
+      const events = [wrote(by, candidate)];
+      expect(ok(promoter, events, true, "person:a")).toBe(true);
+      // Only when asked for, as a review is.
+      expect(ok(promoter, events, false, "person:a")).toBe(false);
+      // Never through the owner's agent or another source.
+      for (const source of ["model", "tool", "compaction", undefined] as const)
+        expect(ok({ ...promoter, source }, events, true, "person:a")).toBe(false);
+      // Never at another level, out of the person scope, or for another class.
+      expect(ok({ ...promoter, level: "role" }, events, true, "person:a")).toBe(false);
+      expect(ok(promoter, events, true, "team:b")).toBe(false);
+      for (const cls of ["episodic", "procedural"])
+        expect(
+          ok(promoter, [wrote(by, { ...candidate, class: cls } as MemoryItem)], true, "person:a"),
+        ).toBe(false);
+    }
+    // An active item is no candidate, and a team scope's candidate is not the owner's to accept.
+    expect(
+      ok(
+        promoter,
+        [wrote("person:a", { ...candidate, status: "active" } as MemoryItem)],
+        true,
+        "person:a",
+      ),
+    ).toBe(false);
+    const team = { ...candidate, scope: "team:b" } as MemoryItem;
+    expect(ok(promoter, [wrote("import:person:a", team)], true, "team:b")).toBe(false);
+    // Someone else named as owner in person:a's scope: person:a reviews it as before.
+    const hers = { ...candidate, owner: "person:s" } as MemoryItem;
+    expect(ok(promoter, [wrote("person:s", hers)], true, "person:a")).toBe(true);
+    expect(ok({ ...promoter, id: "person:s" }, [wrote("person:s", hers)], true, "person:a")).toBe(
+      false,
+    );
+    // Review E99-1: person:a wrote it, naming person:s as owner, so is its
+    // author and not its owner: neither an acceptance nor a review.
+    expect(ok(promoter, [wrote("person:a", hers)], true, "person:a")).toBe(false);
+    // Review E99-1: a role context the read matrix lets read person scope is
+    // still no person-level owner (the matrix, not the level, refused it above).
+    const roleReads = {
+      ...p,
+      read: {
+        matrix: [
+          { reader: "person", may_read: ["person", "team"] },
+          { reader: "role", may_read: ["person", "team"] },
+        ],
+        honour_grants: true,
+      },
+    } as unknown as Policy;
+    const asRole = { ...promoter, level: "role" as const };
+    expect(
+      promotionPermitted(
+        roleReads,
+        asRole,
+        "e",
+        "person:a",
+        [wrote("person:a", candidate)],
+        true,
+        AT,
+      ),
+    ).toBe(false);
+    expect(
+      promotionPermitted(
+        roleReads,
+        promoter,
+        "e",
+        "person:a",
+        [wrote("person:a", candidate)],
+        true,
+        AT,
+      ),
+    ).toBe(true);
+  });
 });
 
 // Card D3 review, D3-17: the oracle's replay reading, one case per refusal,

@@ -91,10 +91,17 @@ async function main(): Promise<number> {
       migrate(db);
       for (const { seq: _seq, ...e } of state.events) appendEvent(db, e);
       for (const scope of state.scopes)
-        for (const u of planModelLints({ db, policy }, state.actor, state.at, scope, {
-          model: config.model,
-          seed: 0,
-        }))
+        for (const u of planModelLints(
+          { db, policy },
+          state.actor,
+          state.at,
+          scope,
+          {
+            model: config.model,
+            seed: 0,
+          },
+          { reach: "scope-registered" },
+        ))
           units.push({
             question: state.question_id,
             unit: u.unit,

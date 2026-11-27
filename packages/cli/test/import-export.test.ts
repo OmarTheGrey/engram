@@ -195,16 +195,34 @@ describe("the round trip: export, import into an empty workspace, promote, expor
     // An import mints new ids.
     for (const [from, to] of Object.entries(map)) expect(to).not.toBe(from);
 
-    // A reviewer promotes each semantic candidate in place (ADR 0026): sam,
-    // who neither owns the rows (dana does) nor wrote them (the import actor did).
+    // Each semantic candidate is promoted in place. In her own person scope
+    // dana accepts it as its owner (card E9.9, ADR 0049). In the team a
+    // reviewer does (ADR 0026): sam, who neither owns the row (dana does) nor
+    // wrote it (the import actor did); dana is refused there.
     const candidates = before.filter(
       (r) => r.item.class === "semantic" && r.item.status === "active",
     );
-    expect(candidates.length).toBe(4);
+    expect(candidates.map((r) => r.item.scope).sort()).toEqual([
+      "person:dana",
+      "person:dana",
+      "person:dana",
+      "team:platform",
+    ]);
     for (const r of candidates) {
       const to = map[r.item.id] as string;
-      const p = await cli(["promote", to, "--to", r.item.scope, "--review", ...b.store, ...SAM]);
-      expect(p.out).toContain("allow");
+      const own = r.item.scope === "person:dana";
+      const promote = (who: string[]) =>
+        cli(["promote", to, "--to", r.item.scope, "--review", ...b.store, ...who]);
+      if (!own) {
+        const refused = await promote(DANA);
+        expect(refused.code).toBe(1);
+        expect(refused.out).toContain("policy engram/promote/reviewer");
+        expect(refused.out).toContain("cannot approve its own item");
+      }
+      const p = await promote(own ? DANA : SAM);
+      expect(p.out).toContain(
+        own ? "policy engram/promote/owner-person" : "policy preset.medium/promotion/review",
+      );
       expect(p.code).toBe(0);
     }
 
@@ -300,18 +318,37 @@ describe("engram import: the import actor", () => {
     expect(write?.reason).toContain("provenance set by the plane: source import");
   });
 
-  it("leaves a candidate the owner cannot approve: only a reviewer promotes it", async () => {
+  it("leaves a candidate its owner accepts alone in her own person scope (card E9.9, ADR 0049)", async () => {
     const file = await claiming();
     const b = await workspace();
     const r = JSON.parse((await cli(["import", file, ...b.store, ...DANA, "--json"])).out);
     const id = Object.values(r.id_map)[0] as string;
     const read = await cli(["read", "changelog", ...b.store, ...DANA]);
     expect(read.out).toContain("0 items returned");
-    const own = await cli(["promote", id, "--to", "person:dana", "--review", ...b.store, ...DANA]);
-    expect(own.code).toBe(1);
-    expect(own.out).toContain("cannot approve its own item");
-    const done = await cli(["promote", id, "--to", "person:dana", "--review", ...b.store, ...SAM]);
-    expect(done.code).toBe(0);
+    // Without --review the owner's promotion is no evidence, as before.
+    const bare = await cli(["promote", id, "--to", "person:dana", ...b.store, ...DANA]);
+    expect(bare.code).toBe(1);
+    expect(bare.out).toContain("policy engram/promote/no-evidence");
+    const own = await cli([
+      ...["promote", id, "--to", "person:dana", "--review", ...b.store, ...DANA, "--json"],
+    ]);
+    expect(own.code).toBe(0);
+    const { event, item } = JSON.parse(own.out);
+    expect(event).toMatchObject({
+      op: "promote",
+      decision: "allow",
+      actor: "person:dana",
+      policy_id: "engram/promote/owner-person",
+    });
+    expect(event.reason).toContain("owner accepts in own person scope");
+    // Trust is not raised: the row claimed user and stays import.
+    expect(item).toMatchObject({
+      status: "active",
+      version: 2,
+      provenance: { kind: "import", actor: "import:person:dana" },
+    });
+    const after = await cli(["read", "changelog", ...b.store, ...DANA]);
+    expect(after.out).toContain("1 item returned");
   });
 
   it("lets the gate decide: a scope whose rule refuses import denies the row, exit 1", async () => {

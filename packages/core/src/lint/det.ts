@@ -22,7 +22,22 @@
 //                         (lint/near-duplicate.ts, card L5, ADR 0018); only when a policy lists this id
 //
 // An item the linting actor cannot reach counts as absent, so a finding says
-// nothing about what the actor could not read (decision D5). A finding is
+// nothing about what the actor could not read (decision D5). Reach is the read
+// filter (card L8): Plane.read's evaluateRead at the lint time, so a
+// candidate, a retired item, one past its ttl or outside its validity window
+// reads as absent, as an item out of scope does, and no lint takes one as
+// its subject. The one exception is expired-validity, whose finding is the
+// very reason the filter refuses an item of the linted scope: it looks at
+// every active item of that scope whose validity has begun, and names only
+// its own valid_to or ttl. Two more cases are no orphan, though the filter
+// refuses the item named, and only for an item of the linted scope, whose
+// events its members see anyway (review of L8, L8-3 and L8-4): an item
+// refused only on time, not yet valid or past its validity or ttl
+// (LintContext.dated), which is not gone, and a lineage id naming an item
+// retired by its own supersession. Neither is ever named or described: a
+// dated source raises no source-changed, so its hash is never shown. Outside
+// the linted scope both read as absent, so a grant into another scope tells
+// nothing of how its item was retired. A finding is
 // recorded as a lint event every member of the linted scope may see
 // (visible.ts), so it says nothing either about an item outside that scope
 // beyond what the linted item records itself (its provenance ref, hash and
@@ -72,10 +87,21 @@ export interface LintContext {
   /** For each retired item, the op and policy id of the allowed event that retired it last. */
   retiredBy: ReadonlyMap<string, { op: string; policy_id: string }>;
   /**
-   * Whether the linting actor could read an item at `at` by scope or a live
-   * grant (readableAt); one it cannot counts as absent.
+   * Whether a finding may name or describe an item, or a lint take it as its
+   * subject; one it may not counts as absent. Plane.lint's default reach is
+   * the read filter (evaluateRead admits it for the actor at `at`, card L8);
+   * the registered reach is readableAt (scope or a live grant, whatever the
+   * item's status or validity), which the registered H3 runs pass.
    */
   canReach: (item: MemoryItem) => boolean;
+  /**
+   * Whether an item is active, readable by the actor by scope or a live
+   * grant, and refused by the read filter only on time: before its
+   * valid_from, at or after its valid_to, or past its ttl. Used only so that
+   * orphan does not call such an item of the linted scope gone; no finding
+   * names or describes an item through it.
+   */
+  dated: (item: MemoryItem) => boolean;
 }
 
 const finding = (
@@ -180,10 +206,16 @@ export function orphan(item: MemoryItem, ctx: LintContext): DetFinding | null {
   const superseded = promotionRuleId(ctx.policy, "superseded");
   const gone = (id: string, lineage: boolean): string | null => {
     const target = ctx.items.get(id);
-    if (target === undefined || !ctx.canReach(target)) return UNREACHED;
-    if (target.status !== "retired") return null;
+    if (target === undefined) return UNREACHED;
     const by = ctx.retiredBy.get(id);
-    if (lineage && by?.op === "retire" && by.policy_id === superseded) return null;
+    const supersededHere =
+      lineage && target.status === "retired" && by?.op === "retire" && by.policy_id === superseded;
+    if (!ctx.canReach(target))
+      return target.scope === item.scope && (supersededHere || ctx.dated(target))
+        ? null
+        : UNREACHED;
+    if (target.status !== "retired") return null;
+    if (supersededHere) return null;
     // Outside the linted scope its status and retiring rule are not the
     // scope's to show: it reads as an absent item does.
     if (target.scope !== item.scope) return UNREACHED;
@@ -300,17 +332,23 @@ export function isDeterministicLint(id: string): id is DeterministicLintId {
 
 /**
  * Runs the deterministic lints `enabled` names over the active items of
- * `scope`, in the order of DETERMINISTIC_LINT_IDS, then by item id. Ids of
- * other tiers in `enabled` are ignored here.
+ * `scope` the actor can reach (LintContext.canReach), in the order of
+ * DETERMINISTIC_LINT_IDS, then by item id; expired-validity over every active
+ * item of `scope` whose validity has begun or that the actor can reach (see
+ * the module comment). Ids of other tiers in `enabled` are ignored here.
  */
 export function lintScope(
   ctx: LintContext,
   scope: string,
   enabled: readonly string[],
 ): DetFinding[] {
-  const active = [...ctx.items.values()]
+  const inScope = [...ctx.items.values()]
     .filter((i) => i.scope === scope && i.status === "active")
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const active = inScope.filter((i) => ctx.canReach(i));
+  const begun = inScope.filter(
+    (i) => ctx.canReach(i) || compareTimestamps(i.valid_from, ctx.at) <= 0,
+  );
   const out: DetFinding[] = [];
   for (const lintId of DETERMINISTIC_LINT_IDS) {
     if (!enabled.includes(lintId)) continue;
@@ -322,7 +360,7 @@ export function lintScope(
       out.push(...nearDuplicates(active, nearDuplicateThreshold(ctx.policy)));
       continue;
     }
-    for (const item of active) {
+    for (const item of lintId === "expired-validity" ? begun : active) {
       const f = PER_ITEM[lintId](item, ctx);
       if (f) out.push(f);
     }

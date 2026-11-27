@@ -554,6 +554,7 @@ describe("the near-duplicate-tier lint", () => {
     items: new Map(items.map((i) => [i.id, i])),
     retiredBy: new Map(),
     canReach: () => true,
+    dated: () => false,
   });
   const PAIR = [
     item(1, { content: "The release freeze starts on Friday." }),

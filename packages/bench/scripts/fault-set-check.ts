@@ -83,10 +83,17 @@ function open(state: FaultState, policy: Policy) {
 function unitsOf(db: ReturnType<typeof openSqlite>, state: FaultState, policy: Policy): ModelUnits {
   const out: ModelUnits = { pairs: new Set(), claims: new Set() };
   for (const scope of state.scopes)
-    for (const u of planModelLints({ db, policy }, state.actor, state.at, scope, {
-      model: "none/none",
-      seed: 0,
-    })) {
+    for (const u of planModelLints(
+      { db, policy },
+      state.actor,
+      state.at,
+      scope,
+      {
+        model: "none/none",
+        seed: 0,
+      },
+      { reach: "scope-registered" },
+    )) {
       if (u.lint_id === "contradiction") out.pairs.add(u.unit.slice("contradiction:".length));
       else out.claims.add(u.item_id);
     }
@@ -112,7 +119,9 @@ export async function inspectState(state: FaultState, policy: Policy): Promise<S
     const unitsUnderMedium = unitsOf(db, state, mediumWithEveryLint());
     const findings: LintFinding[] = [];
     for (const scope of state.scopes)
-      findings.push(...(await plane.lint(state.actor, state.at, scope)).findings);
+      findings.push(
+        ...(await plane.lint(state.actor, state.at, scope, { reach: "scope-registered" })).findings,
+      );
     return { question_id: state.question_id, findings, items, units, unitsUnderMedium };
   } finally {
     db.close();
