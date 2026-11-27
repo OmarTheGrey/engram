@@ -15,7 +15,7 @@ Steps:
 3. Apply it on every core path that returns an item or names its grants to an actor: `Plane.read` and `Plane.readById` (items, and each explanation's `grants_used` renumbered to the grants shown, which `explain` returns as stored), `visibleEvents` (each shown item, and a grant change's reason), `Plane.promote`, the bundle export, and the supersede route's submitted closes and writes. Retention events carry no item state, so `Plane.retain` and a write's retention events need nothing.
 4. Prove no registered byte moves: the MANIFEST rows the change can reach, the fixtures' tests, `make test-invariants`.
 
-Files: packages/core/src/visible.ts, packages/core/src/plane/read.ts, packages/core/src/plane/promote.ts, packages/core/src/plane/export.ts, packages/core/src/plane/who-can-read.ts (comment), packages/core/test/, packages/server/src/routes.ts, packages/server/test/, packages/cli/test/, packages/mcp/test/, packages/ui/src/view.ts (comment), docs/decisions/0034-grant-change-is-the-owners-governed-write.md (an amendment), docs/architecture.md, docs/tasks/RD1.md, docs/tasks/backlog.md, docs/log/
+Files: packages/core/src/visible.ts, packages/core/src/plane/read.ts, packages/core/src/plane/promote.ts, packages/core/src/plane/export.ts, packages/core/src/plane/who-can-read.ts (comment), packages/core/test/, packages/server/src/routes.ts, packages/server/test/, packages/cli/test/, packages/mcp/test/, packages/view/src/view.ts (shownGrants; main moved packages/ui/src/view.ts there, card E8.15c), docs/decisions/0034-grant-change-is-the-owners-governed-write.md (an amendment), docs/architecture.md, docs/tasks/RD1.md, docs/tasks/backlog.md, docs/log/
 
 Depends on: E2.13, E8.14, E9.4, RV7 (all merged)
 
