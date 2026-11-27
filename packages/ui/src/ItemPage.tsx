@@ -2,31 +2,34 @@
 // diff between two versions with the event that made the later one, and the
 // events naming the item in the event table. Everything is built from what
 // the workspace page already fetched for the viewer (its read and its
-// events, data.ts), by the pure functions of provenance.ts; nothing is asked
-// of the server here. The leak rule is provenance.ts's: an ancestor the
+// events, data.ts), by the pure functions of @engram/view (provenance.ts); nothing is asked
+// of the server here. The leak rule is @engram/view's: an ancestor the
 // viewer may not see leaves no node, no edge and no count. App.tsx loads
 // this module lazily, so xyflow and dagre are fetched only on this page.
 //
 // Who can read this memory (card E2.13) is the one panel that asks the
 // server: the plane's answer for the viewer (WhoCanRead.tsx), shown for any
 // id, so an item the viewer may not see gets the refusal an unknown id gets.
+
+import {
+  type GraphNode,
+  type ItemNode,
+  itemEvents,
+  itemHref,
+  itemVersions,
+  NO_FILTER,
+  provenanceGraph,
+  type TimelineFilter,
+  type Version,
+  versionText,
+} from "@engram/view";
 import { useMemo, useState } from "react";
 import type { MemoryEvent } from "./api/index.ts";
 import type { Inspection } from "./data.ts";
 import { EventTable } from "./EventTable.tsx";
 import { nodeLabel, ProvenanceGraphView } from "./ProvenanceGraph.tsx";
 import { EventDetail, Pair } from "./parts.tsx";
-import {
-  type GraphNode,
-  type ItemNode,
-  itemEvents,
-  itemVersions,
-  provenanceGraph,
-  type Version,
-  versionText,
-} from "./provenance.ts";
 import { TextDiff } from "./TextDiff.tsx";
-import { itemHref, NO_FILTER, type TimelineFilter } from "./view.ts";
 import { type Ask, WhoCanRead } from "./WhoCanRead.tsx";
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;

@@ -52,11 +52,28 @@ export const OpenRouterRouting = z
   );
 export type OpenRouterRouting = z.infer<typeof OpenRouterRouting>;
 
-/** A config's `openrouter_provider`: the routing of the answer model and of the judge. */
-export const OpenRouterProvider = z.strictObject({
-  answer: OpenRouterRouting.optional(),
-  judge: OpenRouterRouting.optional(),
-});
+/**
+ * A config's `openrouter_provider`: the routing of the answer model and of
+ * the judge. `answer_model` (card R6) names the `provider/model-id` the
+ * answer routing was chosen for: an experiment config's model is a slot
+ * (`prereg/M1`) the command line fills, so without it a live run on another
+ * `MODEL=` would send M1's routing to that model. A live run refuses a model
+ * other than the one named; absent, any model runs as before. It is the
+ * config's, never sent to OpenRouter: the routing pi-ai receives is `answer`.
+ */
+export const OpenRouterProvider = z
+  .strictObject({
+    answer: OpenRouterRouting.optional(),
+    answer_model: z
+      .string()
+      .regex(/^[^/\s]+\/\S+$/, "answer_model must be provider/model-id")
+      .optional(),
+    judge: OpenRouterRouting.optional(),
+  })
+  .refine(
+    (p) => p.answer_model === undefined || p.answer !== undefined,
+    "answer_model names the model an answer pin was chosen for, and there is no answer pin",
+  );
 export type OpenRouterProvider = z.infer<typeof OpenRouterProvider>;
 
 export const OPENROUTER = "openrouter";

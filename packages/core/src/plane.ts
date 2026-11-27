@@ -33,7 +33,7 @@ export {
 import { recordBypass } from "./plane/bypass.ts";
 import { type ExportResult, exportBundle } from "./plane/export.ts";
 import { changeGrants } from "./plane/grants.ts";
-import { type LintReport, lint } from "./plane/lint.ts";
+import { type LintOptions, type LintReport, lint } from "./plane/lint.ts";
 import { promote } from "./plane/promote.ts";
 import { filteredRead, readOne, storedExplanations } from "./plane/read.ts";
 
@@ -82,7 +82,13 @@ export {
   staleness,
   touchedSince,
 } from "./plane/commit.ts";
-export { LINT_MEMBERSHIP_ID, type LintReport, planModelLints } from "./plane/lint.ts";
+export {
+  LINT_MEMBERSHIP_ID,
+  type LintOptions,
+  type LintReach,
+  type LintReport,
+  planModelLints,
+} from "./plane/lint.ts";
 export {
   type DeletionReport,
   HANDOVER_CONFLICT_ID,
@@ -349,14 +355,20 @@ export interface Plane {
    * scores the contradiction pairs first and only its uncertain band reaches
    * the model; the report's `nli` lists every pair it scored. The actor must be able to read the scope (a member
    * whose level the read matrix lets read it), else one deny event
-   * (`engram/lint/membership`); an item outside the scope that a finding
-   * would name counts as absent unless the actor could read it at `at`,
-   * and even then its finding shows no current hash, status or retiring rule
-   * of it, since every member of the scope sees the event (ADR 0009).
+   * (`engram/lint/membership`). An item a finding would name or describe
+   * counts as absent unless the read filter admits it for the actor at `at`
+   * (card L8; `options.reach`, LintReach): a candidate, a retired item, one
+   * past its ttl or outside its validity window reads as absent, save that
+   * expired-validity flags an item of the scope whose validity ended. An item
+   * outside the scope it admits is still shown with no current hash, status
+   * or retiring rule, since every member of the scope sees the event (ADR
+   * 0009). `reach: "scope-registered"` is the reach the registered H3 runs
+   * were measured under (scope or a live grant, whatever the item's status
+   * or validity); only their call sites pass it.
    * Runs in the write queue. An invalid actor, time or scope is refused with
    * InvalidCallError before the log is touched.
    */
-  lint(actor: Actor, at: string, scope: string): Promise<LintReport>;
+  lint(actor: Actor, at: string, scope: string, options?: LintOptions): Promise<LintReport>;
   /**
    * Replays a recorded workload under this plane's policy and under a
    * candidate one (card E8.9), each on a scratch log and store: decisions,
@@ -479,7 +491,7 @@ export function createPlane(deps: PlaneDeps): Plane {
     retain: async (actor, scope, at) => retain(deps, actor, scope, at),
     promote: async (actor, itemId, toScope, at, options) =>
       promote(deps, actor, itemId, toScope, at, options),
-    lint: async (actor, at, scope) => lint(deps, actor, at, scope),
+    lint: async (actor, at, scope, options) => lint(deps, actor, at, scope, options),
     changeGrants: async (actor, itemId, change, at) =>
       changeGrants(deps, actor, itemId, change, at),
     simulate: (workload, policy) => simulate(deps, workload, policy),

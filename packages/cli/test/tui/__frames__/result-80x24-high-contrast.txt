@@ -1,0 +1,27 @@
+ engram  Write a memory                        in process  person:dana (person)
+ ✓ allow   exit 0  allow
+
+ write 01930000-0000-7000-8000-000000000001 at 2026-10-25T12:00:00.000Z by
+ person:dana
+ allow: a fixture rule admits it
+ policy fixture/write/team
+ log engram.db
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram write --content "The deplo...--scope team:lantern --owner dana   exit 0
+ ? help  r run again  up down scroll  ; commands  esc back
+--- styles
+r0 c0-79 inverse
+r1 c1-1 bold

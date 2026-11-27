@@ -294,31 +294,31 @@ The answers card that carries these into the pre-registration, the ADRs and the 
 
 ## F. Proposed by the absorb cards, 2026-11-21
 
-Open, for the lead. Each was drafted by a card's agent while implementing it; the card ships the recommendation behind it, and accepting or changing it is a `decision` log entry plus a status change in the ADR.
+Answered by the lead on 2026-11-25, every item (a) (section "The lead's answers, 2026-11-25" at the end). Each was drafted by a card's agent while implementing it; the card ships the recommendation behind it, and accepting or changing it is a `decision` log entry plus a status change in the ADR.
 
-60. **ADR 0042, verified actors (card E8.12).** Item 54 chose tokens from an external issuer and hashed local API keys; the ADR fixes how a credential becomes an actor.
+60. **ADR 0042, verified actors (card E8.12).** Answered 2026-11-25 by the lead: (a). Item 54 chose tokens from an external issuer and hashed local API keys; the ADR fixes how a credential becomes an actor.
     - (a) Accept ADR 0042: the operator's subjects file maps a token's exact issuer and subject (and the key file maps a key) to one actor with its level, memberships and source; no claim sets any of them, a request may only narrow its memberships, and a source sent on an authenticated call is ignored; a served surface needs a credential flag or `--insecure-loopback`; each event a served surface appends gets a row in a side table naming the authenticated requester or the waiver.
     - (b) Accept it, but derive an actor from a subject the subjects file does not name (`person:<sub>`, a member of its own scope only), so a new person needs no file edit.
     - (c) Keep self-asserted actors on loopback, with the ADR as the design for after the thesis.
-61. **ADR 0043, decision export and egress (card E8.13).** Decisions can be sent as OpenTelemetry spans to a collector, which takes them off the machine (rule 12).
+61. **ADR 0043, decision export and egress (card E8.13).** Answered 2026-11-25 by the lead: (a). Decisions can be sent as OpenTelemetry spans to a collector, which takes them off the machine (rule 12).
     - (a) Accept ADR 0043: off unless the operator names a sink (`--otlp` or `--export-jsonl`, or their `ENGRAM_` variables; `OTEL_*` never turns it on); a span carries the decision, its rule, the actor, the scopes and ids, never content, a content hash, a store path or a reason clause outside the content-free templates; no content mode exists.
     - (b) Accept it, and add an opt-in content mode as the GenAI conventions allow, off by default.
     - (c) Keep the JSONL sink only, so nothing leaves the machine, and drop OTLP until after the thesis.
 
-62. **ADR 0044, the CLI's terminal interface (card E8.15).** Card E8.15 is the lead's own request of 2026-11-21 for a TUI, not one of the absorb plan's thirty pull requests; it is listed here with the absorb cards' proposals because it was drafted with them. The design is `docs/design/tui.md`.
+62. **ADR 0044, the CLI's terminal interface (card E8.15).** Answered 2026-11-25 by the lead: (a). The six delegated calls below stand. On 2026-11-26 the lead decided to merge branch `cliupgrade`, where the TUI was built, into main as one pull request (`docs/log/2026-11-26-e8-15-decision-merge-to-main.md`). Card E8.15 is the lead's own request of 2026-11-21 for a TUI, not one of the absorb plan's thirty pull requests; it is listed here with the absorb cards' proposals because it was drafted with them. The design is `docs/design/tui.md`.
     - Open for the lead: accept ADR 0044 (pi-tui at the pi pin, only under `packages/cli/src/tui/`), or (b) Ink 8.0.0 with React 19.3.1, or (c) no TUI until after the thesis. Until then the design proceeds on (a), as decided below.
     - Decided on 2026-11-22 under the lead's delegation, six calls the design raised; binding until the lead overturns one:
 
 | call | answer | reason |
 |---|---|---|
-| 1. library | pi-tui 1.3.0 at the pi pin, imported only under `packages/cli/src/tui/`, AGENTS.md's "What not to do" line amended; ADR 0044 stays proposed | no new package in the lockfile, the pi family's own library, an injectable terminal for headless tests, Windows input handled; the spike passed under ConPTY and Git Bash |
+| 1. library | pi-tui 1.3.0 at the pi pin, imported only under `packages/cli/src/tui/`, AGENTS.md's "What not to do" line amended; ADR 0044 stayed proposed until the lead accepted it on 2026-11-25 | no new package in the lockfile, the pi family's own library, an injectable terminal for headless tests, Windows input handled; the spike passed under ConPTY and Git Bash |
 | 2. entry | bare `engram` keeps its help on stderr and exit 2; the TUI opens only with `engram tui`; HELP's first line names `engram tui` | one word doing two things by TTY detection misleads in tmux, SSH and mintty; the first line makes the TUI findable |
 | 3. new commands | `check`, `events`, `policy`, `grants` in E8.15a; `scopes` and `read --item <id>` in E8.15a once E8.14 merges | every TUI screen needs a plain command to teach; without them the timeline, grants, policy view and write preview are lost |
 | 4. shared view logic | not an `@engram/ui/view` export: `view.ts` and `provenance.ts` move into a new React-free package, `@engram/view`, which the inspector and the TUI import | the CLI never depends on React, xyflow, dagre or tanstack, and the leak rule exists once |
 | 5. mouse | on by default, `--no-mouse` to turn it off; the help overlay says Shift+drag selects text | clicks and the wheel help most people; the waiver keeps terminal selection and accessibility tools for those who need them |
 | 6. commands on quit | a short list of the session's commands on every quit; `--quiet` turns it off | it teaches the CLI, which is the point of the TUI |
 
-63. **ADR 0046, the replay validation record's source (card D3).** ADR 0026 left open where a procedural candidate's validation record comes from; ADR 0046 fills it. The lead answered two of its questions on 2026-11-22 (review findings D3-1 and D3-2), and ADR 0046 now carries both:
+63. **ADR 0046, the replay validation record's source (card D3).** Answered 2026-11-25 by the lead: (a). ADR 0026 left open where a procedural candidate's validation record comes from; ADR 0046 fills it. The lead answered two of its questions on 2026-11-22 (review findings D3-1 and D3-2), and ADR 0046 now carries both:
     - D3-1, the pass rule: "5 tasks, no worse". "4 of 5 runs" means n = 5 held-out tasks, drawn by the config's seed from the split. A task passes when the candidate's mean reward over the 3 seeds reaches the threshold and is not below the mean reward without it on that task. Admit at 4 of 5. The plane computes all of it from the outcomes, and refuses a replay of any other number of held-out tasks.
     - D3-2, the threshold: "Fixed at 2/3". A task's mean reward must be at least 2/3, which for 0 or 1 rewards is success on at least 2 of 3 seeds. The value is fixed in core as the registered one, and the plane refuses a replay naming any other.
     - D3-13, the seeds (the lead's reading of "3 seeds", 2026-11-22): the seed set is exactly 1, 2 and 3, fixed in core (`REPLAY_SEEDS`). A replay on any other set (one seed, or seeds the caller picked) is refused as an invalid call before the log is touched, like the threshold.
@@ -327,17 +327,17 @@ Open, for the lead. Each was drafted by a card's agent while implementing it; th
     - (a) Accept ADR 0046 as written. A user-sourced actor presents the held-out outcomes, and the plane counts k of n itself. The replay is bound to the item's id, content hash and distill ref, through an injected session index. A mismatch is a deny event, the replay's sha256 is in every reason, and no surface exposes `replay` before verified actors (ADR 0042).
     - (b) Accept it, and record each replay in the log in a schema card, so the oracle and the dogfood report can judge a replay admission from the log alone.
     - (c) Keep procedural candidates unpromotable through the plane until a replay can be measured, not presented: admission waits for H5's runner (card X11) to call the plane itself.
-64. **ADR 0045, the AWM induction prompt adapted to tool use (card D2).** ADR 0012 says the prompt is vendored verbatim; card D2 asks for it adapted from web tasks to tool-use sessions (review finding D2-1). The lead answered on 2026-11-22: adapt, and record it in a new ADR ("Adapt, new ADR"). What is left is accepting the ADR's text, which lists every change.
+64. **ADR 0045, the AWM induction prompt adapted to tool use (card D2).** Answered 2026-11-25 by the lead: (a). ADR 0012 says the prompt is vendored verbatim; card D2 asks for it adapted from web tasks to tool-use sessions (review finding D2-1). The lead answered on 2026-11-22: adapt, and record it in a new ADR ("Adapt, new ADR"). What is left is accepting the ADR's text, which lists every change.
     - (a) Accept ADR 0045: the adapted prompt pinned in `packages/core/src/distill/induce.ts`, the eighteen changes it lists, and ADR 0012's verbatim clause superseded.
     - (b) Accept it with changes to the list.
     - (c) Reject it and vendor the WebArena prompt verbatim, as ADR 0012 says.
 
-65. **ADR 0047, the by-id read and the scope list (card E8.14).** What a read of one id and a list of visible scopes may reveal, and how a framework adapter writes.
+65. **ADR 0047, the by-id read and the scope list (card E8.14).** Answered 2026-11-25 by the lead: (a). What a read of one id and a list of visible scopes may reveal, and how a framework adapter writes.
     - (a) Accept ADR 0047: a by-id read drops a candidate reached only through a grant that does not admit it, so such an id, one out of reach and one never held answer alike; a scope list holds the readable member scopes and the scopes of items a live grant admits; both are read events, a by-id read marked by a reason clause; `POST /read/{itemId}` and `POST /scopes` join the route table; the kit forces source `model`.
     - (b) Accept it, but answer a by-id read as a text read does (`filtered: 1` for a grant that does not admit), keeping one rule for every read at the cost of confirming the id exists.
     - (c) Drop the scope list and keep only the by-id read, so no listing reveals a grant-reached scope.
 
-66. **ADR 0048, the contradiction lint's local NLI tier (card L7, arm P3).** The tier scores each contradiction pair locally, flags at or above an upper threshold, drops below a lower one and sends the band to the model. On card L4's fixture (`research/results/h3-lint-nli.json`) the scores do not separate contradictions from unrelated pairs: 87 of 113 pairs score 0.9 or more by the larger of both directions, 81 forward only. With the frozen thresholds (upper 1, lower 0.1) the tier flags nothing, drops 18 pairs and sends 95, and no contradiction fault is dropped.
+66. **ADR 0048, the contradiction lint's local NLI tier (card L7, arm P3).** Answered 2026-11-25 by the lead: (a); this closes the item. The tier scores each contradiction pair locally, flags at or above an upper threshold, drops below a lower one and sends the band to the model. On card L4's fixture (`research/results/h3-lint-nli.json`) the scores do not separate contradictions from unrelated pairs: 87 of 113 pairs score 0.9 or more by the larger of both directions, 81 forward only. With the frozen thresholds (upper 1, lower 0.1) the tier flags nothing, drops 18 pairs and sends 95, and no contradiction fault is dropped.
     - (a) Accept ADR 0048 as written: both directions, the threshold rule on card L3's fixtures, so on this fixture the flag band is empty and the tier only drops.
     - (b) Accept it with forward-only scoring. Its cost on the fixture: an upper of 0.9 flags 81 pairs on 28 items with no model call, of which 4 items are contradiction faults, 4 are contradiction near-misses, 14 carry other labels and 6 carry none (`forward_only_flags`), so most findings would be false and the model would never see them.
     - (c) Drop the flag band, so the tier only drops pairs below its lower threshold and every other pair goes to the model; the upper threshold and the `contradiction-nli` finding go.
@@ -363,10 +363,60 @@ On 2026-11-21 the lead delegated items 49 to 56 as well: close them with the bes
 
 ### The lead's own answers, 2026-11-21
 
-Three questions the answers card's review raised (findings ANS-2 and ANS-6 of its review, and the spend against the credit) went to the lead, who answered them himself the same day. They are the lead's answers, not answers under the delegation.
+Three questions the answers card's review raised (findings ANS-2 and ANS-6 of its review, and the spend against the credit) went to the lead, who answered them directly the same day. They are the lead's answers, not answers under the delegation.
 
 | item | answer | reason |
 |---|---|---|
-| 57, M2's reasoning (ANS-2) | the lead's answer: keep GLM 5.3 Flash and amend v1's Models rule: a model that cannot switch reasoning off runs at its provider's default effort, on a pinned endpoint; its reasoning tokens are metered, and the report states this; M2 is named as such a model; M1 and M3 run with reasoning off. Added under the delegation: its cost is estimated with the reasoning allowance; the comparison across models (H4, and H2's subsets) is therefore across configurations, each stated; and, since the ledger counts reasoning tokens inside output tokens, "metered" means counted and priced there until `reasoning_tokens` is recorded | pi-ai 1.3.0 maps GLM 5.3 Flash's reasoning off to nothing (`docs/log/2026-11-21-answers-finding-m2-reasoning-off.md`), and the lead keeps his choice of three makers |
+| 57, M2's reasoning (ANS-2) | the lead's answer: keep GLM 5.3 Flash and amend v1's Models rule: a model that cannot switch reasoning off runs at its provider's default effort, on a pinned endpoint; its reasoning tokens are metered, and the report states this; M2 is named as such a model; M1 and M3 run with reasoning off. Added under the delegation: its cost is estimated with the reasoning allowance; the comparison across models (H4, and H2's subsets) is therefore across configurations, each stated; and, since the ledger counts reasoning tokens inside output tokens, "metered" means counted and priced there until `reasoning_tokens` is recorded | pi-ai 1.3.0 maps GLM 5.3 Flash's reasoning off to nothing (`docs/log/2026-11-21-answers-finding-m2-reasoning-off.md`), and the lead keeps the choice of three makers |
 | 58, H3's fallback (ANS-6) | if card L3's pilot shows a standard deviation across seeds above 0.05 on precision or recall for a lint, the deterministic tier becomes H3's primary test and the model tier is reported as secondary; the rule is fixed before any pilot data | item 23 made the model tier primary and item 43 set the bound, but nothing said what a pilot above the bound does to the primary test |
 | 59, the spend cap | the lead's answer: keep the per-run ceilings at 1.25 times each run's high estimate, and add a programme-wide cap equal to the API credit held; a run that would cross that cap pauses, and the lead decides whether to resume. Added under the delegation: the ceilings are in ledger dollars (pi-ai's catalogue prices); the cap is in billed dollars, the ledger converted by each model's list-to-catalogue ratio, and a model with no recorded ratio refuses to run under it; the runner card for it before 1 December (a real-spend total across runs, checked before each session, the cap read from a config or the environment); and until it lands, the operator's check of OpenRouter's credit balance at least every two hours, stopping every shard below one session's cost per running shard plus 10 percent | the per-run ceilings sum to more than the credit the lead requests (`docs/log/2026-11-21-rv8-review-finding-credit-request-reasoning-off.md`) |
+
+## The lead's answers, 2026-11-25
+
+On 2026-11-25 the lead wrote "accept the adrs". That sentence is the lead's own answer, not an answer under the delegation; the rows below read it as option (a) of each item. They cover every ADR still proposed: 0034 and 0042 to 0048. Each takes option (a) of its item. Items 34 and 35 had been answered (a) under the delegation on 2026-11-20; the lead's acceptance confirms them. Card ANS-2026-11-25 (`docs/tasks/ANS-2026-11-25.md`) carries them into the ADRs.
+
+| item | answer | reason |
+|---|---|---|
+| 34 | (a) accept ADR 0034, with a 1-year cap on a grant's expiry, and refuse an expired or other-class grant on a first write | the lead accepted the ADR, with decisions 3 and 6 amended to the 2026-11-20 answers; decision 3 fixes the year as 365 days from the write's event time, refused under `engram/write/grant-expiry-cap` (`docs/log/2026-11-25-ans-2026-11-25-decision-adr-0034-expiry-cap.md`). The lead's acceptance lifts the condition that the ADR stay proposed until the rule is built. The rule is not built yet: card E2.21 builds it and fixes the fixtures that write such grants (`docs/tasks/backlog.md`, "ADR 0034's cap and first-write rule"; `docs/log/2026-11-25-ans-2026-11-25-finding-adr-0034-cap-not-built.md`) |
+| 35 | (a) "Amend the ADR: a promotion keeps the grant, which then admits nothing.", with RV7's amendment (a non-owner's promotion carries none), accepted with the ADR | the lead accepted the ADR, with decisions 3 and 6 amended to the 2026-11-20 answers; decision 6 carries item 35, and the rule is built (`packages/core/src/policy/promotion.ts`, card RV7) |
+| 60 | (a) accept ADR 0042 | the lead accepted the ADR as written |
+| 61 | (a) accept ADR 0043 | the lead accepted the ADR as written |
+| 62 | (a) accept ADR 0044, pi-tui at the pi pin, only under `packages/cli/src/tui/` | the lead accepted the ADR as written; the six calls of item 62's table were decided under the delegation and stand, since the lead has not overturned them |
+| 63 | (a) accept ADR 0046 | the lead accepted the ADR as written |
+| 64 | (a) accept ADR 0045 | the lead accepted the ADR as written |
+| 65 | (a) accept ADR 0047 | the lead accepted the ADR as written |
+| 66 | (a) accept ADR 0048 as written: both directions; on card L4's fixture the flag band is empty and the tier only drops | the lead accepted the ADR as written; two sentences that had left item 66 open now record the answer; this closes item 66 |
+
+### The lead's answers to the second absorb plan's questions, 2026-11-25
+
+The lead also answered directly four of the five questions of `docs/tasks/absorb-plan-2.md`, section 8 (merged as #112). These are the lead's own answers, not answers under the delegation. Question 2 (quote-grounding for H3, card L9) stays open, as the plan recommends: it is decided from L9's fixture result.
+
+| question | answer | reason |
+|---|---|---|
+| Q1, the spend cap (item 59, pre-tag condition 7) | the operator's fallback caps H1: OpenRouter's credit balance read at least every two hours, and the shards stopped below the margin; the runner card that enforces the cap follows in W10, before any later live run | the plan's recommendation: no card enforcing the cap can be written, reviewed and merged before the tag on 30 November (`docs/log/2026-11-25-ans-2026-11-25-decision-spend-cap-fallback.md`) |
+| Q3, the arms U6 and U7 (cards X18 and X19) | U7 is registered as a descriptive arm, by amendment, once X19's check merges; U6 stays an engineering check unless H3's primary test is undecided | the plan's recommendation: U7 is the only measured evidence for Twin's offboarding claim (`docs/log/2026-11-25-ans-2026-11-25-decision-u6-u7.md`) |
+| Q4, H5's prerequisites (item 30) | the orchestrator drafts them as a proposed amendment pull request; nothing is registered until the lead approves the text | item 9 fixes them before H1's data exist, and a registration is the lead's (`docs/log/2026-11-25-ans-2026-11-25-decision-h5-prerequisites.md`) |
+| Q5, ADR 0034's cap after H1 (card E2.21) | `grants.expiry_cap` stays opt-in until the thesis runs are done: on in the twin and knowledge profiles only, never in a registered preset; H2 to H4 run under H1's policy | the plan's recommendation: as a default the cap would refuse 1,633 of 2,490 GateMem fixture writes, and H2 to H4's GateMem cells would run under a policy other than H1's (`docs/log/2026-11-25-ans-2026-11-25-decision-grant-cap-opt-in.md`) |
+
+**The other open items, resolved the same day.** The lead also asked for the remaining open items to be resolved on 2026-11-25. Each is resolved by its own card, not by this one:
+
+- item 36 (a non-owner sees only the grants naming them, in core), and the read route naming lineage ids its reader cannot read: card RD1;
+- `Plane.lint`'s reach (`docs/log/2026-11-22-l6-finding-lint-reads-scope.md`): card L8;
+- an owner's acceptance of their own candidates in their own person scope (`docs/log/2026-11-22-e9-8-finding-owner-acceptance-after-tag.md`): card E9.9, with a new ADR 0049.
+
+## The lead's answers, 2026-11-26
+
+The verification of the gate-work cards' fix pass (finding N3) found two changes to registered text made under the delegation, which the standing rule promotes to the lead: pre-tag condition 3's stopping set (card X20) and the Models section's endpoint rule (card R6). The lead answered both directly on 2026-11-26, not under the delegation (`docs/log/2026-11-26-gwfix-decision-lead-answers.md`). Each card rewrites its sentence in its own pull request.
+
+| question | answer | reason |
+|---|---|---|
+| A, condition 3's stopping set (card X20, item 14) | "Amend: 404 + backstop". A 401, 402, 403 or 404 stops the run and is never a per-session exclusion, except that a 403 OpenRouter marks as a moderation flag is an exclusion for that session; and the run stops when five distinct items in a row each end in a refused answer call | a pinned endpoint that is gone answers every call with a 404, which would otherwise exclude a whole run; a moderation 403 refuses one prompt; the backstop counts items, since one item runs as consecutive sessions and an over-long item is refused in all of them |
+| B, the Models rule's endpoint choice (card R6) | "Seed first". The maker's own endpoint is used only if it honours `seed`, otherwise the cheapest endpoint that does | rule 6: every sampled call takes a seed, so an endpoint that drops it cannot serve a registered run |
+
+## The lead's answers, 2026-11-27
+
+The independent review of card R6 (finding 1) found that M1's pinned endpoint, Wafer's `wafer/us`, serves an mxfp4 build of the model, a 4-bit quantisation as OpenRouter lists it, and that the registered text did not say so. Since the property is the registered model's, the question went to the lead before the tag. The lead answered directly on 2026-11-27 (`docs/log/2026-11-27-r6-decision-lead-keeps-mxfp4.md`).
+
+| question | answer | reason |
+|---|---|---|
+| M1's endpoint under the seed-first rule (card R6, review finding 1) | Keep `wafer/us` (mxfp4, about 92 dollars at H1's token mix), as the seed-first rule picks it, and disclose it: the pre-registration's Models sentence names the mxfp4 quantisation, and the thesis reports results as served by the 4-bit build. No pin change | the rule as registered picks it; the next seeded endpoint not quantised to 4 bits costs several times more; disclosure lets a reader or a replication know which build served the results |

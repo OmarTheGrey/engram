@@ -1,0 +1,44 @@
+ engram  Promote an item                                              in process  log ~/engram.db  person:dana (person)
+   Item         [ 01940000-0000-7000-8000-000000000001     ]  an item id (a UUIDv7)
+   To scope     [ team:lantern                             ]  the item's own or wider; yours: person:dana, org
+   Approve as reviewer [ ] off  approve as a reviewer: a member of the target who does not own the item; or, as its o...
+   ▸ Advanced: id, the test clock and this command's workspace flags
+
+ ✗ deny   exit 1  deny, ask or an error
+ promote 01940000-0000-7000-8000-000000000511 at 2026-10-25T12:00:00.000Z by person:dana
+ deny: a fixture rule asks for a reviewer's approval
+ policy fixture/promote/review
+ log engram.db
+
+ [ Switch to a reviewer and approve ]   [ Edit and retry ]
+ Promotions cannot be undone from here.
+
+   [ Promote ]   ctrl+s from any field
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram promote 01940000-0000-7000-8000-000000000001 --to team:lantern --owner dana --db engram.db --root mem   exit 1
+ ? help  v plain  J json  ctrl+s promote  tab next  ; commands  esc back
+--- styles
+r0 c0-119 inverse
+r6 c1-1 fg #E86A1A
+r12 c1-36 inverse

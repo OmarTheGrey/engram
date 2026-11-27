@@ -63,6 +63,7 @@ import type { LiveModels } from "./answers.ts";
 import { NO_STORE } from "./config.ts";
 import { sequentialIds } from "./gatemem-probe.ts";
 import { failedAttempt, liveJudgeCall, paidFailures } from "./judge.ts";
+import { OpenRouterProvider } from "./model/upstream.ts";
 
 export const LINT_BENCHMARK = "lint-faults";
 
@@ -178,6 +179,13 @@ export const LintRunnerConfig = z.strictObject({
   cassettes: z.string(),
   /** Card L7: the contradiction lint's NLI tier, run before the model. */
   nli: NliRunnerConfig.optional(),
+  /**
+   * OpenRouter's upstream for the lint model (card R6; model/upstream.ts):
+   * `answer` routes the lint model, `answer_model` names the model it was
+   * chosen for. A lint calls no judge, so `judge` is refused at a live run.
+   * Unset, OpenRouter routes freely. Never part of a cache key or a count.
+   */
+  openrouter_provider: OpenRouterProvider.optional(),
 });
 export type LintRunnerConfig = z.infer<typeof LintRunnerConfig>;
 
@@ -425,7 +433,7 @@ export async function runLintConfig(
           },
         });
         for (const { seq: _seq, ...e } of f.events) appendEvent(db, e);
-        const report = await plane.lint(f.actor, f.at, f.scope);
+        const report = await plane.lint(f.actor, f.at, f.scope, { reach: "scope-registered" });
         rows.push({
           item: `faults/${loaded.name}`,
           fixture: loaded.name,
@@ -521,10 +529,17 @@ export function countLintConfig(config: LintRunnerConfig, repo: string): LintCou
     try {
       migrate(db);
       for (const { seq: _seq, ...e } of f.events) appendEvent(db, e);
-      const units = planModelLints({ db, policy: f.policy }, f.actor, f.at, f.scope, {
-        model: config.model,
-        seed: config.seeds[0] as number,
-      });
+      const units = planModelLints(
+        { db, policy: f.policy },
+        f.actor,
+        f.at,
+        f.scope,
+        {
+          model: config.model,
+          seed: config.seeds[0] as number,
+        },
+        { reach: "scope-registered" },
+      );
       return {
         name: loaded.name,
         sha256: loaded.sha256,
