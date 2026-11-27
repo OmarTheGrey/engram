@@ -19,9 +19,11 @@
 // is a member of the team with no grant; each case names who sees what.
 import { describe, expect, test } from "vitest";
 import { currentItems } from "../../src/events.ts";
+import { ADOPT_NARROWED_ID, removedGrantsNote } from "../../src/plane/commit.ts";
+import { adoptedItem } from "../../src/plane/write.ts";
 import { type Actor, accessTime } from "../../src/plane.ts";
-import type { Grant, MemoryItem } from "../../src/schema.ts";
-import { visibleEvents } from "../../src/visible.ts";
+import type { Grant, MemoryEvent, MemoryItem } from "../../src/schema.ts";
+import { disclosedReason, visibleEvents } from "../../src/visible.ts";
 import { fresh, id, item, testPolicy } from "../unit/plane/helpers.ts";
 
 const AT = "2026-11-19T10:00:00Z";
@@ -189,6 +191,143 @@ describe("grants: the owner sees all, anyone else only those naming it (item 36)
     expect(event.decision, event.reason).toBe("allow");
     const { rows } = await env.plane.export(lee, LATER);
     expect(rows.map((r) => [r.item.id, r.item.grants])).toEqual([[kept.id, []]]);
+  });
+});
+
+// Review fix pass of RD1, finding 1 and the search after it: every reason
+// core writes that can quote a grantee is shown whole only to its maker and
+// the item's owner. A refused grant change under the write gate's grant rule
+// (`engram/write/grant`: a malformed principal, a class other than the
+// item's), a write the grant rules refuse, the plane's narrowing of grants an
+// adoption reintroduced, and the clauses an adoption, a store failure's
+// mend and a promotion append about grants.
+describe("reasons that quote a grantee: whole only to the maker and the owner (RD1 review)", () => {
+  const zoe = "person:zoe";
+  const kim: Actor = {
+    id: "person:kim",
+    level: "person",
+    memberships: ["person:kim", "team:platform", "org"],
+    source: "user",
+  };
+  const shownTo = (env: Awaited<ReturnType<typeof seeded>>, actor: Actor, at = LATER) => {
+    const items = new Map(currentItems(env.db).map((i) => [i.id, i]));
+    const view = {
+      policy: env.policy,
+      at: accessTime(env.db, at),
+      current: (i: string) => items.get(i),
+    };
+    return visibleEvents(actor, env.plane.events(), view);
+  };
+
+  for (const [what, refused] of [
+    ["a class other than the item's", { ...grant(zoe), class: "episodic" as const }],
+    ["a malformed principal", { ...grant("person:z*e"), to: "person:z*e" }],
+  ] as const)
+    test(`a refused grant change for ${what} names no grantee to lee, through the events and the export`, async () => {
+      const env = await seeded();
+      const change = await env.plane.changeGrants(dana, GRANTED, { add: [refused] }, LATER);
+      expect(change.event.decision).toBe("deny");
+      expect(change.event.policy_id).toBe("engram/write/grant");
+      expect(change.event.reason).toContain(refused.to);
+      const leeSees = shownTo(env, lee);
+      const leesChange = leeSees.find((e) => e.id === change.event.id);
+      expect(leesChange, "lee, a member of the team, sees that the change was asked").toBeDefined();
+      expect(leesChange?.reason).toContain(dana.id);
+      expect(JSON.stringify(leeSees)).not.toContain(refused.to);
+      // The owner, who made it, sees the reason as the log holds it.
+      const danaSees = shownTo(env, dana).find((e) => e.id === change.event.id);
+      expect(danaSees?.reason).toBe(change.event.reason);
+
+      // The export: an item in lee's person scope that dana owns, and dana,
+      // asserting membership of that scope, refused the same way on it.
+      const inLees = item(7, {
+        scope: "person:lee",
+        owner: dana.id,
+        provenance: provenance(lee.id),
+      });
+      expect((await env.plane.write(lee, inLees, AT)).event.decision).toBe("allow");
+      const danaThere: Actor = { ...dana, memberships: [...dana.memberships, "person:lee"] };
+      const there = await env.plane.changeGrants(danaThere, inLees.id, { add: [refused] }, LATER);
+      expect(there.event.policy_id).toBe("engram/write/grant");
+      expect(there.event.reason).toContain(refused.to);
+      const { rows } = await env.plane.export(lee, LATER);
+      const row = rows.find((r) => r.item.id === inLees.id);
+      expect(row?.events.map((e) => e.id)).toContain(there.event.id);
+      expect(JSON.stringify(rows)).not.toContain(refused.to);
+    });
+
+  test("a rewrite the grant rules refuse names no grantee to lee; dana sees it whole", async () => {
+    const env = await seeded();
+    const stored = currentItems(env.db).find((i) => i.id === GRANTED) as MemoryItem;
+    // A rewrite that adds sam's grant a second time: the reason quotes it.
+    const rewrite = {
+      ...stored,
+      grants: [toSam, toEve, toSam],
+      version: stored.version + 1,
+    };
+    const { event } = await env.plane.write(dana, rewrite, LATER);
+    expect(event.decision).toBe("deny");
+    expect(event.policy_id).toBe("engram/grant/unchanged");
+    expect(event.reason).toContain(sam.id);
+    const leesView = shownTo(env, lee).find((e) => e.id === event.id);
+    expect(leesView).toBeDefined();
+    expect(leesView?.reason).not.toContain(sam.id);
+    expect(leesView?.reason).toContain("engram/grant/unchanged");
+    expect(shownTo(env, dana).find((e) => e.id === event.id)?.reason).toBe(event.reason);
+  });
+
+  test("a reviewed promotion's reason tells a member who is neither maker nor owner no grant count", async () => {
+    const env = await seeded();
+    const result = await env.plane.promote(lee, GRANTED, "org", LATER, { review: true });
+    expect(result.decision, result.event.reason).toBe("allow");
+    expect(result.event.reason).toContain(`2 grants of its owner ${dana.id} are not carried`);
+    const kimsView = shownTo(env, kim).find((e) => e.id === result.event.id);
+    expect(kimsView).toBeDefined();
+    expect(kimsView?.reason).not.toMatch(/grants? of its owner/);
+    expect(kimsView?.reason.startsWith(result.event.reason.split(";")[0] as string)).toBe(true);
+    for (const who of [lee, dana])
+      expect(shownTo(env, who).find((e) => e.id === result.event.id)?.reason, who.id).toBe(
+        result.event.reason,
+      );
+  });
+
+  test("the clauses an adoption and a store failure's mend append name no grantee to kim", () => {
+    const policy = testPolicy();
+    const record = item(8, {
+      owner: dana.id,
+      grants: [grant(zoe)],
+      provenance: provenance(lee.id),
+    });
+    const [, note] = adoptedItem(lee, record, undefined);
+    expect(note).toContain(zoe);
+    const narrowed = `; ${removedGrantsNote([grant(zoe)])}`;
+    expect(narrowed).toContain(zoe);
+    const event = (reason: string, policy_id: string): MemoryEvent => ({
+      id: id(70),
+      ts: AT,
+      op: "write",
+      item_id: record.id,
+      actor: lee.id,
+      scope_from: null,
+      scope_to: record.scope,
+      decision: "allow",
+      reason,
+      policy_id,
+      schema_version: 1,
+    });
+    const view = { policy, at: AT, current: () => record };
+    const adopted = event(`adopted from store files: ${note}`, "test/write/team");
+    expect(disclosedReason(kim, adopted, view)).not.toContain(zoe);
+    expect(disclosedReason(kim, adopted, view)).toContain("adopted from store files: provenance");
+    const failed = event(`the store refused${narrowed}`, "engram/write/store-failure");
+    expect(disclosedReason(kim, failed, view)).toBe("the store refused");
+    const mend = { ...event(`the plane removed ${zoe}`, ADOPT_NARROWED_ID), op: "update" as const };
+    expect(disclosedReason(kim, mend, view)).not.toContain(zoe);
+    // The maker and the owner see each as the log holds it.
+    for (const e of [adopted, failed, mend]) {
+      expect(disclosedReason(lee, e, view)).toBe(e.reason);
+      expect(disclosedReason(dana, e, view)).toBe(e.reason);
+    }
   });
 });
 

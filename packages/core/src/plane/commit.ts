@@ -426,6 +426,14 @@ function recovery(deps: PlaneDeps, itemId: string, stale: StaleWrite): Recovery 
 /** The retraction adoption appends when it denies the store's version (plane/adopt.ts). */
 const ADOPT_RETRACT_POLICY = "engram/adopt/retract";
 
+/**
+ * The clause a store failure's reason carries when the mend removed grants an
+ * adoption reintroduced. It names the grantees, so visible.ts shows it only
+ * to the write's maker and the item's owner (card RD1).
+ */
+export const removedGrantsNote = (removed: readonly Grant[]) =>
+  `the plane removed ${removed.map((g) => `the grant to ${g.to}`).join(", ")}, which an adoption of this write's bytes had reintroduced (${ADOPT_NARROWED_ID})`;
+
 /** The clause a withdrawal's reason carries, naming the adoption it withdraws (V-4). */
 export const withdrawsClause = (eventId: string) => `withdraws the adoption at event ${eventId}`;
 
@@ -503,7 +511,7 @@ export async function settle<T>(
             policy_id: ADOPT_NARROWED_ID,
             item: { ...mend.narrowed, store_ref: written ?? mend.narrowed.store_ref },
           });
-          note = `; the plane removed ${names}, which an adoption of this write's bytes had reintroduced (${ADOPT_NARROWED_ID})`;
+          note = `; ${removedGrantsNote(mend.removed)}`;
         }
       }
       return { value: confirm(note) };
