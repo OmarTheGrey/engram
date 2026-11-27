@@ -388,3 +388,43 @@ describe("card R6: a pin names the model it was chosen for", () => {
     for (const routing of routes.values()) expect(routing).not.toHaveProperty("answer_model");
   });
 });
+
+describe("card R6: a live experiment on OpenRouter runs only pinned", () => {
+  const request = (model: string) => ({ model, repo: REPO, env: {} });
+  const experiment = (provider: unknown) => ({
+    ...parseRunnerConfig(
+      {
+        ...JSON.parse(readFileSync(B3, "utf8")),
+        model: "prereg/M1",
+        judge: { model: "openrouter/openai/gpt-4o", temperature: 0, max_tokens: 4096 },
+        openrouter_provider: provider,
+      },
+      resolve(B3, ".."),
+    ),
+    kind: "experiment",
+  });
+  const PIN = { order: ["wafer/us"], allow_fallbacks: false, require_parameters: true };
+
+  test("an experiment with no pin is refused on an OpenRouter model", () => {
+    expect(() => liveConfig(experiment(undefined), request(M1))).toThrow(LiveRunRefused);
+    expect(() => liveConfig(experiment(undefined), request(M1))).toThrow(
+      /experiment.*openrouter_provider\.answer/,
+    );
+  });
+
+  test("an experiment whose OpenRouter judge has no pin is refused", () => {
+    expect(() => liveConfig(experiment({ answer: PIN, answer_model: M1 }), request(M1))).toThrow(
+      /openrouter_provider\.judge/,
+    );
+  });
+
+  test("a pinned experiment runs, and so do a pipeline config and a model off OpenRouter", () => {
+    const pinned = experiment({ answer: PIN, answer_model: M1, judge: PIN });
+    expect(liveConfig(pinned, request(M1)).model).toBe(M1);
+    const pipeline = { ...experiment(undefined), kind: "pipeline" };
+    expect(liveConfig(pipeline, request(M1)).model).toBe(M1);
+    // A faux or direct-provider model takes no OpenRouter pin (upstreamRoutes refuses one).
+    const offRouter = { ...experiment(undefined), judge: { model: "faux-judge/judge-1" } };
+    expect(liveConfig(offRouter, request("faux-live/model-1")).model).toBe("faux-live/model-1");
+  });
+});
