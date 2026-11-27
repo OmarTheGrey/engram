@@ -10,7 +10,7 @@
 // stands in for OpenRouter on the seeded API, answering with error messages
 // in the shapes pi-ai 1.3.0 gives OpenRouter's documented error bodies;
 // nothing here reaches the network, and every wait is injected.
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fauxAssistantMessage } from "@earendil-works/pi-ai";
@@ -571,6 +571,54 @@ describe("the backstop's count is per process: a resume starts it at zero (revie
       "answer refused",
       undefined,
     ]);
+  }, 180_000);
+
+  test("the stop names the manual remedy, and following it asks the five items again (review finding 4)", async () => {
+    const config = liveOf({ ...two, items: ITEMS, conditions: ["C2"] as Condition[] });
+    const provider = fauxLive({ failures: Array.from({ length: 5 }, () => OVERFLOW) });
+    const dir = fresh();
+    const journal = journalFor(dir, config);
+    const stop = runConfig(config, {
+      ...liveOptions(config, provider.models, {}),
+      journal,
+      ...noWait,
+    });
+    await expect(stop).rejects.toThrow(/RESUME=1 replays them as refused without asking again/);
+    await expect(stop).rejects.toThrow(
+      /delete the cassette entries whose context\.item is one of them and whose response\.text begins with the refused-answer mark, cut these items' rows from the end of results\.jsonl/,
+    );
+    journal.close();
+
+    // The remedy: the five refused entries deleted, the four rows (and their
+    // events lines) cut from the end, then RESUME=1.
+    let deleted = 0;
+    for (const file of readdirSync(config.cassettes)) {
+      const path = join(config.cassettes, file);
+      const entry = JSON.parse(readFileSync(path, "utf8"));
+      if (entry.response.text.startsWith(REFUSED_ANSWER_MARK)) {
+        rmSync(path);
+        deleted++;
+      }
+    }
+    expect(deleted).toBe(5);
+    const cut = (file: string, n: number) => {
+      const kept = lines(dir, file).slice(0, -n);
+      writeFileSync(join(dir, file), kept.map((l) => `${l}\n`).join(""));
+    };
+    cut("results.jsonl", 4);
+    cut(EVENTS_FILE, 4);
+    const fixed = fauxLive();
+    const again = journalFor(dir, config, true);
+    await runConfig(config, {
+      ...liveOptions(config, fixed.models, {}),
+      journal: again,
+      ...noWait,
+    });
+    again.close();
+    // Every item asked again: two calls each, none refused.
+    expect(fixed.state.calls).toBe(12);
+    const all = lines(dir, "results.jsonl").map((l) => JSON.parse(l));
+    expect(all.map((r) => r.excluded)).toEqual(ITEMS.map(() => undefined));
   }, 180_000);
 });
 

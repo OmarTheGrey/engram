@@ -375,15 +375,21 @@ export function answerFailure(
  * a refused answer call, so a key or endpoint failure the classifier misread
  * cannot exclude the whole run. Items, not sessions: the runner runs an
  * item's sessions (every condition, store and seed) back to back, and one
- * over-long item refuses in all of them (review N1).
+ * over-long item refuses in all of them (review N1). The count lives in one
+ * process: a resume starts it at zero, and each shard counts its own.
  */
 export const REFUSAL_STREAK_LIMIT = 5;
 
-/** Five distinct items in a row refused: the run stops (see REFUSAL_STREAK_LIMIT). */
+/**
+ * Five distinct items in a row refused: the run stops (see
+ * REFUSAL_STREAK_LIMIT). Every refusal, the last one included, is already a
+ * cassette entry, so RESUME=1 replays them without asking the provider again
+ * (review finding 4); the message names the manual way to ask again.
+ */
 export class RefusalStreak extends Error {
   constructor(limit: number, items: readonly string[]) {
     super(
-      `${limit} distinct items in a row each ended in a refused answer call (${items.join(", ")}); the run stops with this session unrecorded, since a key, credit or endpoint failure may be misread as a refusal: check the provider, then rerun with RESUME=1 (the sessions before it are kept, the refused ones excluded as answer refused)`,
+      `${limit} distinct items in a row each ended in a refused answer call (${items.join(", ")}); the run stops, the last session's row unwritten, since a key, credit or endpoint failure may be misread as a refusal. Check the provider. Every one of these refusals is recorded in the run's cassettes, so RESUME=1 replays them as refused without asking again and goes on. If the cause was a provider failure, ask these items again: delete the cassette entries whose context.item is one of them and whose response.text begins with the refused-answer mark, cut these items' rows from the end of results.jsonl (and, for GateMem, the same number of last lines from events.jsonl), then rerun with RESUME=1`,
     );
     this.name = "RefusalStreak";
   }

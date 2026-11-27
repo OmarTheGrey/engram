@@ -43,7 +43,7 @@ make run CONFIG=research/configs/h1-gatemem.json MERGE=4 MODEL=<provider/model> 
 
 The two live lines are for H1 only, after the `prereg-v1` tag and once the config pins its OpenRouter endpoints (pre-tag condition 5 of the pre-registration); before the tag, nothing runs live but the smoke run and B1.
 
-Output goes to `.engram/runs/<config name>`: `results.jsonl` (one row per session), `events.jsonl` (each row's plane log), `summary.json`, `run.json` (what wrote the folder), and the usage ledger (`usage.json`, with `usage.jsonl` appended call by call in a journaled run). A run that reaches its config's `spend_ceiling_usd` stops and exits 3. AGENTS.md's command list gives every flag.
+Output goes to `.engram/runs/<config name>`: `results.jsonl` (one row per session), `events.jsonl` (each row's plane log), `summary.json`, `run.json` (what wrote the folder), and the usage ledger (`usage.json`, with `usage.jsonl` appended call by call in a journaled run). A run that reaches its config's `spend_ceiling_usd` stops and exits 3. An answer call the provider refuses for good (a prompt over the context limit, a moderation flag) excludes that session as `answer refused`; an HTTP 401, 402, 404, or a 403 that is not a moderation flag, at any model call stops the run with that session unwritten, and RESUME=1 runs it once the key, credit or endpoint is fixed (card X20). The run also stops when five distinct items in a row each end in a refused answer call. That count lives in one process: a resume starts it at zero, and each shard counts its own, so a run-wide misread can cost up to four items per shard per resume, and a merged run equals the unsharded one only when no streak would have crossed a shard boundary. Those refusals are recorded, so RESUME=1 replays them; to ask them again, follow the remedy the stop message names (delete their refused cassette entries, cut their rows from the end of results.jsonl and events.jsonl, then resume). AGENTS.md's command list gives every flag.
 
 ## Test
 
@@ -56,5 +56,5 @@ Every test runs on scripted models or committed cassettes; pi-ai's faux provider
 
 ## What is next
 
-- **Before the `prereg-v1` tag** (pre-tag conditions 3 and 7 of the pre-registration): record an answer call the provider refused for good as an exclusion with its own reason (an HTTP 401, 402 or 403 stops the run instead), and check the programme-wide spend cap in billed dollars before each session.
+- **Before the `prereg-v1` tag** (pre-tag condition 7 of the pre-registration): check the programme-wide spend cap in billed dollars before each session. Condition 3's refused answer call is built (card X20).
 - **Then:** H1's live runs from 1 December, during which nothing merges that changes code a registered config runs; condition C6 for H3; the files store in the runner for ADR 0035's request-identity check; drift retirement of admitted procedures (card D4); and Pi Durable behind its flag (card RN2).
