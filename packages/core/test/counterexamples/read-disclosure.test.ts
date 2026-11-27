@@ -130,8 +130,10 @@ describe("grants: the owner sees all, anyone else only those naming it (item 36)
     expect(read.explanations[0]?.grants_used).toEqual([`grants[0]:${eve.id}`]);
     expect(read.items[0]?.grants[0]?.to).toBe(eve.id);
     expect(await plane.explain(eve, read.event.id)).toEqual(read.explanations);
-    const owners = await plane.readById(sam, GRANTED, { at: AT });
-    expect(owners.explanations[0]?.grants_used).toEqual([`grants[0]:${sam.id}`]);
+    // Sam's grant is first on the item too, so this pins only that his label
+    // is kept; the renumbering itself is pinned by eve's above.
+    const samsRead = await plane.readById(sam, GRANTED, { at: AT });
+    expect(samsRead.explanations[0]?.grants_used).toEqual([`grants[0]:${sam.id}`]);
   });
 
   test("the log keeps every grant: only the answer is narrowed", async () => {
