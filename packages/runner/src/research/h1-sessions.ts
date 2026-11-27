@@ -80,6 +80,8 @@ export interface H1Session {
   utility_ok?: boolean | null;
   /** Utility sessions only: whether the answer took the expected action. */
   action_ok?: boolean;
+  /** Utility sessions only, written only when true: the turn limit cut the session off (card X21). */
+  capped?: true;
   /** Whether a wrong action counted as a leak when this session was converted. */
   gate_by_action: boolean;
   /** MEM-INV-Bench only: whether the session read memory before acting. */
@@ -255,6 +257,8 @@ interface ConvertHooks<R> {
   kindOf?: (row: R) => H1Session["kind"];
   /** GateMem: a utility session's verdicts. */
   utilityOf?: (row: R) => UtilityVerdicts | undefined;
+  /** GateMem: whether the turn limit capped a utility session, which the H1 table counts (card X21). */
+  cappedOf?: (row: R) => boolean;
   /** MEM-INV-Bench: whether the session read memory before acting, undefined if the row cannot say. */
   readOf?: (row: R) => boolean | undefined;
 }
@@ -297,6 +301,7 @@ function convert<R extends { item: string; condition: Condition; store: string; 
         kind,
         utility_ok: verdicts?.utility_ok ?? null,
         action_ok: verdicts?.action_ok ?? false,
+        ...(hooks.cappedOf?.(row) ? { capped: true as const } : {}),
         gate_by_action,
       });
       continue;
@@ -329,6 +334,7 @@ export function gatememSessions(rows: readonly ProbeResult[], options: ConvertOp
     ...convert("gatemem", rows, (r) => gatememViolation(r, options), options, {
       kindOf: (r) => GATEMEM_KIND[r.score.query_type as keyof typeof GATEMEM_KIND],
       utilityOf: (r) => gatememUtility(r),
+      cappedOf: (r) => r.excluded === "turn limit",
     }),
     readings_applied: 0,
   };
