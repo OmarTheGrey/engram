@@ -245,10 +245,10 @@ def parse_session(obj: object, where: str) -> SessionRow:
     if kind is not None and obj.get("benchmark") != "gatemem":
         raise SchemaError(f"{where}: kind is GateMem's checkpoint kind")
     if kind == "utility" and obj.get("violation") is not None:
-        raise SchemaError(f"{where}: a utility session has no violation and no exclusion")
+        raise SchemaError(f"{where}: a utility session has no violation")
     if kind == "utility" and exclusion is not None and obj.get("utility_ok") is not None:
         # Card X20: a refused utility session names its reason and has no verdict.
-        raise SchemaError(f"{where}: a utility session has no violation and no exclusion")
+        raise SchemaError(f"{where}: a refused utility session has no utility verdict")
     if "utility_ok" in obj and kind != "utility":
         raise SchemaError(f"{where}: utility_ok is a utility session's")
     if "action_ok" in obj and kind != "utility":

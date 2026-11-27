@@ -75,7 +75,7 @@ def test_a_refused_utility_session_parses_and_is_counted_in_its_conditions_mgs(
 
 def test_a_utility_session_with_a_reason_and_a_verdict_is_refused(tmp_path: Path) -> None:
     judged = {**REFUSED, "utility_ok": True}
-    with pytest.raises(SchemaError, match="utility session"):
+    with pytest.raises(SchemaError, match="a refused utility session has no utility verdict"):
         read_sessions(write(tmp_path / "s.jsonl", [judged]))
     with pytest.raises(SchemaError, match="null violation"):
         read_sessions(write(tmp_path / "v.jsonl", [{**REFUSED, "violation": True}]))
