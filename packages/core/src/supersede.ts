@@ -14,7 +14,9 @@
 // `planSupersession` reads the projection (no store, no clock, no model) as
 // the asking actor may see it, and `acceptedClosures` turns the closes a
 // person accepted into the new versions a surface writes through
-// Plane.write, so the write gate decides each and the log records it. The
+// Plane.write, so the write gate decides each and the log records it.
+// `writeClosures` writes them and answers with each as the actor is shown it
+// (card RD1, visible.ts), so no surface builds that disclosure itself. The
 // read path does not call any of this: what a read returns is unchanged.
 import { z } from "zod";
 import { type Actor, InvalidCallError } from "./actor.ts";
@@ -22,8 +24,11 @@ import type { Db } from "./db/db.ts";
 import { currentItems } from "./events.ts";
 import { itemById } from "./items.ts";
 import { proposeSupersession, SupersessionProposal } from "./lint/supersession.ts";
+import { accessTime } from "./plane/read.ts";
+import type { Plane, WriteResult } from "./plane.ts";
 import { evaluateRead } from "./policy/evaluate.ts";
-import type { MemoryItem, Policy } from "./schema.ts";
+import type { MemoryEvent, MemoryItem, Policy } from "./schema.ts";
+import { disclosedEvent, disclosedItem, disclosedWrite } from "./visible.ts";
 
 /** What the resolver reads of an item: its id and the ids it supersedes. */
 export interface SupersessionLink {
@@ -208,4 +213,55 @@ export function acceptedClosures(
       throw new InvalidCallError(`supersession: item ${p.item_id} is no longer projected`);
     return closedVersion(candidate, p);
   });
+}
+
+/** What writeClosures answers: the closes sent, the write of each, and the one a store refused. */
+export interface ClosuresWritten {
+  submitted: MemoryItem[];
+  applied: WriteResult[];
+  stopped: { item_id: string; event: MemoryEvent } | null;
+}
+
+/**
+ * Write accepted closes in order, each one Plane.write (card L6). A store
+ * that refuses a close after the gate allowed it (Plane.write logs the deny
+ * and throws, decision D6) stops the loop: that close and its deny event
+ * are `stopped`, the writes before it are in `applied`, and none after it
+ * is sent (review fix L6-3). A plan proposes at most one close, so a surface
+ * gives one at most; this takes any number. The answer is the actor's view
+ * (card RD1, review finding 6): each close, write and event through
+ * visible.ts, since a close is built from the item as the log holds it.
+ */
+export async function writeClosures(
+  on: { plane: Pick<Plane, "write" | "events">; db: Db; policy: Policy },
+  actor: Actor,
+  closes: readonly MemoryItem[],
+  at: string,
+): Promise<ClosuresWritten> {
+  const { plane, db, policy } = on;
+  const submitted: MemoryItem[] = [];
+  const applied: WriteResult[] = [];
+  let stopped: ClosuresWritten["stopped"] = null;
+  for (const item of closes) {
+    const mark = plane.events().length;
+    submitted.push(item);
+    try {
+      applied.push(await plane.write(actor, item, at));
+    } catch (e) {
+      const event = plane
+        .events()
+        .slice(mark)
+        .findLast((x) => x.item_id === item.id);
+      if (event === undefined) throw e;
+      stopped = { item_id: item.id, event };
+      break;
+    }
+  }
+  const projected = new Map(currentItems(db).map((i) => [i.id, i]));
+  const view = { policy, at: accessTime(db, at), current: (i: string) => projected.get(i) };
+  return {
+    submitted: submitted.map((i) => disclosedItem(actor, i, view)),
+    applied: applied.map((w) => disclosedWrite(actor, w, view)),
+    stopped: stopped && { ...stopped, event: disclosedEvent(actor, stopped.event, view) },
+  };
 }

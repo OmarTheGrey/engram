@@ -17,18 +17,15 @@ import {
   BUNDLE_FORMAT,
   BUNDLE_VERSION,
   currentItems,
-  disclosedEvent,
-  disclosedItem,
-  disclosedWrite,
   eventById,
   itemById,
-  type MemoryEvent,
   type MemoryItem,
   planSupersession,
   readCounts,
   servedImport,
   syncBeforeRead,
   visibleEvents,
+  writeClosures,
 } from "@engram/core";
 import type { z } from "zod";
 import * as C from "./contract.ts";
@@ -92,41 +89,6 @@ async function syncStore(workspace: Workspace, reader: Actor, now: string) {
     retention: sweep.report,
     adoption: forReader.adoption,
   };
-}
-
-/**
- * Write accepted closes in order, each one Plane.write (card L6). A store
- * that refuses a close after the gate allowed it (Plane.write logs the deny
- * and throws, decision D6) stops the loop: that close and its deny event
- * are `stopped`, the writes before it are in `applied`, and none after it
- * is sent (review fix L6-3). A plan proposes at most one close, so the
- * route gives one at most; this takes any number.
- */
-export async function writeClosures(
-  workspace: Workspace,
-  actor: Actor,
-  closes: readonly MemoryItem[],
-  at: string,
-) {
-  const submitted: MemoryItem[] = [];
-  const applied = [];
-  let stopped: { item_id: string; event: MemoryEvent } | null = null;
-  for (const item of closes) {
-    const mark = workspace.plane.events().length;
-    submitted.push(item);
-    try {
-      applied.push(await workspace.plane.write(actor, item, at));
-    } catch (e) {
-      const event = workspace.plane
-        .events()
-        .slice(mark)
-        .findLast((x) => x.item_id === item.id);
-      if (event === undefined) throw e;
-      stopped = { item_id: item.id, event };
-      break;
-    }
-  }
-  return { submitted, applied, stopped };
 }
 
 export const ROUTES: readonly Route[] = [
@@ -416,24 +378,14 @@ export const ROUTES: readonly Route[] = [
         accessTime(db, at),
       );
       const closes = acceptedClosures(db, plan, body.accept ?? []);
-      const written = await writeClosures(workspace, body.actor, closes, at);
-      // The closes as the actor is shown them (card RD1): core's disclosure,
-      // since a close is built from the item as the log holds it.
-      const items = new Map(currentItems(db).map((i) => [i.id, i]));
-      const view = {
-        policy: workspace.policy,
-        at: accessTime(db, at),
-        current: (i: string) => items.get(i),
-      };
-      return {
-        ...plan,
-        submitted: written.submitted.map((i) => disclosedItem(body.actor, i, view)),
-        applied: written.applied.map((w) => disclosedWrite(body.actor, w, view)),
-        stopped: written.stopped && {
-          ...written.stopped,
-          event: disclosedEvent(body.actor, written.stopped.event, view),
-        },
-      };
+      // Core writes each close and answers with the actor's view of it (card RD1).
+      const written = await writeClosures(
+        { plane: workspace.plane, db, policy: workspace.policy },
+        body.actor,
+        closes,
+        at,
+      );
+      return { ...plan, ...written };
     },
   }),
   route<z.infer<typeof C.BypassRequest>>({
