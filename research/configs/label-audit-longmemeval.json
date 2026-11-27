@@ -6,7 +6,7 @@
   "members": ["omar", "mohamad", "shady"],
   "reject_quorum": 2,
   "stop_share": 0.1,
-  "on_stop": "pause",
+  "on_stop": "drop",
   "out": ".engram/audit-longmemeval",
   "longmemeval": {
     "data": {

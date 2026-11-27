@@ -1,7 +1,7 @@
 # ADR 0046: The replay validation record's source: the plane derives it from the held-out outcomes a user-sourced actor presents
 
-Status: proposed, 2026-11-21; revised 2026-11-22 by card D3's review fix pass (findings D3-3 and D3-6), and the same day for the lead's answers to findings D3-1 and D3-2 and the lead's reading of "3 seeds" (finding D3-13; `docs/tasks/lead-decisions.md`, item 63)
-Deciders: drafted by card D3 of the absorb plan; for the lead's acceptance
+Status: accepted, 2026-11-25, by the lead ("accept the adrs"); proposed 2026-11-21; revised 2026-11-22 by card D3's review fix pass (findings D3-3 and D3-6), and the same day for the lead's answers to findings D3-1 and D3-2 and the lead's reading of "3 seeds" (finding D3-13; `docs/tasks/lead-decisions.md`, item 63)
+Deciders: drafted by card D3 of the absorb plan; accepted by the lead on 2026-11-25 (`docs/tasks/lead-decisions.md`, item 63, option (a))
 Supersedes: nothing. It fills the slot ADR 0026 left open ("the plane passes none until card D3 gives it a source") and amends its sentence "The validation record is not a Plane argument".
 
 ## Context

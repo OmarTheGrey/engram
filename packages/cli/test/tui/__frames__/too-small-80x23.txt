@@ -1,0 +1,23 @@
+engram tui needs 80x24; this terminal is 80x23.
+
+Widen the window, or press q and run the plain command:
+
+  engram read --db engram.db --owner dana --root mem
+
+Nothing is lost while you resize.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

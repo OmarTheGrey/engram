@@ -10,6 +10,8 @@ Dates assume a start on Monday 5 October 2026 and submission in the last week of
 
 **The absorb plan, 2026-11-21.** Thirty pull requests were added from the absorb and state-of-the-art research of that day: twenty-six new cards, and cards B7, D1, D2 and D3 rewritten. The list, with why and how for each, is `docs/tasks/absorb-plan.md`; the cards are in the section "The absorb plan" under Task cards, their weeks under "The absorb plan in the week plan", and their cost under Effort budget. The plan moves D1 to D3 and B7 earlier than the week plan below says. Its eight decisions (items 49 to 56 of `docs/tasks/lead-decisions.md`) were closed the same day under the lead's delegation, and ADRs 0038 to 0041 accepted.
 
+**The second absorb plan, 2026-11-25.** The lead asked for another thirty pull requests from the absorb research. They are `docs/tasks/absorb-plan-2.md`: twenty-eight new cards, and cards D4 and E8.8 rewritten. Their cards are in the section "The second absorb plan" under Task cards, their weeks under "The second absorb plan in the week plan", their cost under Effort budget. No card in it bumps `schema_version`, and nothing that changes code a registered config runs merges between the `prereg-v1` tag and the merge of H1's shards.
+
 **The answers of 2026-11-20.** The lead chose the three models, and the orchestrating session answered every other open decision under his delegation (`docs/tasks/lead-decisions.md`, items 1 to 48 and the review cards' table). The answers card of 2026-11-21 carried them into the pre-registration, the ADRs and this roadmap: Gate C's undecided branch, Gate D's store and dogfood criteria, the dates, the variance bound, the spend ceiling and where the cassettes go. Two drafts are still owed to the lead: the kill list's rewrite (item 26, proposed below) and H5's prerequisites (item 30).
 
 1.  [Planning principles](#principles)
@@ -210,6 +212,35 @@ Moved by the plan: B7 from W13 to W11, D1 from W17 to W11, D2 and D3 from W18 to
 
 Friday demonstrations the plan adds: W8, the counterexample tests' findings and a shrunk failing sequence from the stateful test; W9, a Python harness replayed through the proxy with zero new calls; W12, a write holding a secret denied with a reason that does not hold it; W13, the first admitted skill, five weeks earlier than planned; W14, `engram log verify` catching an edited row after an offboarding; W15, the provenance graph in the inspector.
 
+### The second absorb plan in the week plan
+
+Added on 2026-11-25 (`docs/tasks/absorb-plan-2.md`). Before the tag only test tooling merges; during H1's runs (1 to 8 December) only tests, specs, research scripts and new read-only commands; core changes, new configs and new MANIFEST rows resume after H1's `MERGE=4`. Card E2.21 (ADR 0034's grant cap, in flight on its own branch) builds its part 2 after `MERGE=4`, before E2.15.
+
+| Week | Dates | Research lane | Product lane |
+|---|---|---|---|
+| W8 | 23 to 29 Nov | E0.6 register check, E0.7 determinism guards | |
+| W9 | 30 Nov to 6 Dec | E8.16 surface parity and leaks, E1.8 Quint trace replay | E9.10 engram discover |
+| W10 | 7 to 13 Dec | X16 gate mutation audit, X17 results page, E1.7 erasure gaps, E2.14 policy schema, E2.15 provenance across rewrites (after E2.21's part 2) | |
+| W11 | 14 to 20 Dec | X18 fault-injection check, X19 erasure-residue check, E2.16 content-guard gaps, E1.9 chain coverage | E9.11 crypto-shredding ADR and keys |
+| W12 | 21 to 27 Dec | L9 quote-grounding, D5 procedure safety scan, A6 MCP memory store, E2.17 why not this item | E9.12 do not record, E8.17 Codex hook |
+| W13 | 28 Dec to 3 Jan | D4 drift and retirement, E2.18 Cedar symbolic proofs | E9.13 crypto-shredded erasure, E2.19 approval queue |
+| W14 | 4 to 10 Jan | | E9.14 erasure receipt, E8.8 approvals on every surface |
+| W15 | 11 to 17 Jan | | E2.20 policy test and diff, E9.15 signed audit report |
+| W16 | 18 to 24 Jan | | E9.16 subject access export and Article 30 record |
+
+Moved by the plan: D4 from W19 to W13, since D3 is merged; E8.8 from W8 to W14, after the approval queue it now shows.
+
+### The gate work cards in the week plan
+
+Added on 2026-11-25 (`docs/tasks/absorb-plan-2.md`, section 9, "Gate work cards (2026-11-25)"). They own the work the gates need that no card owned. The four pre-tag cards merge by 30 November, the day after W8 ends; the rest follow H1's `MERGE=4`.
+
+| Week | Dates | Research lane | Product lane |
+|---|---|---|---|
+| W8 | 23 to 29 Nov | R5 audit configs drop (by 28 Nov), R6 OpenRouter endpoints (by 29 Nov), X21 capped utility count, then X20 refused answer call (both by 30 Nov, the day after W8 ends; the week does not move) | |
+| W10 | 7 to 13 Dec | X22 programme-wide spend cap (after `MERGE=4`, before any later live run) | |
+| W11 | 14 to 20 Dec | X23 request-identity check, L10 contradiction prompt | |
+| W13 | 28 Dec to 3 Jan | | E9.17 Knowledge dogfood kit; the members run it in W14 and W15 beside the twin dogfood |
+
 ## Task cards
 
 Cards are grouped by epic. The dependency column is satisfied by earlier cards. Acceptance is a command the card creates; it must pass locally and in CI before the PR merges. Paste a card into a coding-agent session with the template at the end of this section.
@@ -300,7 +331,7 @@ Cards are grouped by epic. The dependency column is satisfied by earlier cards. 
 | D1   | Session recorder for tau2 tasks and a repository task set; sessions stored as episodic items                                                           | E2.3     | procedures/record.py   | fifty sessions recorded with task ids                             |
 | D2   | Induction using a published method (Agent Workflow Memory or Trace2Skill, cited); candidates as procedural items with SKILL.md body and tool allowlist | D1       | procedures/induce.py   | candidates produced for a fixture session set                     |
 | D3   | Replay validation gate: re-run originating tasks with the candidate installed; admit at or above threshold via promote                                 | D2, E2.5, B11 | procedures/validate.py | a failing candidate stays candidate; a passing one becomes active |
-| D4   | Drift detection: periodic re-validation; retire below threshold (kill list item 1)                                                                     | D3       | procedures/drift.py    | fixture with a changed task retires the skill                     |
+| D4   | Drift detection: periodic re-validation; retire below threshold (kill list item 1) (rewritten 2026-11-25: on D3's replay rule, opt-in)                                                                     | D3       | procedures/drift.py    | fixture with a changed task retires the skill                     |
 
 ### E8. Surfaces
 
@@ -313,7 +344,7 @@ Cards are grouped by epic. The dependency column is satisfied by earlier cards. 
 | E8.5  | Inspector v0: scope lanes, timeline                                                          | E8.3       | ui/                       | Playwright opens a fixture workspace                   |
 | E8.6  | Explain view: for a read, which items were returned, which were filtered and by which rule   | E2.2, E8.5 | ui/                       | Playwright asserts filtered count matches event        |
 | E8.7  | Findings view for lints with resolve actions (retire, edit scope, add provenance)            | L1, E8.5   | ui/                       | resolving a finding writes an event                    |
-| E8.8  | Review queue for candidates and promotions                                                   | E2.5, E8.5 | ui/                       | approve promotes; reject retires                       |
+| E8.8  | Review queue for candidates and promotions (rewritten 2026-11-25: E2.19's approvals on every surface) | E2.5, E8.5 | ui/                       | approve promotes; reject retires                       |
 | E8.9  | Simulator CLI: replay a recorded workload under a policy; report utility proxy and evictions | E1.3, E2.4 | core/simulate.py          | fixture workload under two presets prints a comparison |
 | E8.10 | Diff view between two snapshots of a scope                                                   | E1.3, E8.5 | ui/                       | Playwright asserts added, removed, changed counts      |
 
@@ -362,6 +393,56 @@ Twenty-six cards added by `docs/tasks/absorb-plan.md`, which also rewrote cards 
 | E8.14 | Framework kit (by-id read, scope list) and a Vercel AI SDK middleware                                                                                  | none            | packages/kit/, packages/ai-sdk/                    | `make api-check`; adapter conformance     |
 | E8.15 | The engram terminal interface (`engram tui`): every command and flag reachable, each action its plain command's client call; design and ADR 0044 first | E9.8, E2.13, E8.12, E8.14 | packages/cli/src/tui/, packages/cli/src/registry.ts | `make test-one T=packages/cli/test/tui/parity.test.ts` |
 | E9.8  | Memory import and export: a portable bundle; imports are governed candidate writes                                                                     | none            | packages/cli/src/import/                           | round-trip test                           |
+
+### The second absorb plan, 2026-11-25
+
+Twenty-eight cards added by `docs/tasks/absorb-plan-2.md`, which also rewrote cards D4 and E8.8 above. Each card file holds the steps, the sources with their licences and commits, and its guard.
+
+| Card  | Goal | Depends | Files | Acceptance |
+|-------|------|---------|-------|------------|
+| E0.6  | `make lint-docs` checks the absorbed register: paths, licences, notices | none | scripts/check-absorbed.ts | the check's test; `make lint-docs` |
+| E0.7  | Determinism guards: no network in tests, no clock or randomness in core | none | vitest.shared.ts, scripts/test/ | the rule's test |
+| E8.16 | Cross-surface parity and leak suite over CLI, HTTP, MCP and pi | RD1 | packages/*/test/leakage, parity | the suites; `make test-e2e` |
+| E1.8  | Quint traces replayed against the Plane | none | packages/core/test/model/ | `make verify-spec` |
+| X16   | Gate mutation audit: frozen mutants, each with the test that kills it | none | research/scripts/gate_mutation_audit.py | `make test-repro` row |
+| E9.10 | `engram discover`: harness memory outside the plane, counted; a doctor warning | none | packages/core/src/discover.ts | classifier test |
+| X17   | The results page: every MANIFEST row with its hash and command | none | research/scripts/results_page.py | `make test-repro` row |
+| E1.7  | Erasure: close the two gaps the Quint model found | E1.8 | packages/core/src/plane/offboard.ts | `make verify-spec`; invariants |
+| E2.14 | Policy schema: this plan's options and E2.21's `grants.expiry_cap`, absent meaning today's behaviour, no version bump | none | packages/core/src/schema.ts | `make api-check` |
+| E2.15 | Provenance holds across rewrites, closes and imports | E2.21 | packages/core/src/plane/write.ts | `make test-invariants` |
+| X18   | The paired fault-injection check for H3 (proposal U6) | none | research/scripts/h3_fault_injection.py | `make test-repro` row |
+| X19   | The erasure-residue check (proposal U7) | E1.7 | research/scripts/h3_erasure_residue.py | `make test-repro` row |
+| E2.16 | The content guards: ref scan, keyed hashes, word-based names, the oracle | none | packages/core/src/policy/secrets.ts | `make test-invariants` |
+| E1.9  | The chain on every writer and over attestations; race-free migration | none | packages/core/src/log/chain.ts | chain invariant on both backends |
+| L9    | Quote-grounding for the model lints, opt-in | E2.14 | packages/core/src/lint/evidence.ts | replayed fixture run |
+| D5    | The procedure safety scan at admission | E2.14 | packages/core/src/lint/procedural.ts | a test per class; corpus |
+| A6    | A fourth store: the MCP reference memory server's JSONL file | none | packages/adapters/src/mcp-memory/ | conformance suite |
+| E2.17 | Why not this item: the first stage that excluded it | RD1 | packages/core/src/plane/explain-absent.ts | property and leak tests |
+| E2.18 | Preset properties proved by Cedar's symbolic compiler | none | tools/symcc/ | `make verify-policy` |
+| E9.11 | Crypto-shredded erasure: the ADR and the key side table | E1.7 | packages/core/src/crypto/keys.ts | migration on both backends |
+| E9.12 | Do not record: consent at the write gate | E2.14 | packages/core/src/policy/consent.ts | property test |
+| E8.17 | Codex under the gate: PreToolUse hook and idempotent installer | none | packages/mcp/src/hook.ts | `make test-e2e` |
+| E9.13 | Crypto-shredded erasure in offboarding | E9.11, X19 | packages/core/src/crypto/seal.ts | invariants; residue rerun |
+| E2.19 | The approval queue: routed approvers, expiry, no self-approval | E2.14, E9.9 | packages/core/src/plane/approvals.ts | its property test; `make test-invariants` |
+| E9.14 | The signed erasure receipt, with residue verification | E9.13 | packages/core/src/receipt.ts | tamper tests |
+| E2.20 | Policy as code: `engram policy test` and `policy diff` | none | packages/core/src/policy/cases.ts | `make api-check` |
+| E9.15 | The signed audit report (DSSE, in-toto) | none | packages/core/src/audit/ | verify and tamper tests |
+| E9.16 | The subject access export and the Article 30 record | none | packages/core/src/audit/ropa.ts | round-trip test |
+
+### Gate work cards, 2026-11-25
+
+Eight cards for the gate work no card owned (`docs/tasks/absorb-plan-2.md`, section 9). H5's prerequisites (lead-decisions item 30) are drafted apart.
+
+| Card  | Goal | Depends | Files | Acceptance |
+|-------|------|---------|-------|------------|
+| R5    | Both audit configs read `on_stop: drop`; the two draw records regenerated, draws unchanged (pre-tag condition 2) | none | research/configs/label-audit*.json | label-audit tests; `make test-repro` |
+| R6    | Each live config pins its OpenRouter endpoints from a dated snapshot (pre-tag condition 5) | none | research/configs/openrouter-endpoints.json | `make test-one T=packages/runner/test/rv6-endpoints.test.ts` |
+| X20   | A refused answer call is an exclusion; a 401, 402 or 403 stops the run (pre-tag condition 3, item 14) | none | packages/runner/src/model/cassette.ts | `make test-one T=packages/runner/test/answer-refusal.test.ts` |
+| X21   | The H1 table counts the utility sessions the turn limit capped (pre-tag condition 3, item 15) | none | research/analysis/h1.py | H1 exclusion tests |
+| X22   | The runner enforces the programme-wide spend cap in billed dollars (pre-tag condition 7, after H1) | X20, H1's `MERGE=4` | packages/runner/src/spend-cap.ts | `make test-one T=packages/runner/test/spend-cap.test.ts` |
+| X23   | The request-identity check on files, Mem0 and Letta, a rule-9 result (ADR 0035) | H1's `MERGE=4` | research/scripts/h4_request_identity.py | `make test-one T=packages/runner/test/request-identity.test.ts`; `make test-repro` row |
+| L10   | The contradiction prompt counts a later update of the same attribute (item 44) | R6, H1's `MERGE=4` | packages/core/src/lint/model.ts | `make test-one T=packages/core/test/unit/lint/model.test.ts`; `make test-repro` |
+| E9.17 | The Knowledge profile's dogfood beside the twin dogfood (item 28) | E9.5 | docs/dogfood.md | `make test-one T=packages/core/test/unit/dogfood-knowledge.test.ts` |
 
 ### Card prompt template
 
@@ -422,6 +503,8 @@ Gap of about two FTE-weeks against 44 plannable. Kill list items 1 and 2 (D4 and
 | **Total** | 30 | **16.5** |
 
 The table above has no room for that at its original rates. The plan rests on the pace observed so far, not on the estimate: by 21 November, the end of W7, the engineering of cards the week plan places in W11 to W15 is merged (E2.4, E8.9, L2, L3, L4, E9.4), with E9.7 from the kill list. That pace is not measured in FTE-weeks anywhere, so it is an observation and not a rate. Re-estimate at Gate C from the absorb cards merged by then; if fewer than seven of the nine cards placed before Gate C are merged, the product lane is cut first, in the order the kill list gives.
+
+**The second absorb plan's cost (2026-11-25).** At the same rates the thirty come to 15.0 FTE-weeks: 8.5 on the research lane and 6.5 on the product lane; D4 and E8.8 were already counted in the tables above (about 1.0). As with the first plan, the estimate rests on the observed pace. If H1, H2 or H3 need the team, the second plan's product lane is cut first, last card first (E9.16, E9.15, E2.20, E8.8, E9.14, E2.19, E9.13, E8.17, E9.12, E9.11, E9.10), then its research lane in the same order; E0.6, E0.7, E1.7 and E2.15 are never cut, since they guard rule 16, determinism, erasure and Gate D's dogfood.
 
 ## Compute and data budget
 

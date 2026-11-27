@@ -253,6 +253,8 @@ describe("a LongMemEval experiment, live and replayed", () => {
       items: ["66f24dbb"],
       seeds: [2],
       judge: { model: "faux-judge/judge-1", temperature: 0, max_tokens: 10 },
+      // The config's OpenRouter pin is M1's (card R6), and these are faux models.
+      openrouter_provider: undefined,
     };
     const cassettes = join(fresh(), "cassettes");
     const config = liveConfig(base, { model: "faux-live/model-1", repo: REPO, cassettes, env: {} });

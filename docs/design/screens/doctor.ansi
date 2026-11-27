@@ -1,0 +1,36 @@
+[7m engram  Doctor                                                         in process  log engram.db  person:dana (person) [0m
+   ▸ More flags: 11, set: --db --policy --root
+
+ [7m[ Run doctor again ][0m
+
+ [38;2;0;166;122m✓[0m all checks passed   exit 0
+
+  [38;2;0;166;122m✓[0m ok    log             sqlite ~/demo/engram.db: opens; up to date
+  [38;2;0;166;122m✓[0m ok    policy          fixture.inspector v1 loads and validates
+  [38;2;0;166;122m✓[0m ok    store           ~/demo/mem is a readable folder
+  [38;2;0;166;122m✓[0m ok    adapter files   ~/demo/mem: 0 memories listed through the plane, 0 admitted, 0 denied (medium preset,
+                          in-memory log)
+  [38;2;0;166;122m✓[0m ok    adapter mem0    in-memory Mem0 with the hashing embedder: a write and a read round-trip through the plane,
+                          offline
+  [38;2;0;166;122m✓[0m ok    adapter letta   git version 2.53.0.windows.1; a MemFS repository in a temporary folder: a write and a read
+                          round-trip through the plane, one commit, and a delete, offline
+  [38;2;0;166;122m✓[0m ok    provider keys   none of 38 key variables for 40 providers is set; live model calls need one, scripted and
+                          cassette runs do not; not checked: amazon-bedrock, google-vertex (ADC), openai-codex
+                          (credentials that are not a key variable)
+  [38;2;0;166;122m✓[0m ok    benchmark pins  packages/bench/PINS.md: 6 benchmarks, 6 pinned; fixtures match their manifests: gatemem 24
+                          lines at a983828, longmemeval 881 lines at 9e0b455, mem-inv-bench 1355 lines at cf3c9a4
+  [38;2;0;166;122m✓[0m ok    pi pin          pi-ai 1.3.0, pi-coding-agent 1.3.0, pi-tui 1.3.0: package.json pins and installed copies
+                          match docs/deps.md
+  [38;2;0;166;122m✓[0m ok    node            Node 24.14.0
+  · skip  serve           no serve flags given (--host, --keys, --issuer, --insecure-loopback)
+
+ doctor: all checks passed      exit 0
+
+
+
+
+
+
+
+$ engram doctor --db engram.db --policy policy.yaml --root mem   exit 0
+ ? help  r rerun  enter details  v plain  J json  ; commands  esc back

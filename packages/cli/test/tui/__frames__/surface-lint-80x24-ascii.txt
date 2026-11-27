@@ -1,0 +1,29 @@
+ engram  Lint a scope                          in process  person:dana (person)
+   Scope        [ team:core                    ]  linted as a member of it
+   ~ More flags: 13, set: --root --owner --db
+
+ [ Lint ]
+
+ ! 1 finding   exit 1  each one a lint event in the log
+
+ lint team:core at 2026-11-06T12:00:00Z as person:dana: allow, 1 finding
+  ! warn  duplicate  01950000-0000-7000-8000-000000000002
+    it restates 01950000-0000-7000-8000-000000000001, an earlier active
+    semantic item in team:core
+    ~ evidence: space; the item page: enter
+
+ exit 1: 1 finding. Each finding is a lint event in the log.
+
+
+
+
+
+
+
+$ engram lint --scope team:core --db engram.db --owner dana --root mem   exit 1
+ ? help  enter item page  space evidence  r again  v plain  J json  ; command...
+--- styles
+r0 c0-79 inverse
+r4 c1-8 inverse
+r6 c1-1 fg #E69F00
+r9 c2-2 fg #E69F00
