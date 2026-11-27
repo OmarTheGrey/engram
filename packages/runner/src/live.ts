@@ -167,7 +167,7 @@ export function builtinLiveModels(): LiveModels {
 }
 
 /** The judge model a live run of `config` calls, if any: its own, or its benchmark's paper judge for an experiment. */
-function judgeModel(config: LiveRunConfig): string | undefined {
+export function judgeModel(config: LiveRunConfig): string | undefined {
   if (config.judge) return config.judge.model;
   if (config.kind !== "experiment") return undefined;
   if (config.benchmark === "gatemem") return configJudge({ kind: "experiment" })?.model;

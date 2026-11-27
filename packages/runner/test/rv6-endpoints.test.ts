@@ -1,10 +1,12 @@
 // Card R6 (pre-tag condition 5): every config that will run live pins, in
 // `openrouter_provider.answer` and `.judge`, the OpenRouter upstream of its
-// answer model and its judge, chosen by the registered rule (the maker's own
-// endpoint where OpenRouter lists one, otherwise the cheapest endpoint that
-// honours `seed`, with `allow_fallbacks: false`) from the dated snapshot
-// research/configs/openrouter-endpoints.json. And a pinned answer route names
-// the model it was chosen for, so a live run on another MODEL= is refused.
+// answer model and its judge, chosen by the registered rule as the lead
+// answered it on 2026-11-26, "Seed first" (the maker's own endpoint, used
+// only if it honours `seed`; otherwise the cheapest endpoint that honours
+// `seed`; with `allow_fallbacks: false` and `require_parameters: true`) from
+// the dated snapshot research/configs/openrouter-endpoints.json, whose
+// committed responses it rebuilds. And a pinned answer route names the model
+// it was chosen for, so a live run on another MODEL= is refused.
 // Nothing here reaches the network.
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
@@ -13,7 +15,13 @@ import { describe, expect, test } from "vitest";
 import { parseRunnerConfig, readRunnerConfig } from "../src/config.ts";
 import { readFaultSetConfig } from "../src/lint-fault-set.ts";
 import { readLintConfig } from "../src/lint-faults.ts";
-import { LiveRunRefused, liveConfig, upstreamRoutes } from "../src/live.ts";
+import {
+  judgeModel,
+  type LiveRunConfig,
+  LiveRunRefused,
+  liveConfig,
+  upstreamRoutes,
+} from "../src/live.ts";
 import { readLongMemEvalConfig } from "../src/longmemeval-probe.ts";
 import { readMemInvConfig } from "../src/mem-inv-probe.ts";
 import { OpenRouterProvider } from "../src/model/upstream.ts";
@@ -285,14 +293,14 @@ describe("card R6: every live config pins its answer model and its judge", () =>
   test.each(LIVE)("%s", (name) => {
     const config = raw(name);
     const benchmark = String(config.benchmark);
-    readers[benchmark]?.(join(CONFIGS, name));
     const pin = OpenRouterProvider.parse(config.openrouter_provider);
     const model = String(config.model);
     const answerModel = model.startsWith("prereg/") ? M1 : model;
     expect(pin.answer_model).toBe(answerModel);
     expect(pin.answer).toEqual(pinOf(answerModel));
     expectSupports(answerModel, ANSWER_ROLES[benchmark] ?? []);
-    const judge = (config.judge as { model?: string } | undefined)?.model;
+    // The judge as the runner resolves it: the config's own, else its benchmark's paper judge.
+    const judge = judgeModel(readers[benchmark]?.(join(CONFIGS, name)) as LiveRunConfig);
     if (judge === undefined) expect(pin.judge).toBeUndefined();
     else {
       expect(pin.judge).toEqual(pinOf(judge));
@@ -305,10 +313,10 @@ describe("card R6: the lint configs", () => {
   test.each([
     ["l3-pilot.json", readLintConfig],
     ["h3-lint-model.json", readFaultSetConfig],
-  ] as const)("%s pins M1's endpoint, or stays unpinned", (name, read) => {
+  ] as const)("%s pins M1's endpoint", (name, read) => {
     read(join(CONFIGS, name));
     const config = raw(name);
-    if (config.openrouter_provider === undefined) return;
+    expect(config.openrouter_provider, `${name} pins M1's endpoint`).toBeDefined();
     const pin = OpenRouterProvider.parse(config.openrouter_provider);
     expect(pin.answer_model).toBe(M1);
     expect(pin.answer).toEqual(pinOf(M1));
