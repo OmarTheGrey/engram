@@ -14,7 +14,7 @@
 // passes. These fixtures are also card L3's pilot set
 // (research/configs/l3-pilot.json) until card L2's seeded-fault set lands.
 //
-//   node packages/core/scripts/faults.ts write <dir>           regenerate fixtures/faults (make fixtures), gate/ included
+//   node packages/core/scripts/faults.ts write <dir>           regenerate fixtures/faults (make fixtures), gate/ and procedural/ included
 //   node packages/core/scripts/faults.ts workspace <fixture> <dir>   a SQLite log and policy file to lint with the CLI
 //
 // A scope-class mismatch arises when a policy changes after a write, so a
@@ -32,6 +32,7 @@ import { appendEvent } from "../src/events.ts";
 import type { LintId } from "../src/lint.ts";
 import { createPlane, type Plane } from "../src/plane.ts";
 import type { MemoryEvent, MemoryItem, Policy } from "../src/schema.ts";
+import { corpusText } from "./procedural-corpus.ts";
 
 export interface FaultFixture {
   description: string;
@@ -919,6 +920,9 @@ async function main(argv: string[]): Promise<void> {
       mkdirSync(dirname(join(a, `${name}.json`)), { recursive: true });
       writeFileSync(join(a, `${name}.json`), gateFixtureText(f));
     }
+    // The procedure safety scan's corpus (card D5), labelled by hand.
+    mkdirSync(join(a, "procedural"), { recursive: true });
+    writeFileSync(join(a, "procedural", "corpus.json"), corpusText());
     return;
   }
   if (mode === "workspace" && a && b) {

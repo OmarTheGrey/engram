@@ -21,6 +21,18 @@
 //   (`grantsChanged`) in a way the oracle refuses (`grantChangeProblem`: who
 //   widened them, and what was added; ADR 0021, D4 and ADR 0034).
 //
+// The grant cap (card E2.21): under a policy that turns grants.expiry_cap on,
+// as the twin profile does since that card, an allowed write or grant change
+// that added a grant the cap or the first-write rule refuses
+// (`expiryCapProblem`: past 365 days after the event, expired, or of another
+// class on a first write) is counted under `watch.expiry_cap`, not as a
+// violation, and named in `details`. The log does not record which policy
+// the plane ran under, so a grant a member wrote before the option was on,
+// lawful then, reads so; the invariants (test/property/invariants.test.ts)
+// are where the plane's own cap is held. A promotion's new version is not
+// judged (ADR 0034, decision 6), nor a change the oracle already counts as a
+// violation.
+//
 // Card E2.6's events (ADR 0007's amendment): the offboarding's begin mark,
 // the conflict, erasing and not-handed-over denies, and adoption's deletions
 // change no item, so the replay passes over them and counts them by rule
@@ -46,6 +58,7 @@ import type { Actor } from "./actor.ts";
 import {
   addedGrants,
   type Earlier,
+  expiryCapProblem,
   grantChangeProblem,
   grantsChanged,
   grantsWiden,
@@ -71,7 +84,7 @@ import {
   ScopeLevel,
 } from "./schema.ts";
 
-export const REPORT_FORMAT = "engram-dogfood-report/3";
+export const REPORT_FORMAT = "engram-dogfood-report/4";
 
 export interface DogfoodReport {
   report: typeof REPORT_FORMAT;
@@ -119,9 +132,18 @@ export interface DogfoodReport {
    * for the lead; and grant changes that only narrowed what
    * the grants admit, made by someone other than the owner's grant change or
    * write (a promotion carrying a grant its new class switches off, review
-   * finding E95-4).
+   * finding E95-4). `expiry_cap` (card E2.21): allowed events that added a
+   * grant the grant cap or the first-write rule refuses under the policy
+   * judged, when it turns grants.expiry_cap on; a grant written before the
+   * option was on counts here, since the log does not say which policy ran.
    */
-  watch: { provenance_raised: number; narrowed: number };
+  watch: { provenance_raised: number; narrowed: number; expiry_cap: number };
+}
+
+/** One violation the report counts: the seq of the event that made it, and which count it is in. */
+export interface DogfoodViolation {
+  seq: number;
+  kind: "read" | "grant_change";
 }
 
 /**
@@ -144,6 +166,12 @@ export const ENGRAM_RULES: readonly string[] = [
   "engram/bypass/foreign-result",
   "engram/bypass/store-command",
   "engram/bypass/store-path",
+  "engram/drift/membership",
+  "engram/drift/not-due",
+  "engram/drift/off",
+  "engram/drift/status",
+  "engram/drift/thresholds",
+  "engram/drift/validation-source",
   "engram/grant/change",
   "engram/grant/conflict",
   "engram/grant/expired",
@@ -172,6 +200,7 @@ export const ENGRAM_RULES: readonly string[] = [
   "engram/promote/replay-item",
   "engram/promote/replay-split",
   "engram/promote/reviewer",
+  "engram/promote/safety-scan",
   "engram/promote/validation-source",
   "engram/promote/widening-source",
   "engram/read/default-deny",
@@ -188,6 +217,7 @@ export const ENGRAM_RULES: readonly string[] = [
   "engram/write/downgrade",
   "engram/write/erased",
   "engram/write/grant",
+  "engram/write/grant-expiry-cap",
   "engram/write/guard-failure",
   "engram/write/injection-screen",
   "engram/write/membership",
@@ -286,19 +316,22 @@ function shapeOf(actor: Actor | undefined): DogfoodReport["declared"] {
 /**
  * The report of `events` (a whole log, parsed, in seq order) under `policy`,
  * with the actors the member declares (the first is the member's);
- * `details` names each violation, for the member alone.
+ * `details` names each violation, for the member alone; `violations` lists
+ * each by the seq of its event and its kind, for a caller that counts them
+ * over part of the log (card E9.15's audit report), never by its text.
  */
 export function dogfoodReport(
   events: readonly MemoryEvent[],
   policy: Policy,
   declared: readonly Actor[],
-): { report: DogfoodReport; details: string[] } {
+): { report: DogfoodReport; details: string[]; violations: DogfoodViolation[] } {
   const actors = new Map(declared.map((a) => [a.id, a]));
   const actorFor = (id: string) => actors.get(id) ?? defaultActor(id);
   const rules = printableRules(policy);
   const scopeOnly: Policy = { ...policy, read: { ...policy.read, honour_grants: false } };
   const state = new Map<string, MemoryItem>();
   const details: string[] = [];
+  const violations: DogfoodViolation[] = [];
   const days = new Set<number>();
   const r: DogfoodReport = {
     report: REPORT_FORMAT,
@@ -322,7 +355,7 @@ export function dogfoodReport(
     asks: 0,
     bypass_blocked: 0,
     violations: { read: 0, grant_change: 0, total: 0 },
-    watch: { provenance_raised: 0, narrowed: 0 },
+    watch: { provenance_raised: 0, narrowed: 0, expiry_cap: 0 },
   };
   /** Items some allowed version of which held untrusted content. */
   const held = new Set<string>();
@@ -374,6 +407,7 @@ export function dogfoodReport(
                   : undefined;
         if (why !== undefined) {
           r.violations.read++;
+          violations.push({ seq: e.seq, kind: "read" });
           details.push(`read event ${e.seq} at ${e.ts} by ${e.actor} returned ${id}: ${why}`);
         } else if (!readable(scopeOnly, actor, was as MemoryItem, e.ts)) r.reads.items_via_grant++;
       }
@@ -394,6 +428,7 @@ export function dogfoodReport(
           : narrowingProblem(before, e);
       if (problem !== undefined) {
         r.violations.grant_change++;
+        violations.push({ seq: e.seq, kind: "grant_change" });
         details.push(
           `${e.op} event ${e.seq} at ${e.ts} by ${e.actor} (${e.policy_id}) on ${e.item.id}: ${problem}`,
         );
@@ -418,8 +453,20 @@ export function dogfoodReport(
           : grantChangeProblem(policy, actorFor(e.actor), before, e, heldBefore, (id) =>
               seen.get(id),
             );
+        // The grant cap (card E2.21): a watch count, not a violation (see the header).
+        const capped =
+          problem === undefined && !recovery && e.op !== "promote"
+            ? expiryCapProblem(policy, before, item, e.ts)
+            : undefined;
+        if (capped !== undefined) {
+          r.watch.expiry_cap++;
+          details.push(
+            `watch, not a violation: ${e.op} event ${e.seq} at ${e.ts} by ${e.actor} (${e.policy_id}) on ${item.id}: ${capped}`,
+          );
+        }
         if (problem !== undefined) {
           r.violations.grant_change++;
+          violations.push({ seq: e.seq, kind: "grant_change" });
           details.push(
             `${e.op} event ${e.seq} at ${e.ts} by ${e.actor} (${e.policy_id}) on ${item.id}: ${problem}`,
           );
@@ -441,7 +488,7 @@ export function dogfoodReport(
   r.violations.total = r.violations.read + r.violations.grant_change;
   r.days_with_events = days.size;
   r.span_days = days.size === 0 ? 0 : Math.max(...days) - Math.min(...days);
-  return { report: r, details };
+  return { report: r, details, violations };
 }
 
 /** The report as printed: JSON, keys sorted at every depth, two-space indent; byte-stable. */

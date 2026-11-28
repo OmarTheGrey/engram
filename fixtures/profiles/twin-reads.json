@@ -1,5 +1,5 @@
 {
-  "description": "Card E9.2's acceptance fixture: writes then reads through the plane under packages/pi-package/profiles/twin.yaml. Dana and Sam share team:core; Dana holds role:lead. Each write names its decision; each read, with no query so it returns everything the reader can reach, names the item numbers it must return, in any order. Grants name a class and an expiry, as the gate requires.",
+  "description": "Card E9.2's acceptance fixture: writes then reads through the plane under packages/pi-package/profiles/twin.yaml. Dana and Sam share team:core; Dana holds role:lead. Each write names its decision; each read, with no query so it returns everything the reader can reach, names the item numbers it must return, in any order. Grants name a class and an expiry, as the gate requires. A write may name its own time (`at`); write 4 is written on 2026-09-15 with a grant live then, within the twin profile's cap of 365 days (grants.expiry_cap, card E2.21), which has expired by the fixture's `at`, so the reads find it expired.",
   "at": "2026-10-25T12:00:00.000Z",
   "actors": {
     "dana": {
@@ -77,6 +77,7 @@
       "as": "dana",
       "scope": "person:dana",
       "content": "Dana's old note for Sam about the shared drive.",
+      "at": "2026-09-15T12:00:00.000Z",
       "grants": [
         {
           "to": "person:sam",

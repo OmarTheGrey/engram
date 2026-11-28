@@ -15,10 +15,10 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | reach measurement | 5 | what the plane lets a reader reach on a benchmark's own data, with no model called |
 | cost estimate | 4 | dollars and calls estimated from token counts and prices; no model called |
 | power computation | 2 | a simulation of the registered test that sets or checks a sample size |
-| engineering check | 5 | a check of a component's behaviour or speed that decides no hypothesis |
-| proof of concept | 7 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
+| engineering check | 4 | a check of a component's behaviour or speed that decides no hypothesis |
+| proof of concept | 9 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
 
-32 results in all, one per MANIFEST row.
+33 results in all, one per MANIFEST row.
 
 ## What each hypothesis still needs
 
@@ -45,7 +45,7 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | checkpoints where a plain refusal scores as a leak | 41 | `by_preset.medium.all.refusal_leak` |
 | identical across the three presets | true | `identical_across_presets` |
 
-Recorded by [`docs/log/2026-11-02-pr2-r2-measurement-gatemem-reach.md`](../log/2026-11-02-pr2-r2-measurement-gatemem-reach.md).
+Recorded by [`docs/log/2026-11-02-pr2-r2-measurement-gatemem-reach.md`](../log/2026-11-02-pr2-r2-measurement-gatemem-reach.md), [`docs/log/2026-11-28-e2-21-measurement-repro-rows.md`](../log/2026-11-28-e2-21-measurement-repro-rows.md).
 
 ### `research/results/h1-mem-inv-admission.json`
 
@@ -528,7 +528,7 @@ Recorded by [`docs/log/2026-11-28-e1-7-measurement-trace-replay.md`](../log/2026
 - **Question.** Do the invariants' property tests kill hand-written mutants of the write gate, the read filter, retention, promotion, adoption, offboarding, the trust floors and the log's chain, and which mutants survive?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. A proof of concept on the code's own tests (card X16); the file is under `h1-` for the results glob only.
-- **Made by.** `research/scripts/gate_mutation_audit.py` from `research/configs/gate-mutation-audit.json`, MANIFEST commit `0772cd3b`, sha256 `8e61f235b5dc2d7af647b27ecbe92b13b5db4769448438452f662ec20b873e05`.
+- **Made by.** `research/scripts/gate_mutation_audit.py` from `research/configs/gate-mutation-audit.json`, MANIFEST commit `50e3a293`, sha256 `842da60481d3b9b0cd630179e20ef72b3200fd64a4e7580f794c499477b50107`.
 
 | value | reads | key path |
 |---|---|---|
@@ -539,7 +539,7 @@ Recorded by [`docs/log/2026-11-28-e1-7-measurement-trace-replay.md`](../log/2026
 | two-handle offboarding walk, killed | 2 | `per_invariant.I1H.killed` |
 | log chain, killed | 2 | `per_invariant.I9.killed` |
 
-Recorded by [`docs/log/2026-11-28-e1-7-measurement-mutation-audit.md`](../log/2026-11-28-e1-7-measurement-mutation-audit.md), [`docs/log/2026-11-28-x16-measurement-audit-after-review.md`](../log/2026-11-28-x16-measurement-audit-after-review.md).
+Recorded by [`docs/log/2026-11-28-e1-7-measurement-mutation-audit.md`](../log/2026-11-28-e1-7-measurement-mutation-audit.md), [`docs/log/2026-11-28-e1-9-measurement-gate-mutation-audit.md`](../log/2026-11-28-e1-9-measurement-gate-mutation-audit.md), [`docs/log/2026-11-28-e2-21-measurement-mutation-audit-merged.md`](../log/2026-11-28-e2-21-measurement-mutation-audit-merged.md).
 
 ### `research/results/h2-cedar-properties.json`
 
@@ -597,24 +597,38 @@ Recorded by [`docs/log/2026-11-28-l9-measurement-grounding-after-review.md`](../
 
 Recorded by [`docs/log/2026-11-28-d4-measurement-drift-fixture.md`](../log/2026-11-28-d4-measurement-drift-fixture.md).
 
-### `research/results/h3-erasure-residue.json`
+### `research/results/h5-procedure-scan.json`
 
-- **Question.** After 20 person scopes are offboarded under twin, how many of their 200 canary facts are still found, outside what the plane keeps by decision, in the projection, the explanations, the log's events, the store's records, the database's file and write-ahead log, and the store's files and history, on SQLite and embedded Postgres and on each of the four stores?
-- **Status.** engineering check: a check of a component's behaviour or speed that decides no hypothesis.
-- **Serves.** no hypothesis; pre-registration section "U7. The erasure-residue check (not scheduled)". Card X19's engineering check of proposal U7, which is proposed and not yet registered: the lead registers it as a descriptive arm by amendment once this check merges. It decides nothing. The live tiers (rows and records the plane reads) hold only the two records card E1.7 names (a store that refuses the delete, a record that moved); the bytes the engines do not zero (SQLite's and Postgres's pages and WAL, Mem0's SQLite files) and Letta's git history hold most of the rest. The search is verbatim and by hash; a byte hit of a retained canary counts as retained.
-- **Made by.** `research/scripts/h3_erasure_residue.py` from `research/configs/h3-erasure-residue.json`, MANIFEST commit `977e291e`, sha256 `953d4eb6ca1b05c0dc6b5c0125b8f715d013e4dbc8468ef88b8badbf4d5ddf35`.
+- **Question.** On card D5's hand-labelled corpus of procedural candidates, each presented to Plane.promote with a replay that would admit it, what share of the unsafe ones does `procedures.safety_scan: hold` keep from admission, and what share of the safe controls does it wrongly hold; do off and report change no decision?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. Card D5: a proof of concept on a corpus the card's author wrote; the hard negatives (benign text quoting a dangerous command or phrase) are its known false holds. Filed under `h5-` as the nearest hypothesis (Distill); it decides none.
+- **Made by.** `research/scripts/procedure_scan.py` from `research/configs/procedure-scan.json`, MANIFEST commit `b297e5b6`, sha256 `0ac5428238ea46f52fbd3d152f649f370935ebef2bee4a7ba95fb03e296cc39f`.
 
 | value | reads | key path |
 |---|---|---|
-| SQLite and files: exposed canaries found as residue in a live tier | 2 | `runs.sqlite/files.live_tiers.residue.successes` |
-| SQLite and files: found as residue in any tier | 146 | `runs.sqlite/files.any_tier.residue.successes` |
-| SQLite and files: residue in the database file's unreclaimed bytes | 140 | `runs.sqlite/files.tiers.db-file.residue_unreclaimed` |
-| Postgres and files: residue in the heap files | 157 | `runs.postgres/files.tiers.db-file.residue.successes` |
-| Postgres and files: residue in the WAL | 160 | `runs.postgres/files.tiers.db-wal.residue.successes` |
-| SQLite and Mem0: residue in Mem0's own files | 139 | `runs.sqlite/mem0.tiers.store-files.residue.successes` |
-| SQLite and Letta: residue in the repository's git objects | 160 | `runs.sqlite/letta.tiers.store-history.residue.successes` |
-| SQLite and files: retained by decision in the projection, promoted | 20 | `runs.sqlite/files.tiers.projection.retained_by_decision.promoted` |
-| SQLite and files: never-exposed canaries found anywhere | 0 | `runs.sqlite/files.any_tier.never_exposed_found.successes` |
-| decides a hypothesis | false | `decides` |
+| unsafe cases held, hold | 39 | `modes.hold.hold.count` |
+| unsafe cases | 39 | `modes.hold.hold.n` |
+| hold rate, hold | 1.0 | `modes.hold.hold.rate` |
+| safe controls held, hold | 3 | `modes.hold.false_hold.count` |
+| false-hold rate, hold | 0.066667 | `modes.hold.false_hold.rate` |
+| near-misses held, hold | 0 | `modes.hold.false_hold_by_group.near-miss.count` |
+| cases held, report | 0 | `modes.report.hold.count` |
 
-Recorded by [`docs/log/2026-11-28-x19-measurement-erasure-residue.md`](../log/2026-11-28-x19-measurement-erasure-residue.md).
+Recorded by [`docs/log/2026-11-28-d5-measurement-procedure-scan-limits.md`](../log/2026-11-28-d5-measurement-procedure-scan-limits.md).
+
+### `research/results/h1-audit-report.json`
+
+- **Question.** Does a signed, content-free audit report of a window of the log verify against the log as exported and after a later write, and fail, at the check that should catch it, under every tampering of the report or the log a person with database access but not the operator's key can make?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. Card E9.15's core suite on one chained fixture log, SQLite, a fixed key; the file is under `h1-` for the results glob only. The envelope's sha256 is fixed by the log, the clock and the key.
+- **Made by.** `research/scripts/audit_report.py` from `research/configs/audit-report.json`, MANIFEST commit `aeb88f23`, sha256 `d503840658800b3cd4318fe4f660df3fe49ae89c5f3bec16f07a2b4714840c5e`.
+
+| value | reads | key path |
+|---|---|---|
+| cases | 11 | `totals.cases` |
+| cases with the expected verdict and check | 11 | `totals.matched` |
+| tamperings detected | 8 | `totals.tampering_detected` |
+| events counted in the window | 5 | `statement.events_counted` |
+| envelope bytes | 3,351 | `envelope.bytes` |
+
+Recorded by [`docs/log/2026-11-28-e9-15-measurement-audit-report-chain-v2.md`](../log/2026-11-28-e9-15-measurement-audit-report-chain-v2.md).

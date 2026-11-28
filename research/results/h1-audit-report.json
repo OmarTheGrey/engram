@@ -1,0 +1,166 @@
+{
+  "card": "E9.15",
+  "cases": [
+    {
+      "case": "the fixture log, as exported",
+      "checks_passed": 7,
+      "expected": {
+        "failed": null,
+        "verdict": "OK"
+      },
+      "failed_at": null,
+      "verdict": "OK"
+    },
+    {
+      "case": "a later write after the export",
+      "checks_passed": 7,
+      "expected": {
+        "failed": null,
+        "verdict": "OK"
+      },
+      "failed_at": null,
+      "verdict": "OK"
+    },
+    {
+      "case": "a count in the statement changed, not re-signed",
+      "checks_passed": 1,
+      "expected": {
+        "failed": "signature",
+        "verdict": "FAILED"
+      },
+      "failed_at": "signature",
+      "verdict": "FAILED"
+    },
+    {
+      "case": "the statement re-signed under another key",
+      "checks_passed": 1,
+      "expected": {
+        "failed": "signature",
+        "verdict": "FAILED"
+      },
+      "failed_at": "signature",
+      "verdict": "FAILED"
+    },
+    {
+      "case": "a false count signed with the operator's key",
+      "checks_passed": 6,
+      "expected": {
+        "failed": "counts",
+        "verdict": "FAILED"
+      },
+      "failed_at": "counts",
+      "verdict": "FAILED"
+    },
+    {
+      "case": "a head beyond the chain, signed with the operator's key",
+      "checks_passed": 4,
+      "expected": {
+        "failed": "head",
+        "verdict": "FAILED"
+      },
+      "failed_at": "head",
+      "verdict": "FAILED"
+    },
+    {
+      "case": "an event edited in the log",
+      "checks_passed": 3,
+      "expected": {
+        "failed": "chain",
+        "verdict": "FAILED"
+      },
+      "failed_at": "chain",
+      "verdict": "FAILED"
+    },
+    {
+      "case": "an event edited and the chain rehashed",
+      "checks_passed": 3,
+      "expected": {
+        "failed": "chain",
+        "verdict": "FAILED"
+      },
+      "failed_at": "chain",
+      "verdict": "FAILED"
+    },
+    {
+      "case": "an event edited, the chain rehashed and the checkpoints deleted",
+      "checks_passed": 4,
+      "expected": {
+        "failed": "head",
+        "verdict": "FAILED"
+      },
+      "failed_at": "head",
+      "verdict": "FAILED"
+    },
+    {
+      "case": "another policy given to verify",
+      "checks_passed": 6,
+      "expected": {
+        "failed": "counts",
+        "verdict": "FAILED"
+      },
+      "failed_at": "counts",
+      "verdict": "FAILED"
+    },
+    {
+      "case": "no public key pinned",
+      "checks_passed": 6,
+      "expected": {
+        "failed": null,
+        "verdict": "UNSIGNED"
+      },
+      "failed_at": null,
+      "verdict": "UNSIGNED"
+    }
+  ],
+  "envelope": {
+    "bytes": 3351,
+    "sha256": "c53d136bfdc08c3b56ef74a0a889ee779755b42373019174d5a59fd0c10eae0e"
+  },
+  "filed_under": "research/results/h1-* only because research/tests/test_prereg.py maps every MANIFEST file to one hypothesis's results glob; the result decides no hypothesis, as card E8.16 filed its leak count",
+  "hypothesis": "none",
+  "limits": [
+    "One fixture log of seven events under the test policy, on SQLite, with a seeded salt source and a fixed Ed25519 key; the core suite also runs the acceptance cases on Postgres, which this record does not cover.",
+    "The tamperings are those a person with database access and the code but not the operator's private key can make, plus a report re-signed by the key holder with a false count; an operator who holds the key and rewrites the whole log before exporting is detected only by a checkpoint held outside the database (ADR 0038).",
+    "The report is exported with the fixture's reader declared to the oracle (person:dana, member of person:dana and team:platform), so its oracle count is judged with her memberships; with no actor declared a report states no oracle count. The log is chain version 2 (card E1.9)."
+  ],
+  "name": "audit-report",
+  "statement": {
+    "by_decision": {
+      "allow": 3,
+      "deny": 2
+    },
+    "by_rule": {
+      "engram/write/membership": {
+        "deny": 1
+      },
+      "other": {
+        "allow": 3,
+        "deny": 1
+      }
+    },
+    "events_counted": 5,
+    "head_signed": true,
+    "head_size": 8,
+    "oracle": {
+      "declared": 1,
+      "declared_sha256": "82368d8710b08794e1749378de8fb3a823d0f2565731b3f48a26ea5eae5acc1b",
+      "violations": {
+        "grant_change": 0,
+        "read": 0,
+        "total": 0
+      }
+    }
+  },
+  "status": "proof of concept",
+  "suite": [
+    "packages/core/test/unit/audit/report.test.ts"
+  ],
+  "suite_passed": true,
+  "totals": {
+    "cases": 11,
+    "matched": 11,
+    "tampering": 8,
+    "tampering_detected": 8
+  },
+  "wording": "a signed, content-free audit report (an in-toto Statement in a DSSE envelope) of a window of a chained fixture log, verified against the log as exported, after a later write, and under each tampering of the report or the log: the verdict each case gives, the check it fails at, how many tamperings were detected, and the sha256 of the envelope, fixed by the log, the clock and the key. A proof of concept on one fixture log with no model in the loop, never a hypothesis result"
+}
