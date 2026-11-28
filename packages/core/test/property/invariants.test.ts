@@ -2514,7 +2514,10 @@ async function promotionsLandOnlyWherePermitted(name: string) {
  * never held, and `listScopes` lists no scope the outsider cannot read
  * (card E8.14);
  * `whoCanReadItem` and `whoCanRead` refuse an outsider as for an unknown id
- * and append no event (card E2.13, decision item 53).
+ * and append no event (card E2.13, decision item 53);
+ * `approvals` lists only requests in scopes the caller may read, `refuse`
+ * refuses an outsider as for an unknown id with no item and no scope, and
+ * `expireRequests` sweeps only a scope the caller is a member of (card E2.19).
  */
 async function planeSurfaceLeaksNothing() {
   const SECRET = "the vault code is 4711";
@@ -2527,10 +2530,12 @@ async function planeSurfaceLeaksNothing() {
   };
   const { plane } = freshPlane(policy);
   expect(Object.keys(plane).sort(), "a new Plane method must be classified here").toEqual([
+    "approvals",
     "changeGrants",
     "checkWrite",
     "distill",
     "events",
+    "expireRequests",
     "explain",
     "export",
     "lint",
@@ -2539,6 +2544,7 @@ async function planeSurfaceLeaksNothing() {
     "read",
     "readById",
     "recordBypass",
+    "refuse",
     "retain",
     "simulate",
     "whoCanRead",
@@ -2688,6 +2694,19 @@ async function planeSurfaceLeaksNothing() {
     reason: empty.reason.replace("person:z", "person:s"),
   });
   expect(plane.events().length, "a who-can-read query appends no event").toBe(asked);
+  // The approval queue (card E2.19): the outsider's view lists nothing of
+  // the secret's scope; a refusal of the secret answers as for an unknown id,
+  // naming no scope, and returns no item; a sweep of its scope names nothing of it.
+  const queued = await plane.approvals(outsider, at);
+  leaks("approvals", queued);
+  expect(JSON.stringify(queued)).not.toContain("person:s");
+  const refused = await plane.refuse(outsider, secret.id, "no", at);
+  leaks("refuse", refused);
+  expect(refused.item).toBeNull();
+  expect([refused.event.scope_from, refused.event.scope_to]).toEqual([null, null]);
+  const refusedNothing = await plane.refuse(outsider, unknown, "no", at);
+  expect(refused.event.reason).toBe(refusedNothing.event.reason.replace(unknown, secret.id));
+  leaks("expireRequests", await plane.expireRequests(outsider, "person:s", at));
   // simulate replays only the workload it is given, on scratch logs and
   // stores (card E8.9): the outsider's own read of the secret's words finds
   // nothing, and the real log gains no event.

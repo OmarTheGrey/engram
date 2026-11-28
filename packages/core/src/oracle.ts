@@ -49,6 +49,11 @@
 // (`grantsChanged`, `priorVersion`, `grantChangeProblem`; ADR 0034,
 // decision 6) and `withinValidity`, at the end of the file.
 //
+// The approval queue (card E2.19; a `decision` log entry records the
+// change) adds `approvalAdmits` to `promotionPermitted`, read only when the
+// policy has an approval block: a review lands by an approver the target's
+// route names, and never once the version's request expired or was refused.
+//
 // Trust floors (card E2.11, ADR 0040; a `decision` log entry records the
 // change) add invariant 8's readings, at the end of the file: under
 // trust.unattested_floor no allowed write records a kind more trusted than
@@ -485,6 +490,8 @@ export function promotionPermitted(
       !actors.has(actor.id) &&
       actor.memberships.indexOf(target) !== -1);
   if (review && !reviewer) return false;
+  // The approval queue (card E2.19): only when the policy has an approval block.
+  if (!approvalAdmits(policy, actor, source, target, events, review, at, owner)) return false;
   const reviewed = review && reviewer;
   const rule = policy.write.filter((r) => r.scope === level(target))[0];
   if (rule?.requires_review && !reviewed) return false;
@@ -495,6 +502,83 @@ export function promotionPermitted(
   if (source.class === "procedural" && source.status === "candidate")
     return presented !== undefined && replayAdmits(policy, actor, source, presented);
   return reviewed;
+}
+
+/** The route for requests into `target`: the one naming it, else the one naming its level. */
+function routeOf(policy: Policy, target: string) {
+  const routes = policy.approval?.routes ?? [];
+  for (const r of routes) if (r.scope === target) return r;
+  for (const r of routes) if (r.scope === level(target)) return r;
+  return undefined;
+}
+
+/** Is `at` at least `seconds` after `from`? Judged as a duration, as `pastTtl` is. */
+function atLeastAfter(from: string, at: string, seconds: number): boolean {
+  const gap = wholeSeconds(at) - wholeSeconds(from) - seconds;
+  if (gap !== 0) return gap > 0;
+  const [fa, ff] = [fractionOf(at), fractionOf(from)];
+  const width = Math.max(fa.length, ff.length);
+  return fa.padEnd(width, "0") >= ff.padEnd(width, "0");
+}
+
+/**
+ * The approval queue's reading for a promotion (card E2.19; a `decision`
+ * log entry records it): under a policy with an approval block, a review
+ * lands only by an actor the target's route names (`person:<id>` that
+ * principal, `role:<id>` a member of that role scope, `owner` the owner where
+ * the one exception of ADR 0049 holds), and no promotion of the source's
+ * version lands once its request (opened by the first held write of that
+ * version, an allowed write or update leaving it a candidate, or the first
+ * `gate` ask on it) has run past its route's `expires_after`, or an event
+ * has recorded it expired or refused. Read from the events with the
+ * oracle's own loop, not the plane's projection.
+ */
+function approvalAdmits(
+  policy: Policy,
+  actor: Actor,
+  source: MemoryItem,
+  target: string,
+  events: readonly MemoryEvent[],
+  review: boolean,
+  at: string,
+  owner: boolean,
+): boolean {
+  if (policy.approval === undefined) return true;
+  const route = routeOf(policy, target);
+  if (review && route) {
+    let named = false;
+    for (const a of route.approvers) {
+      if (a === "owner") named = named || owner;
+      else if (a.slice(0, 7) === "person:") named = named || a === actor.id;
+      else named = named || actor.memberships.indexOf(a) !== -1;
+    }
+    if (!named) return false;
+  }
+  let version = 0;
+  let opened: { ts: string; target: string } | undefined;
+  for (const e of events) {
+    if (e.item && e.item.id === source.id && e.decision === "allow") version = e.item.version;
+    if (version !== source.version) continue;
+    const held =
+      (e.op === "write" || e.op === "update") &&
+      e.decision === "allow" &&
+      e.item?.id === source.id &&
+      e.item.status === "candidate";
+    const asked = e.op === "gate" && e.decision === "ask" && e.item_id === source.id;
+    if (opened === undefined && (held || asked))
+      opened = { ts: e.ts, target: held ? source.scope : (e.scope_to ?? source.scope) };
+    if (
+      opened !== undefined &&
+      e.op === "promote" &&
+      e.decision === "deny" &&
+      e.item_id === source.id &&
+      (e.policy_id === "engram/approval/expired" || e.policy_id === "engram/approval/refused")
+    )
+      return false;
+  }
+  if (opened === undefined) return true;
+  const expires = routeOf(policy, opened.target)?.expires_after;
+  return expires === undefined || !atLeastAfter(opened.ts, at, expires);
 }
 
 /** A replay presented with a promotion (card D3), and the session index the plane was given. */
