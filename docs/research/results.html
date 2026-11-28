@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Engram results</title>
+<style>
+:root {
+  --bg: #fbfbf9; --surface: #ffffff; --ink: #18181a; --ink-2: #55544f; --line: #e2e1da;
+  --accent: #2a5fb0; --proof: #1d7a4f; --proof-bg: #e8f4ed; --warn: #8a5a00; --warn-bg: #fbf1dc;
+  --none-bg: #f1f0ea; --track: #e7e6df;
+  --s1: #2a5fb0; --s2: #6b8fd1; --s3: #1d7a4f; --s4: #8a5a00; --s5: #7b4bb3;
+  --s6: #a33a3a; --s7: #3f8f8f; --s8: #6d6c66;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131314; --surface: #1c1c1e; --ink: #ecebe6; --ink-2: #a9a8a1; --line: #34343a;
+    --accent: #8db4f0; --proof: #6fd39f; --proof-bg: #17301f; --warn: #f0c060; --warn-bg: #33270f;
+    --none-bg: #26262a; --track: #303035;
+    --s1: #8db4f0; --s2: #5f86c9; --s3: #6fd39f; --s4: #f0c060; --s5: #b996e6;
+    --s6: #e58b8b; --s7: #7cc9c9; --s8: #9d9c95;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+main { max-width: 64rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .5rem; }
+h2 {
+  font-size: 1.4rem; margin: 2.5rem 0 .75rem; padding-top: .5rem;
+  border-top: 1px solid var(--line);
+}
+h3 { font-size: 1.15rem; margin: 1.5rem 0 .5rem; }
+h4 { font-size: 1rem; margin: 0 0 .4rem; overflow-wrap: anywhere; }
+p { margin: .5rem 0; }
+code {
+  font: .86em/1.4 ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  overflow-wrap: anywhere;
+}
+a { color: var(--accent); }
+nav ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: .4rem 1rem; }
+.lede { color: var(--ink-2); }
+.standing { padding: .75rem 1rem; background: var(--none-bg); border-radius: .5rem; }
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: .6rem;
+  padding: 1rem; margin: .75rem 0;
+}
+.proof { border-left: 4px solid var(--proof); }
+.verdict { padding: .6rem .9rem; border-radius: .5rem; background: var(--none-bg); }
+.badge {
+  display: inline-block; font-size: .78rem; padding: .1rem .5rem; margin: 0 .3rem .3rem 0;
+  border-radius: 1rem; background: var(--none-bg); color: var(--ink-2);
+}
+.badge.proof-b { background: var(--proof-bg); color: var(--proof); }
+.badge.warn { background: var(--warn-bg); color: var(--warn); }
+.meta { color: var(--ink-2); font-size: .9rem; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td {
+  text-align: left; vertical-align: top; padding: .35rem .5rem;
+  border-bottom: 1px solid var(--line);
+}
+th { color: var(--ink-2); font-weight: 600; }
+td.num { white-space: nowrap; }
+.legend {
+  list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: .3rem 1rem;
+  font-size: .88rem;
+}
+.key {
+  display: inline-block; width: .8rem; height: .8rem; border-radius: .2rem;
+  margin-right: .35rem; vertical-align: -.1rem;
+}
+svg { max-width: 100%; height: auto; }
+td.path code { overflow-wrap: normal; word-break: normal; }
+#manifest-table { min-width: 64rem; }
+#manifest-table td:nth-child(4) code { word-break: break-all; }
+/* An inlined figure paints its own light surface; the panel around it follows the theme. */
+.figure { background: var(--surface); border: 1px solid var(--line); border-radius: .5rem;
+  padding: .5rem; overflow-x: auto; }
+.bar-track { fill: var(--track); }
+.bar-fill { fill: var(--proof); }
+details summary { cursor: pointer; color: var(--accent); margin: .5rem 0; }
+footer { margin-top: 3rem; color: var(--ink-2); font-size: .85rem; }
+</style>
+</head>
+<body>
+<main>
+<header><h1>Engram results</h1>
+<p class="lede">Every committed result of the Engram thesis on one page: per hypothesis its result or what it still needs, the proofs of concept apart from them, and every row of <code>research/results/MANIFEST.md</code> with its sha256, the command that regenerates it and its cost.</p>
+<p class="lede">Each value is read from the committed results file at the key path beside it, and each file hashes to its MANIFEST sha256, or the page is not written. The page holds no dogfood data.</p>
+<p class="standing"><strong>No hypothesis has a result yet.</strong> Every committed file is a support artefact, fixture-size measurement, reach measurement, cost estimate, power computation, engineering check or proof of concept. None is a test of H1 to H5, and none may be quoted as one.</p></header>
+<nav><ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#hypotheses">Hypotheses</a></li>
+<li><a href="#g-h1">H1</a></li>
+<li><a href="#g-h2">H2</a></li>
+<li><a href="#g-h3">H3</a></li>
+<li><a href="#g-h4">H4</a></li>
+<li><a href="#g-h5">H5</a></li>
+<li><a href="#proofs">Proofs of concept</a></li>
+<li><a href="#other">Other checks</a></li>
+<li><a href="#manifest">Every MANIFEST row</a></li>
+</ul></nav>
+<section id="overview"><h2>Overview</h2>
+<p>28 results, one per row of <code>research/results/MANIFEST.md</code>, by status.</p>
+<svg viewBox="0 0 600.00 24.00" width="100%" height="24" preserveAspectRatio="none" role="img" aria-hidden="true"><rect x="0.00" y="0.00" width="128.57" height="24.00" style="fill:var(--s1)"><title>support artefact: 6</title></rect><rect x="128.57" y="0.00" width="64.29" height="24.00" style="fill:var(--s2)"><title>fixture-size measurement: 3</title></rect><rect x="192.86" y="0.00" width="107.14" height="24.00" style="fill:var(--s3)"><title>reach measurement: 5</title></rect><rect x="300.00" y="0.00" width="85.71" height="24.00" style="fill:var(--s4)"><title>cost estimate: 4</title></rect><rect x="385.71" y="0.00" width="42.86" height="24.00" style="fill:var(--s5)"><title>power computation: 2</title></rect><rect x="428.57" y="0.00" width="85.71" height="24.00" style="fill:var(--s6)"><title>engineering check: 4</title></rect><rect x="514.29" y="0.00" width="85.71" height="24.00" style="fill:var(--s7)"><title>proof of concept: 4</title></rect></svg><ul class="legend"><li><span class="key" style="background:var(--s1)"></span>support artefact: 6</li><li><span class="key" style="background:var(--s2)"></span>fixture-size measurement: 3</li><li><span class="key" style="background:var(--s3)"></span>reach measurement: 5</li><li><span class="key" style="background:var(--s4)"></span>cost estimate: 4</li><li><span class="key" style="background:var(--s5)"></span>power computation: 2</li><li><span class="key" style="background:var(--s6)"></span>engineering check: 4</li><li><span class="key" style="background:var(--s7)"></span>proof of concept: 4</li></ul>
+<div class="scroll"><table><thead><tr><th>status</th><th>results</th><th>what it is</th></tr></thead><tbody>
+<tr><td>support artefact</td><td class="num">6</td><td>an input a registered analysis uses (a list, a draw, a mapping), not a measurement of any hypothesis</td></tr>
+<tr><td>fixture-size measurement</td><td class="num">3</td><td>a measurement on a fixed corpus or fixture, model-free or on a scripted model, not on a live model</td></tr>
+<tr><td>reach measurement</td><td class="num">5</td><td>what the plane lets a reader reach on a benchmark&#x27;s own data, with no model called</td></tr>
+<tr><td>cost estimate</td><td class="num">4</td><td>dollars and calls estimated from token counts and prices; no model called</td></tr>
+<tr><td>power computation</td><td class="num">2</td><td>a simulation of the registered test that sets or checks a sample size</td></tr>
+<tr><td>engineering check</td><td class="num">4</td><td>a check of a component&#x27;s behaviour or speed that decides no hypothesis</td></tr>
+<tr><td>proof of concept</td><td class="num">4</td><td>the system shown working on fixtures, scripted models or a model&#x27;s own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis</td></tr>
+</tbody></table></div></section>
+<section id="hypotheses"><h2>Hypotheses</h2>
+<p>A hypothesis result is a row whose status is a registered test of the hypothesis. Rows that serve a hypothesis without testing it are listed beneath it, each with its status; proofs of concept are kept apart, in the next section.</p>
+<div id="g-h1"><h3>H1. Enforcement beats instruction</h3>
+<p class="verdict"><strong>No result for H1 yet.</strong> The register defines no status for a hypothesis result yet, so no MANIFEST row serving H1 tests it.</p>
+<p><strong>What it still needs.</strong> The <code>prereg-v1</code> tag, once the eight pre-tag conditions at the head of the pre-registration hold: among them the label audit&#x27;s agreement written into the Benchmarks section, the smoke run and B1 passing on M1 (condition 4), the programme-wide spend cap in billed dollars or the operator&#x27;s credit check (condition 7), and the Zenodo deposit of the tagged commit (condition 8). Then the live runs of <code>research/configs/h1-gatemem.json</code> and <code>research/configs/h1-mem-inv.json</code> on M1, scheduled for 1 to 8 December 2026, then <code>make h1-table</code> and <code>make h1-figure</code> (card X4). No <code>research/results/h1-table.json</code> exists yet.</p>
+<details><summary>8 committed files that serve H1 without testing it</summary>
+<article class="card" id="r-h1-gatemem-reach">
+<h4><code>research/results/h1-gatemem-reach.json</code></h4>
+<p><span class="badge ">reach measurement</span><span class="badge">serves H1</span></p>
+<p><strong>Question.</strong> How many of GateMem&#x27;s access-control and forgetting checkpoints have a leak target that can reach the asker through the plane&#x27;s mapping at all, and at how many is a plain refusal itself scored as a leak?</p>
+<p class="meta">reach measurement: what the plane lets a reader reach on a benchmark&#x27;s own data, with no model called.</p>
+<p class="meta">Pre-registration section “H1. Enforcement beats instruction”.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>access-control checkpoints, scored set, reachable</td><td class="num">282</td><td class="path"><code>by_preset.<wbr>medium.<wbr>kinds.<wbr>access.<wbr>all.<wbr>scored.<wbr>reachable</code></td></tr>
+<tr><td>access-control checkpoints, scored set, located but unreachable</td><td class="num">445</td><td class="path"><code>by_preset.<wbr>medium.<wbr>kinds.<wbr>access.<wbr>all.<wbr>scored.<wbr>located_unreachable</code></td></tr>
+<tr><td>forgetting checkpoints, scored set, reachable</td><td class="num">565</td><td class="path"><code>by_preset.<wbr>medium.<wbr>kinds.<wbr>forgetting.<wbr>all.<wbr>scored.<wbr>reachable</code></td></tr>
+<tr><td>checkpoints where a plain refusal scores as a leak</td><td class="num">41</td><td class="path"><code>by_preset.<wbr>medium.<wbr>all.<wbr>refusal_leak</code></td></tr>
+<tr><td>identical across the three presets</td><td class="num">true</td><td class="path"><code>identical_across_presets</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/h1_gatemem_reach.py --config research/configs/h1-gatemem-reach.json --out research/results/h1-gatemem-reach.json</code>; sha256 <code>9607555c3c9dcdee4917e10374c902589750ce0972a51f459c7294177792c4dd</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h1-mem-inv-admission">
+<h4><code>research/results/h1-mem-inv-admission.json</code></h4>
+<p><span class="badge ">reach measurement</span><span class="badge">serves H1</span></p>
+<p><strong>Question.</strong> Which MEM-INV-Bench entries does the plane admit to the operator&#x27;s action-time read under each preset?</p>
+<p class="meta">reach measurement: what the plane lets a reader reach on a benchmark&#x27;s own data, with no model called.</p>
+<p class="meta">Pre-registration section “H1. Enforcement beats instruction”.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>attacks admitted, medium</td><td class="num">32</td><td class="path"><code>by_preset.<wbr>medium.<wbr>families.<wbr>attack.<wbr>admitted</code></td></tr>
+<tr><td>benign cases admitted, medium</td><td class="num">6</td><td class="path"><code>by_preset.<wbr>medium.<wbr>families.<wbr>legit.<wbr>admitted</code></td></tr>
+<tr><td>attacks admitted, strict</td><td class="num">8</td><td class="path"><code>by_preset.<wbr>strict.<wbr>families.<wbr>attack.<wbr>admitted</code></td></tr>
+<tr><td>attacks admitted, strict, through the summarize channel</td><td class="num">8</td><td class="path"><code>by_preset.<wbr>strict.<wbr>laundering.<wbr>summarize.<wbr>admitted</code></td></tr>
+<tr><td>team:operations entries admitted, strict</td><td class="num">0</td><td class="path"><code>by_preset.<wbr>strict.<wbr>entries_by_scope.<wbr>team:operations.<wbr>admitted</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/h1_mem_inv_admission.py --config research/configs/h1-mem-inv-admission.json --out research/results/h1-mem-inv-admission.json</code>; sha256 <code>bed41bee4be4e3bb6bbf9f260b846626e3b57886d5672ccaa865b6443290ecab</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h1-c4-verdict-agreement">
+<h4><code>research/results/h1-c4-verdict-agreement.json</code></h4>
+<p><span class="badge ">support artefact</span><span class="badge">serves H1</span></p>
+<p><strong>Question.</strong> How often do C4&#x27;s two candidate verdict sources, the plane&#x27;s read decision and GateMem&#x27;s RAG-Policy gate, agree on GateMem&#x27;s turn items?</p>
+<p class="meta">support artefact: an input a registered analysis uses (a list, a draw, a mapping), not a measurement of any hypothesis.</p>
+<p class="meta">Pre-registration section “H1. Enforcement beats instruction”.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>turn items, medium</td><td class="num">325,530</td><td class="path"><code>by_preset.<wbr>medium.<wbr>all.<wbr>all.<wbr>items</code></td></tr>
+<tr><td>share agreeing, all turn items</td><td class="num">0.723079</td><td class="path"><code>by_preset.<wbr>medium.<wbr>all.<wbr>all.<wbr>share_agree</code></td></tr>
+<tr><td>gate allows, plane denies</td><td class="num">60,305</td><td class="path"><code>by_preset.<wbr>medium.<wbr>all.<wbr>all.<wbr>rag_allows_engram_denies</code></td></tr>
+<tr><td>gate denies, plane allows</td><td class="num">29,841</td><td class="path"><code>by_preset.<wbr>medium.<wbr>all.<wbr>all.<wbr>rag_denies_engram_allows</code></td></tr>
+<tr><td>share agreeing, leak-target items</td><td class="num">0.692243</td><td class="path"><code>by_preset.<wbr>medium.<wbr>all.<wbr>leak.<wbr>share_agree</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/h1_c4_verdict_agreement.py --config research/configs/h1-c4-verdict-agreement.json --out research/results/h1-c4-verdict-agreement.json</code>; sha256 <code>9335a67724db6405aa9a93ef90838869f597340ca0838a8945367a09305701f1</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h1-c4-walk">
+<h4><code>research/results/h1-c4-walk.json</code></h4>
+<p><span class="badge ">reach measurement</span><span class="badge">serves H1</span></p>
+<p><strong>Question.</strong> What does C4&#x27;s walk to C5&#x27;s allowed items show the model on GateMem, compared with C3&#x27;s top 20?</p>
+<p class="meta">reach measurement: what the plane lets a reader reach on a benchmark&#x27;s own data, with no model called.</p>
+<p class="meta">Pre-registration section “H1. Enforcement beats instruction”.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>items C4 shows, medium</td><td class="num">151,144</td><td class="path"><code>by_preset.<wbr>medium.<wbr>all.<wbr>items.<wbr>c4</code></td></tr>
+<tr><td>items C3 shows, medium</td><td class="num">44,051</td><td class="path"><code>by_preset.<wbr>medium.<wbr>all.<wbr>items.<wbr>c3</code></td></tr>
+<tr><td>checkpoints where C4&#x27;s allowed items equal C5&#x27;s</td><td class="num">2,218</td><td class="path"><code>by_preset.<wbr>medium.<wbr>all.<wbr>c4_allowed_equals_c5</code></td></tr>
+<tr><td>checkpoints where C4 shows nothing though C3 has candidates</td><td class="num">28</td><td class="path"><code>by_preset.<wbr>medium.<wbr>all.<wbr>c4_empty_with_candidates</code></td></tr>
+<tr><td>median C4 read length</td><td class="num">52</td><td class="path"><code>by_preset.<wbr>medium.<wbr>all.<wbr>c4_length.<wbr>median</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/h1_c4_walk.py --config research/configs/h1-c4-walk.json --out research/results/h1-c4-walk.json</code>; sha256 <code>479f24192d83ec1a091dfc5b925073d79aefe1415d6171439ba74bb94fd6f8fa</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h1-refusal-leaks">
+<h4><code>research/results/h1-refusal-leaks.json</code></h4>
+<p><span class="badge ">support artefact</span><span class="badge">serves H1</span></p>
+<p><strong>Question.</strong> At which GateMem checkpoints is a plain refusal itself scored as a leak, the list H1&#x27;s sensitivity table leaves out?</p>
+<p class="meta">support artefact: an input a registered analysis uses (a list, a draw, a mapping), not a measurement of any hypothesis.</p>
+<p class="meta">Pre-registration section “H1. Enforcement beats instruction”.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>access-control checkpoints listed</td><td class="num">29</td><td class="path"><code>counts.<wbr>access</code></td></tr>
+<tr><td>forgetting checkpoints listed</td><td class="num">12</td><td class="path"><code>counts.<wbr>forgetting</code></td></tr>
+<tr><td>access-control checkpoints in the set</td><td class="num">727</td><td class="path"><code>checkpoints.<wbr>access</code></td></tr>
+<tr><td>forgetting checkpoints in the set</td><td class="num">763</td><td class="path"><code>checkpoints.<wbr>forgetting</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/h1_refusal_leaks.py --config research/configs/h1-refusal-leaks.json --out research/results/h1-refusal-leaks.json</code>; sha256 <code>d7e9f3d0a54f9cce348c71fc9389b5bb150c05afeb5751588a40623be19405ed</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h1-cost">
+<h4><code>research/results/h1-cost.json</code></h4>
+<p><span class="badge ">cost estimate</span><span class="badge">serves H1</span></p>
+<p><strong>Question.</strong> What would H1&#x27;s full run cost per candidate model, low and high, with GateMem&#x27;s judge?</p>
+<p class="meta">cost estimate: dollars and calls estimated from token counts and prices; no model called.</p>
+<p class="meta">Pre-registration section “Models”.</p>
+<p class="meta">The earlier per-candidate estimate; the spend ceilings come from <code>research/results/h2-cost-table.json</code>.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>GateMem sessions</td><td class="num">26,616</td><td class="path"><code>sizes.<wbr>gatemem.<wbr>sessions</code></td></tr>
+<tr><td>GateMem answer input tokens, low</td><td class="num">152,889,510.401786</td><td class="path"><code>tokens.<wbr>gatemem.<wbr>low.<wbr>input</code></td></tr>
+<tr><td>GateMem answer input tokens, high</td><td class="num">738,446,778.602545</td><td class="path"><code>tokens.<wbr>gatemem.<wbr>high.<wbr>input</code></td></tr>
+<tr><td>judge dollars, low</td><td class="num">66.062708</td><td class="path"><code>judge.<wbr>cost.<wbr>judge.<wbr>low</code></td></tr>
+<tr><td>judge dollars, high</td><td class="num">264.250764</td><td class="path"><code>judge.<wbr>cost.<wbr>judge.<wbr>high</code></td></tr>
+<tr><td>M1 with the judge, dollars, high</td><td class="num">977.658385</td><td class="path"><code>candidates[model=&quot;openrouter/deepseek/deepseek-v4-pro-0813&quot;].<wbr>total_with_judge.<wbr>high</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/h1_cost.py --config research/configs/h1-cost.json --out research/results/h1-cost.json</code>; sha256 <code>f147daf74c9bbec665b067ed0dc47eec97b25d5af7b8862ba582b0e7938c37fb</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h1-check-runs-cost">
+<h4><code>research/results/h1-check-runs-cost.json</code></h4>
+<p><span class="badge ">cost estimate</span><span class="badge">serves H1</span></p>
+<p><strong>Question.</strong> What would H1&#x27;s pre-tag check runs (the two smoke runs and card B1&#x27;s GateMem reference run) cost, low and high?</p>
+<p class="meta">cost estimate: dollars and calls estimated from token counts and prices; no model called.</p>
+<p class="meta">Pre-registration section “H1. Enforcement beats instruction”.</p>
+<p class="meta">It prices the smoke runs on the model the file names, not on the registered M1 (<code>docs/log/2026-11-28-rr-finding-results-audit.md</code>).</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>smoke GateMem, dollars, low</td><td class="num">0.443526</td><td class="path"><code>runs[name=&quot;smoke-h1-gatemem&quot;].<wbr>total.<wbr>low</code></td></tr>
+<tr><td>smoke GateMem, dollars, high</td><td class="num">3.012784</td><td class="path"><code>runs[name=&quot;smoke-h1-gatemem&quot;].<wbr>total.<wbr>high</code></td></tr>
+<tr><td>smoke MEM-INV-Bench, dollars, high</td><td class="num">1.250165</td><td class="path"><code>runs[name=&quot;smoke-h1-mem-inv&quot;].<wbr>total.<wbr>high</code></td></tr>
+<tr><td>B1 GateMem reference, dollars, high</td><td class="num">6.039012</td><td class="path"><code>runs[name=&quot;b1-gatemem-reference&quot;].<wbr>total.<wbr>high</code></td></tr>
+<tr><td>all three, dollars, low</td><td class="num">2.585109</td><td class="path"><code>total.<wbr>low</code></td></tr>
+<tr><td>all three, dollars, high</td><td class="num">10.301961</td><td class="path"><code>total.<wbr>high</code></td></tr>
+<tr><td>the smoke runs&#x27; model</td><td class="num"><code>openrouter/openai/gpt-5.6-terra</code></td><td class="path"><code>runs[name=&quot;smoke-h1-gatemem&quot;].<wbr>model</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/h1_check_runs_cost.py --config research/configs/h1-check-runs-cost.json --out research/results/h1-check-runs-cost.json</code>; sha256 <code>fd5a250704aa3156632be4a83bf152e17e2f2f3bdc769ebde17890b215f4e41d</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h1-label-audit">
+<h4><code>research/results/h1-label-audit.json</code></h4>
+<p><span class="badge ">support artefact</span><span class="badge">serves H1</span></p>
+<p><strong>Question.</strong> Which GateMem and MEM-INV-Bench items do H1&#x27;s three members label-audit before the tag, and at how many rejected items does each benchmark&#x27;s stop trip?</p>
+<p class="meta">support artefact: an input a registered analysis uses (a list, a draw, a mapping), not a measurement of any hypothesis.</p>
+<p class="meta">Pre-registration section “Benchmarks”.</p>
+<p class="meta">The draw only; the audit&#x27;s agreement is not computed yet (pre-tag condition 1).</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>GateMem items drawn</td><td class="num">50</td><td class="path"><code>benchmarks.<wbr>gatemem.<wbr>items</code></td></tr>
+<tr><td>GateMem stop at rejected items</td><td class="num">6</td><td class="path"><code>benchmarks.<wbr>gatemem.<wbr>stop_at_rejected</code></td></tr>
+<tr><td>MEM-INV-Bench items drawn</td><td class="num">38</td><td class="path"><code>benchmarks.<wbr>mem-inv-bench.<wbr>items</code></td></tr>
+<tr><td>MEM-INV-Bench stop at rejected items</td><td class="num">4</td><td class="path"><code>benchmarks.<wbr>mem-inv-bench.<wbr>stop_at_rejected</code></td></tr>
+<tr><td>members needed to reject an item</td><td class="num">2</td><td class="path"><code>reject_quorum</code></td></tr>
+<tr><td>on a tripped stop</td><td class="num"><code>drop</code></td><td class="path"><code>on_stop</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/label_audit_draw.py --config research/configs/label-audit.json --out research/results/h1-label-audit.json</code>; sha256 <code>5d295d27d161e50c3f5374e7440e47e08be1c107a7b26bd2f9aca429ac36d223</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+</details>
+</div>
+<div id="g-h2"><h3>H2. The governance tax has a knee</h3>
+<p class="verdict"><strong>No result for H2 yet.</strong> The register defines no status for a hypothesis result yet, so no MANIFEST row serving H2 tests it.</p>
+<p><strong>What it still needs.</strong> The live runs its Stopping rule fixes on M1: C1 (no memory) on GateMem and LongMemEval, C2 at medium, and C5 at strict, medium and permissive (<code>research/configs/h2-longmemeval-c2.json</code> and <code>h2-longmemeval-c5-medium.json</code> among them). Only GateMem&#x27;s C2 and C5 at medium are H1&#x27;s sessions; its C5 at strict and permissive and its C1 are run for H2. MERIT&#x27;s arcs run once card B7 counts them. No utility or violation number exists yet.</p>
+<details><summary>4 committed files that serve H2 without testing it</summary>
+<article class="card" id="r-h2-longmemeval-ttl">
+<h4><code>research/results/h2-longmemeval-ttl.json</code></h4>
+<p><span class="badge ">reach measurement</span><span class="badge">serves H2</span></p>
+<p><strong>Question.</strong> How much of each LongMemEval S history does the plane&#x27;s read filter hide, per preset and clock, and which questions lose evidence?</p>
+<p class="meta">reach measurement: what the plane lets a reader reach on a benchmark&#x27;s own data, with no model called.</p>
+<p class="meta">Pre-registration section “H2. The governance tax has a knee”.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>turns in all</td><td class="num">246,750</td><td class="path"><code>turns</code></td></tr>
+<tr><td>turns hidden, medium, at B5&#x27;s read time</td><td class="num">11,122</td><td class="path"><code>by_preset.<wbr>medium.<wbr>read_time.<wbr>hidden_turns</code></td></tr>
+<tr><td>questions with a hidden turn, medium, read time</td><td class="num">54</td><td class="path"><code>by_preset.<wbr>medium.<wbr>read_time.<wbr>questions_with_hidden_turns</code></td></tr>
+<tr><td>questions losing an evidence turn, medium, read time</td><td class="num">38</td><td class="path"><code>by_preset.<wbr>medium.<wbr>read_time.<wbr>questions_losing_evidence</code></td></tr>
+<tr><td>questions losing all evidence, medium, read time</td><td class="num">5</td><td class="path"><code>by_preset.<wbr>medium.<wbr>read_time.<wbr>questions_losing_all_evidence</code></td></tr>
+<tr><td>turns hidden, strict, read time</td><td class="num">34,688</td><td class="path"><code>by_preset.<wbr>strict.<wbr>read_time.<wbr>hidden_turns</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/h2_longmemeval_ttl.py --config research/configs/h2-longmemeval-ttl.json --out research/results/h2-longmemeval-ttl.json</code>; sha256 <code>412941154b27162d6c55236c13ac6e609595d62c37010bb12eb842e43bde428a</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h2-frontier-axes">
+<h4><code>research/results/h2-frontier-axes.json</code></h4>
+<p><span class="badge ">reach measurement</span><span class="badge">serves H2</span></p>
+<p><strong>Question.</strong> Which policy axes change what the plane lets a reader reach on GateMem and LongMemEval, against preset medium, with no model called?</p>
+<p class="meta">reach measurement: what the plane lets a reader reach on a benchmark&#x27;s own data, with no model called.</p>
+<p class="meta">Pre-registration section “H2. The governance tax has a knee”.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>GateMem turn reads hidden, grants off</td><td class="num">64,987</td><td class="path"><code>gatemem.<wbr>by_variant.<wbr>grants-off.<wbr>hidden_vs_baseline</code></td></tr>
+<tr><td>GateMem checkpoints changed, grants off</td><td class="num">1,154</td><td class="path"><code>gatemem.<wbr>by_variant.<wbr>grants-off.<wbr>checkpoints_changed</code></td></tr>
+<tr><td>GateMem checkpoints changed, ttl 1 day</td><td class="num">306</td><td class="path"><code>gatemem.<wbr>by_variant.<wbr>ttl-1d.<wbr>checkpoints_changed</code></td></tr>
+<tr><td>LongMemEval questions changed, ttl 7 days</td><td class="num">401</td><td class="path"><code>longmemeval.<wbr>by_variant.<wbr>ttl-7d.<wbr>questions_changed</code></td></tr>
+<tr><td>LongMemEval turns hidden, ttl 30 days</td><td class="num">34,688</td><td class="path"><code>longmemeval.<wbr>by_variant.<wbr>ttl-30d.<wbr>hidden_turns</code></td></tr>
+<tr><td>LongMemEval writes denied, budget 25</td><td class="num">95</td><td class="path"><code>longmemeval.<wbr>by_variant.<wbr>budget-25.<wbr>denied_writes</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/frontier_axes.py --config research/configs/frontier-axes.json --out research/results/h2-frontier-axes.json</code>; sha256 <code>5f208b78489b78a2364edf8b2dc1a5d16a4baa8a3a4be5033b5d313debc4180f</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h2-longmemeval-cost">
+<h4><code>research/results/h2-longmemeval-cost.json</code></h4>
+<p><span class="badge ">cost estimate</span><span class="badge">serves H2</span></p>
+<p><strong>Question.</strong> What would LongMemEval&#x27;s C2 and C5 baselines at medium cost with the judge, per candidate model?</p>
+<p class="meta">cost estimate: dollars and calls estimated from token counts and prices; no model called.</p>
+<p class="meta">Pre-registration section “Models”.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>sessions per baseline</td><td class="num">1,500</td><td class="path"><code>sizes.<wbr>c2.<wbr>sessions</code></td></tr>
+<tr><td>items per read under C2</td><td class="num">20.0</td><td class="path"><code>measured.<wbr>c2.<wbr>full_set.<wbr>items_per_read</code></td></tr>
+<tr><td>M1, both baselines with the judge, catalogue dollars, low</td><td class="num">22.430372</td><td class="path"><code>candidates[model=&quot;openrouter/deepseek/deepseek-v4-pro-0813&quot;].<wbr>total_with_judge.<wbr>low</code></td></tr>
+<tr><td>M1, both baselines with the judge, catalogue dollars, high</td><td class="num">188.917692</td><td class="path"><code>candidates[model=&quot;openrouter/deepseek/deepseek-v4-pro-0813&quot;].<wbr>total_with_judge.<wbr>high</code></td></tr>
+<tr><td>judge dollars per baseline, high</td><td class="num">0.910157</td><td class="path"><code>judge.<wbr>cost.<wbr>judge_c2.<wbr>high</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/h2_longmemeval_cost.py --config research/configs/h2-longmemeval-cost.json --out research/results/h2-longmemeval-cost.json</code>; sha256 <code>529b1450b56f154202543ad7aa045eee61e2c56cce5ed7c0169b934ec91a1cb8</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h2-label-audit-longmemeval">
+<h4><code>research/results/h2-label-audit-longmemeval.json</code></h4>
+<p><span class="badge ">support artefact</span><span class="badge">serves H2</span></p>
+<p><strong>Question.</strong> Which LongMemEval questions does the seeded label audit draw, and at how many rejected items does its stop trip?</p>
+<p class="meta">support artefact: an input a registered analysis uses (a list, a draw, a mapping), not a measurement of any hypothesis.</p>
+<p class="meta">Pre-registration section “Benchmarks”.</p>
+<p class="meta">The draw only; the audit&#x27;s agreement is not computed yet.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>questions drawn</td><td class="num">50</td><td class="path"><code>benchmarks.<wbr>longmemeval.<wbr>items</code></td></tr>
+<tr><td>stop at rejected items</td><td class="num">6</td><td class="path"><code>benchmarks.<wbr>longmemeval.<wbr>stop_at_rejected</code></td></tr>
+<tr><td>members needed to reject an item</td><td class="num">2</td><td class="path"><code>reject_quorum</code></td></tr>
+<tr><td>on a tripped stop</td><td class="num"><code>drop</code></td><td class="path"><code>on_stop</code></td></tr>
+<tr><td>hypotheses served, as the file states</td><td class="num"><code>H2, H3</code></td><td class="path"><code>hypothesis</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/label_audit_draw.py --config research/configs/label-audit-longmemeval.json --out research/results/h2-label-audit-longmemeval.json</code>; sha256 <code>509268baf31ca7c2d8088f42b9c10ea5bac285a3fd3e6e720cba894390a3722e</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+</details>
+</div>
+<div id="g-h3"><h3>H3. Lints recover part of the governance loss</h3>
+<p class="verdict"><strong>No result for H3 yet.</strong> The register defines no status for a hypothesis result yet, so no MANIFEST row serving H3 tests it.</p>
+<p><strong>What it still needs.</strong> Card L3&#x27;s live variance pilot (<code>research/configs/l3-pilot.json</code>), which settles whether the model or the deterministic tier is primary, H3&#x27;s live model-lint run (<code>research/configs/h3-lint-model.json</code>), the members&#x27; audit of the base-item findings, and the C6 and C5 runs on LongMemEval. No recovery number exists yet.</p>
+<details><summary>4 committed files that serve H3 without testing it</summary>
+<article class="card" id="r-h3-fault-set">
+<h4><code>research/results/h3-fault-set.json</code></h4>
+<p><span class="badge ">support artefact</span><span class="badge">serves H3</span></p>
+<p><strong>Question.</strong> What does card L2&#x27;s seeded-fault set over LongMemEval&#x27;s cleaned S split hold, and do its labels check against the deterministic lints?</p>
+<p class="meta">support artefact: an input a registered analysis uses (a list, a draw, a mapping), not a measurement of any hypothesis.</p>
+<p class="meta">Pre-registration section “H3. Lints recover part of the governance loss”.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>states</td><td class="num">500</td><td class="path"><code>label_check.<wbr>states</code></td></tr>
+<tr><td>events</td><td class="num">261,250</td><td class="path"><code>events</code></td></tr>
+<tr><td>labels</td><td class="num">9,000</td><td class="path"><code>labels.<wbr>total</code></td></tr>
+<tr><td>keyed faults flagged</td><td class="num">2,500</td><td class="path"><code>label_check.<wbr>keyed_faults_flagged</code></td></tr>
+<tr><td>duplicate findings on base items, for the members&#x27; audit</td><td class="num">967</td><td class="path"><code>audit.<wbr>findings.<wbr>duplicate</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/h3_fault_set.py --config research/configs/h3-fault-set.json --out research/results/h3-fault-set.json</code>; sha256 <code>a274701dea70711537d54a556e15bf24dc9ee849b2fad4de741e97c051da199a</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h3-lint-floor">
+<h4><code>research/results/h3-lint-floor.json</code></h4>
+<p><span class="badge ">engineering check</span><span class="badge">serves H3</span></p>
+<p><strong>Question.</strong> What do card L1&#x27;s deterministic lints find on the seeded-fault set, keyed and unkeyed apart, and how many unverified findings do they make on LongMemEval&#x27;s own memory?</p>
+<p class="meta">engineering check: a check of a component&#x27;s behaviour or speed that decides no hypothesis.</p>
+<p class="meta">Pre-registration section “H3. Lints recover part of the governance loss”.</p>
+<p class="meta">The deterministic tier&#x27;s recall holds by construction: a regression check on card L1, not evidence for H3 (lead-decisions item 45).</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>keyed recall</td><td class="num">1.0</td><td class="path"><code>overall.<wbr>keyed.<wbr>recall.<wbr>value</code></td></tr>
+<tr><td>unkeyed recall</td><td class="num">0.0</td><td class="path"><code>overall.<wbr>unkeyed.<wbr>recall.<wbr>value</code></td></tr>
+<tr><td>stale recall, keyed and unkeyed pooled</td><td class="num">0.666667</td><td class="path"><code>by_class.<wbr>stale.<wbr>all.<wbr>recall.<wbr>value</code></td></tr>
+<tr><td>unverified findings on base items</td><td class="num">967</td><td class="path"><code>unverified.<wbr>base</code></td></tr>
+<tr><td>pooled precision, lower bound with the unverified findings</td><td class="num">0.721085</td><td class="path"><code>precision_with_unverified.<wbr>lower</code></td></tr>
+<tr><td>calls of the registered live model-lint run</td><td class="num">95,217</td><td class="path"><code>model_run.<wbr>calls</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/h3_lint_floor.py --config research/configs/h3-lint-floor.json --out research/results/h3-lint-floor.json</code>; sha256 <code>354da5711ed36526b59051f3477bdf97bb4ff2b74fcf691982157fab9aef25a9</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h3-near-duplicate">
+<h4><code>research/results/h3-near-duplicate.json</code></h4>
+<p><span class="badge ">engineering check</span><span class="badge warn">exploratory: a proposed arm, not registered</span><span class="badge">serves H3</span></p>
+<p><strong>Question.</strong> Does the near-duplicate tier&#x27;s MinHash estimate agree with datasketch on the fault catalogue, and does the tier pass its own fixtures?</p>
+<p class="meta">engineering check: a check of a component&#x27;s behaviour or speed that decides no hypothesis.</p>
+<p class="meta">Pre-registration section “P4. The near-duplicate tier, for H3 (card L5)”.</p>
+<p class="meta">Arm P4 is proposed, not registered.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>pairs compared</td><td class="num">66</td><td class="path"><code>agreement.<wbr>pairs</code></td></tr>
+<tr><td>agreement with datasketch at 0.85, all pairs</td><td class="num">0.954545</td><td class="path"><code>agreement.<wbr>by_threshold.<wbr>0.<wbr>85.<wbr>tier_vs_oracle.<wbr>rate</code></td></tr>
+<tr><td>near pairs</td><td class="num">21</td><td class="path"><code>agreement.<wbr>near_pairs.<wbr>pairs</code></td></tr>
+<tr><td>agreement at 0.85, near pairs</td><td class="num">0.857143</td><td class="path"><code>agreement.<wbr>near_pairs.<wbr>by_threshold.<wbr>0.<wbr>85.<wbr>rate</code></td></tr>
+<tr><td>fixture precision</td><td class="num">1.0</td><td class="path"><code>labelled.<wbr>precision.<wbr>rate</code></td></tr>
+<tr><td>items cut by the candidate cap</td><td class="num">0</td><td class="path"><code>capped.<wbr>items</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/near_duplicate.py --config research/configs/near-duplicate.json --out research/results/h3-near-duplicate.json</code>; sha256 <code>f50c8f465a2479c84894d4a6fd0fcfbd55df71bcdcc7d3559515d9b46e9b8b3b</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h3-lint-nli">
+<h4><code>research/results/h3-lint-nli.json</code></h4>
+<p><span class="badge ">engineering check</span><span class="badge warn">exploratory: a proposed arm, not registered</span><span class="badge">serves H3</span></p>
+<p><strong>Question.</strong> On the fixture with a scripted model, how many contradiction calls does the local NLI tier save, and where do the contradiction labels land?</p>
+<p class="meta">engineering check: a check of a component&#x27;s behaviour or speed that decides no hypothesis.</p>
+<p class="meta">Pre-registration section “P3. The local NLI tier of the contradiction lint, for H3 (card L7)”.</p>
+<p class="meta">Arm P3 is proposed, not registered.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>model tier&#x27;s contradiction calls, seed 1</td><td class="num">113</td><td class="path"><code>per_seed.<wbr>1.<wbr>calls.<wbr>model_tier_contradiction</code></td></tr>
+<tr><td>calls the NLI tier drops, seed 1</td><td class="num">18</td><td class="path"><code>per_seed.<wbr>1.<wbr>calls.<wbr>saved</code></td></tr>
+<tr><td>pairs the NLI tier flags, seed 1</td><td class="num">0</td><td class="path"><code>per_seed.<wbr>1.<wbr>bands.<wbr>flag</code></td></tr>
+<tr><td>items with forward-only flags</td><td class="num">28</td><td class="path"><code>forward_only_flags.<wbr>items</code></td></tr>
+<tr><td>new model calls on replay</td><td class="num">0</td><td class="path"><code>replays.<wbr>tiered.<wbr>calls.<wbr>new</code></td></tr>
+<tr><td>decides a hypothesis</td><td class="num">false</td><td class="path"><code>decides</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/h3_lint_nli.py --config research/configs/h3-lint-nli.json --out research/results/h3-lint-nli.json</code>; sha256 <code>22e3c1225171941d7fac6d426942dd0d52634499a6290d709f4f8f47888763db</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+</details>
+</div>
+<div id="g-h4"><h3>H4. The plane is store-, model- and harness-agnostic</h3>
+<p class="verdict"><strong>No result for H4 yet.</strong> The register defines no status for a hypothesis result yet, so no MANIFEST row serving H4 tests it.</p>
+<p><strong>What it still needs.</strong> GateMem&#x27;s C5 runs on M2 and M3 at the size the power table sets, beside M1&#x27;s from H1&#x27;s run. Store independence is argued by the request-identity check, not tested, and the harness claim is stated as untested.</p>
+<details><summary>2 committed files that serve H4 without testing it</summary>
+<article class="card" id="r-h4-power">
+<h4><code>research/results/h4-power.json</code></h4>
+<p><span class="badge ">power computation</span><span class="badge">serves H4</span></p>
+<p><strong>Question.</strong> How many GateMem items per arm give H4&#x27;s score TOST 80 percent power, and what level does a search of the composite null find at those sizes?</p>
+<p class="meta">power computation: a simulation of the registered test that sets or checks a sample size.</p>
+<p class="meta">Pre-registration section “H4. The plane is store-, model- and harness-agnostic”.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>items, rate 0.05, margin 0.05, alpha 0.01, one family</td><td class="num">761</td><td class="path"><code>cells[rate=0.<wbr>05, margin=0.<wbr>05, kappa=1.<wbr>0, seed_model=&quot;identical&quot;].<wbr>alphas.<wbr>0.<wbr>01.<wbr>targets.<wbr>1.<wbr>items</code></td></tr>
+<tr><td>power at that size</td><td class="num">0.8425</td><td class="path"><code>cells[rate=0.<wbr>05, margin=0.<wbr>05, kappa=1.<wbr>0, seed_model=&quot;identical&quot;].<wbr>alphas.<wbr>0.<wbr>01.<wbr>targets.<wbr>1.<wbr>power</code></td></tr>
+<tr><td>composite-null level found at that size</td><td class="num">0.009969</td><td class="path"><code>cells[rate=0.<wbr>05, margin=0.<wbr>05, kappa=1.<wbr>0, seed_model=&quot;identical&quot;].<wbr>alphas.<wbr>0.<wbr>01.<wbr>targets.<wbr>1.<wbr>level.<wbr>composite_sup.<wbr>level</code></td></tr>
+<tr><td>items, rate 0.1, the cell otherwise the same</td><td class="num">1,522</td><td class="path"><code>cells[rate=0.<wbr>1, margin=0.<wbr>05, kappa=1.<wbr>0, seed_model=&quot;identical&quot;].<wbr>alphas.<wbr>0.<wbr>01.<wbr>targets.<wbr>1.<wbr>items</code></td></tr>
+<tr><td>seed</td><td class="num">20,261,102</td><td class="path"><code>seed</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/h4_power.py --config research/configs/h4-power.json --out research/results/h4-power.json</code>; sha256 <code>852a6776acf7dc3338c5b4fa5c1d65d64318c296464876c4b43b8e32e8c8bf53</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h4-holm-levels">
+<h4><code>research/results/h4-holm-levels.json</code></h4>
+<p><span class="badge ">power computation</span><span class="badge">serves H4</span></p>
+<p><strong>Question.</strong> Does each size the H4 power table commits at alpha 0.01 hold its level at every Holm threshold H4 may be tested at?</p>
+<p class="meta">power computation: a simulation of the registered test that sets or checks a sample size.</p>
+<p class="meta">Pre-registration section “H4. The plane is store-, model- and harness-agnostic”.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>every size holds at every threshold</td><td class="num">true</td><td class="path"><code>all_hold</code></td></tr>
+<tr><td>tightest size, items</td><td class="num">761</td><td class="path"><code>tightest.<wbr>items</code></td></tr>
+<tr><td>tightest slack</td><td class="num">0.000031</td><td class="path"><code>tightest.<wbr>slack</code></td></tr>
+<tr><td>H4&#x27;s registered size at margin 0.05, level at k = 5, Holm threshold 0.01</td><td class="num">0.009969</td><td class="path"><code>sizes[items=761, margin=0.<wbr>05].<wbr>levels.<wbr>5.<wbr>composite_sup</code></td></tr>
+<tr><td>H4&#x27;s registered size at margin 0.05, level at k = 4, Holm threshold 0.0125</td><td class="num">0.012202</td><td class="path"><code>sizes[items=761, margin=0.<wbr>05].<wbr>levels.<wbr>4.<wbr>composite_sup</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/h4_holm_levels.py --config research/configs/h4-holm-levels.json --out research/results/h4-holm-levels.json</code>; sha256 <code>dcacf0c9ce70c8f6fd3055a6461ab542bdd51839dc0fea561e029372b7ed45d4</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+</details>
+</div>
+<div id="g-h5"><h3>H5. Governed procedural memory is net positive</h3>
+<p class="verdict"><strong>No result for H5 yet.</strong> The register defines no status for a hypothesis result yet, so no MANIFEST row serving H5 tests it.</p>
+<p><strong>What it still needs.</strong> Its prerequisites are drafted and proposed, not registered (card H5P); the tau2-bench harness card, the induction runs and replay validation come before any run. No <code>research/results/h5-*</code> file exists.</p>
+</div>
+</section>
+<section id="proofs"><h2>Proofs of concept</h2>
+<p>Each shows the system working on fixtures, scripted models or a model&#x27;s own traces: a zero-leak count across every surface, the code replaying its formal model&#x27;s traces, the invariants killing mutants of the gate. None tests a hypothesis, and none may be quoted as a hypothesis result. Later proofs of concept appear here as their rows land.</p>
+<article class="card proof" id="r-h1-leakage">
+<h3>Leakage across every surface</h3><p class="meta"><code>research/results/h1-leakage.json</code></p>
+<p><span class="badge proof-b">proof of concept</span><span class="badge">no hypothesis</span></p>
+<p><strong>Question.</strong> Do canaries written through every write path reach a non-member, an expired grantee, a former member or a partial grantee on any surface (the HTTP API, MCP, the CLI, the TUI, the pi extension)?</p>
+<p class="meta">proof of concept: the system shown working on fixtures, scripted models or a model&#x27;s own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.</p>
+<p class="meta">Card E8.16&#x27;s suites on a fixture workspace; the file is under <code>h1-</code> for the results glob only. Answers that tell existence by their shape, not by a canary, are counted apart as characterised oracles.</p>
+<svg viewBox="0 0 600.00 18.00" width="100%" height="18" preserveAspectRatio="none" aria-hidden="true"><rect class="bar-track" x="0.00" y="0.00" width="600.00" height="18.00" rx="4.00"/><rect class="bar-fill" x="0.00" y="0.00" width="600.00" height="18.00" rx="4.00"/></svg><p class="meta">2,188 of 2,188 probes leaked nothing; 0 leaked a canary</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>canaries written</td><td class="num">13</td><td class="path"><code>canaries.<wbr>written</code></td></tr>
+<tr><td>probes, all surfaces</td><td class="num">2,188</td><td class="path"><code>totals.<wbr>probes</code></td></tr>
+<tr><td>leaks, all surfaces</td><td class="num">0</td><td class="path"><code>totals.<wbr>leaks</code></td></tr>
+<tr><td>probes over the HTTP API</td><td class="num">696</td><td class="path"><code>surfaces.<wbr>http.<wbr>probes</code></td></tr>
+<tr><td>probes over MCP</td><td class="num">288</td><td class="path"><code>surfaces.<wbr>mcp.<wbr>probes</code></td></tr>
+<tr><td>probes through the CLI</td><td class="num">576</td><td class="path"><code>surfaces.<wbr>cli.<wbr>probes</code></td></tr>
+<tr><td>probes through the TUI</td><td class="num">580</td><td class="path"><code>surfaces.<wbr>tui.<wbr>probes</code></td></tr>
+<tr><td>probes through the pi extension</td><td class="num">48</td><td class="path"><code>surfaces.<wbr>pi.<wbr>probes</code></td></tr>
+<tr><td>denied and missing ids compared over the HTTP API</td><td class="num">377</td><td class="path"><code>denied_and_missing.<wbr>http.<wbr>compared</code></td></tr>
+<tr><td>of them answering alike</td><td class="num">275</td><td class="path"><code>denied_and_missing.<wbr>http.<wbr>alike</code></td></tr>
+<tr><td>of them pinned as telling existence: writes under a held id</td><td class="num">47</td><td class="path"><code>denied_and_missing.<wbr>http.<wbr>characterised.<wbr>write</code></td></tr>
+<tr><td>a model&#x27;s operations through the HTTP API agreeing with MCP</td><td class="num">5</td><td class="path"><code>parity.<wbr>http (model).<wbr>same</code></td></tr>
+<tr><td>the suite passed</td><td class="num">true</td><td class="path"><code>suite_passed</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/leakage.py --config research/configs/leakage.json --out research/results/h1-leakage.json</code>; sha256 <code>bc5c43f6e2ba848c2c0ba371d35b30ab0f7bf37ac93c0937018f578d7f1798fa</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card proof" id="r-h1-quint-trace-replay">
+<h3>Trace replay against the Quint model</h3><p class="meta"><code>research/results/h1-quint-trace-replay.json</code></p>
+<p><span class="badge proof-b">proof of concept</span><span class="badge">no hypothesis</span></p>
+<p><strong>Question.</strong> Does the code follow the Quint model of the commit and erasure protocol, step by step, on the model&#x27;s own traces?</p>
+<p class="meta">proof of concept: the system shown working on fixtures, scripted models or a model&#x27;s own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.</p>
+<p class="meta">Card E1.8: 200 traces of <code>specs/replay.qnt</code> (good under the code&#x27;s schedule, seed 1) replayed on real Plane handles; a divergence counts only when one of the card&#x27;s findings explains it. Filed under <code>h1-</code> for the results glob only.</p>
+<svg viewBox="0 0 600.00 18.00" width="100%" height="18" preserveAspectRatio="none" aria-hidden="true"><rect class="bar-track" x="0.00" y="0.00" width="600.00" height="18.00" rx="4.00"/><rect class="bar-fill" x="0.00" y="0.00" width="509.15" height="18.00" rx="4.00"/></svg><p class="meta">10,183 of 12,000 model steps matched by the code</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>traces</td><td class="num">200</td><td class="path"><code>totals.<wbr>traces</code></td></tr>
+<tr><td>replayed to their end</td><td class="num">144</td><td class="path"><code>totals.<wbr>replayed</code></td></tr>
+<tr><td>steps matched</td><td class="num">10,183</td><td class="path"><code>totals.<wbr>steps_matched</code></td></tr>
+<tr><td>steps</td><td class="num">12,000</td><td class="path"><code>totals.<wbr>steps</code></td></tr>
+<tr><td>states compared</td><td class="num">7,783</td><td class="path"><code>totals.<wbr>states_compared</code></td></tr>
+<tr><td>diverged, unexplained</td><td class="num">0</td><td class="path"><code>totals.<wbr>diverged_by_finding.<wbr>unexplained</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/quint_trace_replay.py --config research/configs/quint-trace-replay.json --out research/results/h1-quint-trace-replay.json</code>; sha256 <code>c80cce59149fc69f048e04c14ae36c0815f56cc98008fbc675670ae4bcee4353</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card proof" id="r-h1-gate-mutation-audit">
+<h3>Mutation audit of the gate</h3><p class="meta"><code>research/results/h1-gate-mutation-audit.json</code></p>
+<p><span class="badge proof-b">proof of concept</span><span class="badge">no hypothesis</span></p>
+<p><strong>Question.</strong> Do the invariants&#x27; property tests kill hand-written mutants of the write gate, the read filter, retention, promotion, adoption, offboarding, the trust floors and the log&#x27;s chain, and which mutants survive?</p>
+<p class="meta">proof of concept: the system shown working on fixtures, scripted models or a model&#x27;s own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.</p>
+<p class="meta">A proof of concept on the code&#x27;s own tests (card X16); the file is under <code>h1-</code> for the results glob only.</p>
+<svg viewBox="0 0 600.00 18.00" width="100%" height="18" preserveAspectRatio="none" aria-hidden="true"><rect class="bar-track" x="0.00" y="0.00" width="600.00" height="18.00" rx="4.00"/><rect class="bar-fill" x="0.00" y="0.00" width="564.71" height="18.00" rx="4.00"/></svg><p class="meta">32 of 34 mutants killed</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>mutants</td><td class="num">34</td><td class="path"><code>totals.<wbr>mutants</code></td></tr>
+<tr><td>killed</td><td class="num">32</td><td class="path"><code>totals.<wbr>killed</code></td></tr>
+<tr><td>survived</td><td class="num">2</td><td class="path"><code>totals.<wbr>survived</code></td></tr>
+<tr><td>kill rate</td><td class="num">0.941176</td><td class="path"><code>totals.<wbr>kill_rate</code></td></tr>
+<tr><td>two-handle offboarding walk, killed</td><td class="num">2</td><td class="path"><code>per_invariant.<wbr>I1H.<wbr>killed</code></td></tr>
+<tr><td>log chain, killed</td><td class="num">2</td><td class="path"><code>per_invariant.<wbr>I9.<wbr>killed</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/gate_mutation_audit.py --config research/configs/gate-mutation-audit.json --out research/results/h1-gate-mutation-audit.json</code>; sha256 <code>8e61f235b5dc2d7af647b27ecbe92b13b5db4769448438452f662ec20b873e05</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card proof" id="r-h2-cedar-properties">
+<h3>Cedar proofs of the presets&#x27; properties</h3><p class="meta"><code>research/results/h2-cedar-properties.json</code></p>
+<p><span class="badge proof-b">proof of concept</span><span class="badge">no hypothesis</span></p>
+<p><strong>Question.</strong> Does the Cedar export of each registered preset satisfy, for every request in the stated domain (every level, status, class, source kind, version, ttl, confidence and instant from 0000 to 9999 that Engram&#x27;s schema accepts), that strict allows no read medium denies and medium none permissive denies, that a model-sourced write lands only in a person scope its writer is a member of, and that a person&#x27;s item is read only by a member or under a live grant; are the converse and the non-vacuity checks refuted, each with a counterexample the evaluator reproduces?</p>
+<p class="meta">proof of concept: the system shown working on fixtures, scripted models or a model&#x27;s own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.</p>
+<p class="meta">Card E2.18. Proved by cedar-policy-symcc 0.8.1 and cvc5 1.4.2 of exportCedar&#x27;s text, modulo grants (ADR 0041, decision 5), not of evaluate.ts itself: the two are tied only by card E2.12&#x27;s differential test, which samples requests (<code>scope.evaluator</code>). <code>make verify-policy</code> reruns it; without cargo or cvc5 <code>make test-repro</code> reports the row as skipped. The file is under <code>h2-</code> for the results glob only.</p>
+<svg viewBox="0 0 600.00 18.00" width="100%" height="18" preserveAspectRatio="none" aria-hidden="true"><rect class="bar-track" x="0.00" y="0.00" width="600.00" height="18.00" rx="4.00"/><rect class="bar-fill" x="0.00" y="0.00" width="600.00" height="18.00" rx="4.00"/></svg><p class="meta">31 of 31 properties proved or refuted as expected</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>checks</td><td class="num">31</td><td class="path"><code>summary.<wbr>checks</code></td></tr>
+<tr><td>proved</td><td class="num">11</td><td class="path"><code>summary.<wbr>proved</code></td></tr>
+<tr><td>refuted (the control and the non-vacuity checks, all expected to fail)</td><td class="num">20</td><td class="path"><code>summary.<wbr>refuted</code></td></tr>
+<tr><td>refutations the evaluator reproduces</td><td class="num">20</td><td class="path"><code>summary.<wbr>reproduced</code></td></tr>
+<tr><td>every check as the config expects</td><td class="num">true</td><td class="path"><code>summary.<wbr>all_as_expected</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/h2_cedar_properties.py --config research/configs/h2-cedar-properties.json --out research/results/h2-cedar-properties.json</code>; sha256 <code>9e6d4084b0e19a6e00c7c1605e73ba808dd552fdd44dd5e67663bffff11f5d86</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+</section>
+<section id="other"><h2>Other checks</h2>
+<p>Checks and estimates that serve no single hypothesis. A row marked exploratory belongs to an arm proposed in the pre-registration&#x27;s amendments and not registered; its number is an engineering check, never a result.</p>
+<article class="card" id="r-h1-injection-screen">
+<h3><code>research/results/h1-injection-screen.json</code></h3>
+<p><span class="badge ">fixture-size measurement</span><span class="badge warn">exploratory: a proposed arm, not registered</span><span class="badge">no hypothesis</span></p>
+<p><strong>Question.</strong> On card E2.10&#x27;s own corpus, what share of attacks escapes the deterministic injection screen, and what share of benign controls does it wrongly hold, per profile?</p>
+<p class="meta">fixture-size measurement: a measurement on a fixed corpus or fixture, model-free or on a scripted model, not on a live model.</p>
+<p class="meta">Pre-registration section “P2. The deterministic injection screen as a floor beside the poisoning arm (card E2.10)”.</p>
+<p class="meta">Arm P2 is proposed, not registered; the file is under <code>h1-</code> because the arm sits beside H1&#x27;s poisoning arm.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>attacks escaping, default profile</td><td class="num">4</td><td class="path"><code>profiles.<wbr>default.<wbr>escape.<wbr>count</code></td></tr>
+<tr><td>escape rate, default profile</td><td class="num">0.333333</td><td class="path"><code>profiles.<wbr>default.<wbr>escape.<wbr>rate</code></td></tr>
+<tr><td>benign controls held, default profile</td><td class="num">11</td><td class="path"><code>profiles.<wbr>default.<wbr>false_hold.<wbr>count</code></td></tr>
+<tr><td>false-hold rate, default profile</td><td class="num">0.161765</td><td class="path"><code>profiles.<wbr>default.<wbr>false_hold.<wbr>rate</code></td></tr>
+<tr><td>false-hold rate, hardened profile</td><td class="num">0.191176</td><td class="path"><code>profiles.<wbr>hardened.<wbr>false_hold.<wbr>rate</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/injection_screen.py --config research/configs/injection-screen.json --out research/results/h1-injection-screen.json</code>; sha256 <code>3e35dd39db1ae69b49047678164434c8cf22b0f13c153ffca8e31da5a269b0a4</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h1-secret-guard">
+<h3><code>research/results/h1-secret-guard.json</code></h3>
+<p><span class="badge ">fixture-size measurement</span><span class="badge warn">exploratory: a proposed arm, not registered</span><span class="badge">no hypothesis</span></p>
+<p><strong>Question.</strong> How often do card E2.9&#x27;s secret and PII guards catch synthetic credentials at the expected tier, and how often do they deny or hold benign repository text?</p>
+<p class="meta">fixture-size measurement: a measurement on a fixed corpus or fixture, model-free or on a scripted model, not on a live model.</p>
+<p class="meta">Pre-registration section “P1. The red-team arm (card X14)”.</p>
+<p class="meta">Card E2.9&#x27;s own check of guards that arm P1 (proposed, not registered) measures.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>synthetic secrets at the expected tier</td><td class="num">1,200</td><td class="path"><code>synthetic.<wbr>overall.<wbr>at_expected_tier.<wbr>k</code></td></tr>
+<tr><td>synthetic secrets in all</td><td class="num">1,200</td><td class="path"><code>synthetic.<wbr>overall.<wbr>at_expected_tier.<wbr>n</code></td></tr>
+<tr><td>benign paragraphs denied</td><td class="num">0</td><td class="path"><code>benign.<wbr>denied.<wbr>k</code></td></tr>
+<tr><td>benign paragraphs held</td><td class="num">4</td><td class="path"><code>benign.<wbr>held.<wbr>k</code></td></tr>
+<tr><td>benign paragraphs in all</td><td class="num">14,587</td><td class="path"><code>benign.<wbr>held.<wbr>n</code></td></tr>
+<tr><td>benign hold rate</td><td class="num">0.000274</td><td class="path"><code>benign.<wbr>held.<wbr>rate</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/secret_guard.py --config research/configs/secret-guard.json --out research/results/h1-secret-guard.json</code>; sha256 <code>ea5b75615024cc0045a9bce7d760ce5d84f79ce2b39428a0253270377b4773d9</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h1-redteam">
+<h3><code>research/results/h1-redteam.json</code></h3>
+<p><span class="badge ">fixture-size measurement</span><span class="badge warn">exploratory: a proposed arm, not registered</span><span class="badge">no hypothesis</span></p>
+<p><strong>Question.</strong> On a corpus card X14 did not write, what share of attacks survives each guard setting on the write route from a tool writer, and how many benign controls does each wrongly hold?</p>
+<p class="meta">fixture-size measurement: a measurement on a fixed corpus or fixture, model-free or on a scripted model, not on a live model.</p>
+<p class="meta">Pre-registration section “P1. The red-team arm (card X14)”.</p>
+<p class="meta">Arm P1 is proposed, not registered.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>attacks in the corpus</td><td class="num">1,278</td><td class="path"><code>corpus.<wbr>attacks</code></td></tr>
+<tr><td>benign controls in the corpus</td><td class="num">448</td><td class="path"><code>corpus.<wbr>controls_total</code></td></tr>
+<tr><td>attack survival, medium</td><td class="num">1.0</td><td class="path"><code>table[setting=&quot;medium&quot;, route=&quot;write&quot;, kind=&quot;tool&quot;].<wbr>attack_survival</code></td></tr>
+<tr><td>attack survival, medium with the screen at default</td><td class="num">0.743349</td><td class="path"><code>table[setting=&quot;medium+screen-default&quot;, route=&quot;write&quot;, kind=&quot;tool&quot;].<wbr>attack_survival</code></td></tr>
+<tr><td>attack survival, medium with every guard</td><td class="num">0.737089</td><td class="path"><code>table[setting=&quot;medium+all&quot;, route=&quot;write&quot;, kind=&quot;tool&quot;].<wbr>attack_survival</code></td></tr>
+<tr><td>benign false holds, medium with every guard</td><td class="num">0.008929</td><td class="path"><code>table[setting=&quot;medium+all&quot;, route=&quot;write&quot;, kind=&quot;tool&quot;].<wbr>benign_false_hold</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/redteam.py --config research/configs/redteam.json --out research/results/h1-redteam.json</code>; sha256 <code>c1e73f53c9efda9de310e6bf76f8888210ad08da2311ae90d93f6088608610ae</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h1-crosswalk">
+<h3><code>research/results/h1-crosswalk.json</code></h3>
+<p><span class="badge ">support artefact</span><span class="badge">no hypothesis</span></p>
+<p><strong>Question.</strong> Of the plane&#x27;s governance claims mapped to EU AI Act and GDPR obligations, how many does a test in the repository evidence?</p>
+<p class="meta">support artefact: an input a registered analysis uses (a list, a draw, a mapping), not a measurement of any hypothesis.</p>
+<p class="meta">Evidence for <code>docs/compliance/</code>, not compliance; filed under <code>h1-</code> by <code>docs/log/2026-11-21-r4-decision-result-under-h1.md</code>.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>claims</td><td class="num">50</td><td class="path"><code>summary.<wbr>claims</code></td></tr>
+<tr><td>claims evidenced by a test</td><td class="num">47</td><td class="path"><code>summary.<wbr>evidenced</code></td></tr>
+<tr><td>tests cited</td><td class="num">107</td><td class="path"><code>summary.<wbr>tests</code></td></tr>
+<tr><td>test files cited</td><td class="num">33</td><td class="path"><code>summary.<wbr>test_files</code></td></tr>
+<tr><td>obligations</td><td class="num">27</td><td class="path"><code>summary.<wbr>obligations</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/crosswalk.py --config research/configs/crosswalk.json --out research/results/h1-crosswalk.json</code>; sha256 <code>b3e535e503dc1e2944302b3f09b0a4a27f367ac87e6e53d465cf7e6189db47dd</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h2-cost-table">
+<h3><code>research/results/h2-cost-table.json</code></h3>
+<p><span class="badge ">cost estimate</span><span class="badge">no hypothesis</span></p>
+<p><strong>Question.</strong> What does every registered run cost at list prices, as decided, and what spend ceiling follows?</p>
+<p class="meta">cost estimate: dollars and calls estimated from token counts and prices; no model called.</p>
+<p class="meta">Pre-registration section “Models”.</p>
+<p class="meta">Spans H1 to H5; the pre-registration&#x27;s spend ceilings come from it.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>calls, high</td><td class="num">660,296.0</td><td class="path"><code>decided.<wbr>totals.<wbr>openrouter-prices.<wbr>d-lead.<wbr>calls.<wbr>high</code></td></tr>
+<tr><td>dollars, low</td><td class="num">1,159.482346</td><td class="path"><code>decided.<wbr>totals.<wbr>openrouter-prices.<wbr>d-lead.<wbr>dollars.<wbr>low</code></td></tr>
+<tr><td>dollars, high</td><td class="num">5,227.072575</td><td class="path"><code>decided.<wbr>totals.<wbr>openrouter-prices.<wbr>d-lead.<wbr>dollars.<wbr>high</code></td></tr>
+<tr><td>ceiling, dollars</td><td class="num">6,533.840719</td><td class="path"><code>decided.<wbr>totals.<wbr>openrouter-prices.<wbr>d-lead.<wbr>ceiling</code></td></tr>
+<tr><td>H1, dollars, high</td><td class="num">1,251.921395</td><td class="path"><code>decided.<wbr>totals.<wbr>openrouter-prices.<wbr>d-lead.<wbr>by_hypothesis.<wbr>H1.<wbr>high</code></td></tr>
+<tr><td>H2, dollars, high</td><td class="num">2,154.077676</td><td class="path"><code>decided.<wbr>totals.<wbr>openrouter-prices.<wbr>d-lead.<wbr>by_hypothesis.<wbr>H2.<wbr>high</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/cost_table.py --config research/configs/cost-table.json --out research/results/h2-cost-table.json</code>; sha256 <code>074d4fb068460e78916c215bebcbfe0f2ac637fa65eb0ba670da9d6063fec8c1</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+<article class="card" id="r-h2-perf-budget">
+<h3><code>research/results/h2-perf-budget.json</code></h3>
+<p><span class="badge ">engineering check</span><span class="badge">no hypothesis</span></p>
+<p><strong>Question.</strong> How long do a governed read and write take on the fake store under medium, and do they meet the proposed latency budget?</p>
+<p class="meta">engineering check: a check of a component&#x27;s behaviour or speed that decides no hypothesis.</p>
+<p class="meta">The budget is proposed in <code>docs/architecture.md</code>; the file is under <code>h2-</code> for the results glob only.</p>
+<div class="scroll"><table><thead><tr><th>value</th><th>reads</th><th>key path</th></tr></thead><tbody>
+<tr><td>read p99, budget row read-1000, ms</td><td class="num">63.418061</td><td class="path"><code>budget[name=&quot;read-1000&quot;].<wbr>measured_ms</code></td></tr>
+<tr><td>read p99, budget row read-1000, limit met</td><td class="num">false</td><td class="path"><code>budget[name=&quot;read-1000&quot;].<wbr>met</code></td></tr>
+<tr><td>write p99, budget row write-1000, ms</td><td class="num">14.445315</td><td class="path"><code>budget[name=&quot;write-1000&quot;].<wbr>measured_ms</code></td></tr>
+<tr><td>read p99, budget row read-10000, ms</td><td class="num">203.405203</td><td class="path"><code>budget[name=&quot;read-10000&quot;].<wbr>measured_ms</code></td></tr>
+<tr><td>write p99, budget row write-10000, ms</td><td class="num">163.290634</td><td class="path"><code>budget[name=&quot;write-10000&quot;].<wbr>measured_ms</code></td></tr>
+</tbody></table></div>
+<p class="meta">Made by <code>uv run python research/scripts/perf_budget.py --config research/configs/perf-budget.json --out research/results/h2-perf-budget.json</code>; sha256 <code>0ebdd59c0d61bb2126725ba713b9c9c8c929785bef78e3da4b214828f5dbc254</code>; cost: no model call: regenerated offline from committed inputs.</p>
+</article>
+</section>
+<section id="manifest"><h2>Every MANIFEST row</h2>
+<p>Each row regenerates byte for byte with its command; <code>make test-repro</code> reruns them all and checks every sha256.</p>
+<div class="scroll"><table id="manifest-table"><thead><tr><th>file</th><th>status</th><th>serves</th><th>sha256</th><th>command</th><th>cost</th></tr></thead><tbody>
+<tr><td><a href="#r-h1-gatemem-reach"><code>research/results/h1-gatemem-reach.json</code></a></td><td>reach measurement</td><td>H1</td><td><code>9607555c3c9dcdee4917e10374c902589750ce0972a51f459c7294177792c4dd</code></td><td><code>uv run python research/scripts/h1_gatemem_reach.py --config research/configs/h1-gatemem-reach.json --out research/results/h1-gatemem-reach.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h1-mem-inv-admission"><code>research/results/h1-mem-inv-admission.json</code></a></td><td>reach measurement</td><td>H1</td><td><code>bed41bee4be4e3bb6bbf9f260b846626e3b57886d5672ccaa865b6443290ecab</code></td><td><code>uv run python research/scripts/h1_mem_inv_admission.py --config research/configs/h1-mem-inv-admission.json --out research/results/h1-mem-inv-admission.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h4-power"><code>research/results/h4-power.json</code></a></td><td>power computation</td><td>H4</td><td><code>852a6776acf7dc3338c5b4fa5c1d65d64318c296464876c4b43b8e32e8c8bf53</code></td><td><code>uv run python research/scripts/h4_power.py --config research/configs/h4-power.json --out research/results/h4-power.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h1-c4-verdict-agreement"><code>research/results/h1-c4-verdict-agreement.json</code></a></td><td>support artefact</td><td>H1</td><td><code>9335a67724db6405aa9a93ef90838869f597340ca0838a8945367a09305701f1</code></td><td><code>uv run python research/scripts/h1_c4_verdict_agreement.py --config research/configs/h1-c4-verdict-agreement.json --out research/results/h1-c4-verdict-agreement.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h1-c4-walk"><code>research/results/h1-c4-walk.json</code></a></td><td>reach measurement</td><td>H1</td><td><code>479f24192d83ec1a091dfc5b925073d79aefe1415d6171439ba74bb94fd6f8fa</code></td><td><code>uv run python research/scripts/h1_c4_walk.py --config research/configs/h1-c4-walk.json --out research/results/h1-c4-walk.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h1-cost"><code>research/results/h1-cost.json</code></a></td><td>cost estimate</td><td>H1</td><td><code>f147daf74c9bbec665b067ed0dc47eec97b25d5af7b8862ba582b0e7938c37fb</code></td><td><code>uv run python research/scripts/h1_cost.py --config research/configs/h1-cost.json --out research/results/h1-cost.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h4-holm-levels"><code>research/results/h4-holm-levels.json</code></a></td><td>power computation</td><td>H4</td><td><code>dcacf0c9ce70c8f6fd3055a6461ab542bdd51839dc0fea561e029372b7ed45d4</code></td><td><code>uv run python research/scripts/h4_holm_levels.py --config research/configs/h4-holm-levels.json --out research/results/h4-holm-levels.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h1-refusal-leaks"><code>research/results/h1-refusal-leaks.json</code></a></td><td>support artefact</td><td>H1</td><td><code>d7e9f3d0a54f9cce348c71fc9389b5bb150c05afeb5751588a40623be19405ed</code></td><td><code>uv run python research/scripts/h1_refusal_leaks.py --config research/configs/h1-refusal-leaks.json --out research/results/h1-refusal-leaks.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h3-fault-set"><code>research/results/h3-fault-set.json</code></a></td><td>support artefact</td><td>H3</td><td><code>a274701dea70711537d54a556e15bf24dc9ee849b2fad4de741e97c051da199a</code></td><td><code>uv run python research/scripts/h3_fault_set.py --config research/configs/h3-fault-set.json --out research/results/h3-fault-set.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h3-lint-floor"><code>research/results/h3-lint-floor.json</code></a></td><td>engineering check</td><td>H3</td><td><code>354da5711ed36526b59051f3477bdf97bb4ff2b74fcf691982157fab9aef25a9</code></td><td><code>uv run python research/scripts/h3_lint_floor.py --config research/configs/h3-lint-floor.json --out research/results/h3-lint-floor.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h2-longmemeval-ttl"><code>research/results/h2-longmemeval-ttl.json</code></a></td><td>reach measurement</td><td>H2</td><td><code>412941154b27162d6c55236c13ac6e609595d62c37010bb12eb842e43bde428a</code></td><td><code>uv run python research/scripts/h2_longmemeval_ttl.py --config research/configs/h2-longmemeval-ttl.json --out research/results/h2-longmemeval-ttl.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h2-longmemeval-cost"><code>research/results/h2-longmemeval-cost.json</code></a></td><td>cost estimate</td><td>H2</td><td><code>529b1450b56f154202543ad7aa045eee61e2c56cce5ed7c0169b934ec91a1cb8</code></td><td><code>uv run python research/scripts/h2_longmemeval_cost.py --config research/configs/h2-longmemeval-cost.json --out research/results/h2-longmemeval-cost.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h1-check-runs-cost"><code>research/results/h1-check-runs-cost.json</code></a></td><td>cost estimate</td><td>H1</td><td><code>fd5a250704aa3156632be4a83bf152e17e2f2f3bdc769ebde17890b215f4e41d</code></td><td><code>uv run python research/scripts/h1_check_runs_cost.py --config research/configs/h1-check-runs-cost.json --out research/results/h1-check-runs-cost.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h1-label-audit"><code>research/results/h1-label-audit.json</code></a></td><td>support artefact</td><td>H1</td><td><code>5d295d27d161e50c3f5374e7440e47e08be1c107a7b26bd2f9aca429ac36d223</code></td><td><code>uv run python research/scripts/label_audit_draw.py --config research/configs/label-audit.json --out research/results/h1-label-audit.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h2-label-audit-longmemeval"><code>research/results/h2-label-audit-longmemeval.json</code></a></td><td>support artefact</td><td>H2</td><td><code>509268baf31ca7c2d8088f42b9c10ea5bac285a3fd3e6e720cba894390a3722e</code></td><td><code>uv run python research/scripts/label_audit_draw.py --config research/configs/label-audit-longmemeval.json --out research/results/h2-label-audit-longmemeval.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h2-cost-table"><code>research/results/h2-cost-table.json</code></a></td><td>cost estimate</td><td>no hypothesis</td><td><code>074d4fb068460e78916c215bebcbfe0f2ac637fa65eb0ba670da9d6063fec8c1</code></td><td><code>uv run python research/scripts/cost_table.py --config research/configs/cost-table.json --out research/results/h2-cost-table.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h2-frontier-axes"><code>research/results/h2-frontier-axes.json</code></a></td><td>reach measurement</td><td>H2</td><td><code>5f208b78489b78a2364edf8b2dc1a5d16a4baa8a3a4be5033b5d313debc4180f</code></td><td><code>uv run python research/scripts/frontier_axes.py --config research/configs/frontier-axes.json --out research/results/h2-frontier-axes.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h1-crosswalk"><code>research/results/h1-crosswalk.json</code></a></td><td>support artefact</td><td>no hypothesis</td><td><code>b3e535e503dc1e2944302b3f09b0a4a27f367ac87e6e53d465cf7e6189db47dd</code></td><td><code>uv run python research/scripts/crosswalk.py --config research/configs/crosswalk.json --out research/results/h1-crosswalk.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h1-injection-screen"><code>research/results/h1-injection-screen.json</code></a></td><td>fixture-size measurement<br><span class="badge warn">exploratory: a proposed arm, not registered</span></td><td>no hypothesis</td><td><code>3e35dd39db1ae69b49047678164434c8cf22b0f13c153ffca8e31da5a269b0a4</code></td><td><code>uv run python research/scripts/injection_screen.py --config research/configs/injection-screen.json --out research/results/h1-injection-screen.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h1-secret-guard"><code>research/results/h1-secret-guard.json</code></a></td><td>fixture-size measurement<br><span class="badge warn">exploratory: a proposed arm, not registered</span></td><td>no hypothesis</td><td><code>ea5b75615024cc0045a9bce7d760ce5d84f79ce2b39428a0253270377b4773d9</code></td><td><code>uv run python research/scripts/secret_guard.py --config research/configs/secret-guard.json --out research/results/h1-secret-guard.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h2-perf-budget"><code>research/results/h2-perf-budget.json</code></a></td><td>engineering check</td><td>no hypothesis</td><td><code>0ebdd59c0d61bb2126725ba713b9c9c8c929785bef78e3da4b214828f5dbc254</code></td><td><code>uv run python research/scripts/perf_budget.py --config research/configs/perf-budget.json --out research/results/h2-perf-budget.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h1-redteam"><code>research/results/h1-redteam.json</code></a></td><td>fixture-size measurement<br><span class="badge warn">exploratory: a proposed arm, not registered</span></td><td>no hypothesis</td><td><code>c1e73f53c9efda9de310e6bf76f8888210ad08da2311ae90d93f6088608610ae</code></td><td><code>uv run python research/scripts/redteam.py --config research/configs/redteam.json --out research/results/h1-redteam.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h3-near-duplicate"><code>research/results/h3-near-duplicate.json</code></a></td><td>engineering check<br><span class="badge warn">exploratory: a proposed arm, not registered</span></td><td>H3</td><td><code>f50c8f465a2479c84894d4a6fd0fcfbd55df71bcdcc7d3559515d9b46e9b8b3b</code></td><td><code>uv run python research/scripts/near_duplicate.py --config research/configs/near-duplicate.json --out research/results/h3-near-duplicate.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h3-lint-nli"><code>research/results/h3-lint-nli.json</code></a></td><td>engineering check<br><span class="badge warn">exploratory: a proposed arm, not registered</span></td><td>H3</td><td><code>22e3c1225171941d7fac6d426942dd0d52634499a6290d709f4f8f47888763db</code></td><td><code>uv run python research/scripts/h3_lint_nli.py --config research/configs/h3-lint-nli.json --out research/results/h3-lint-nli.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h1-leakage"><code>research/results/h1-leakage.json</code></a></td><td>proof of concept</td><td>no hypothesis</td><td><code>bc5c43f6e2ba848c2c0ba371d35b30ab0f7bf37ac93c0937018f578d7f1798fa</code></td><td><code>uv run python research/scripts/leakage.py --config research/configs/leakage.json --out research/results/h1-leakage.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h1-quint-trace-replay"><code>research/results/h1-quint-trace-replay.json</code></a></td><td>proof of concept</td><td>no hypothesis</td><td><code>c80cce59149fc69f048e04c14ae36c0815f56cc98008fbc675670ae4bcee4353</code></td><td><code>uv run python research/scripts/quint_trace_replay.py --config research/configs/quint-trace-replay.json --out research/results/h1-quint-trace-replay.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h1-gate-mutation-audit"><code>research/results/h1-gate-mutation-audit.json</code></a></td><td>proof of concept</td><td>no hypothesis</td><td><code>8e61f235b5dc2d7af647b27ecbe92b13b5db4769448438452f662ec20b873e05</code></td><td><code>uv run python research/scripts/gate_mutation_audit.py --config research/configs/gate-mutation-audit.json --out research/results/h1-gate-mutation-audit.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+<tr><td><a href="#r-h2-cedar-properties"><code>research/results/h2-cedar-properties.json</code></a></td><td>proof of concept</td><td>no hypothesis</td><td><code>9e6d4084b0e19a6e00c7c1605e73ba808dd552fdd44dd5e67663bffff11f5d86</code></td><td><code>uv run python research/scripts/h2_cedar_properties.py --config research/configs/h2-cedar-properties.json --out research/results/h2-cedar-properties.json</code></td><td>no model call: regenerated offline from committed inputs</td></tr>
+</tbody></table></div></section>
+<footer><p>Generated by <code>research/scripts/results_page.py</code> from <code>research/configs/results-page.json</code>, the register's config <code>research/configs/results-register.json</code>, <code>research/results/MANIFEST.md</code> and the results files; run <code>make results-page</code> after any of them changes. The register, <code>docs/research/results.md</code>, lists the log entries that record each row.</p></footer>
+</main>
+</body>
+</html>
