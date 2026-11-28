@@ -85,7 +85,15 @@ export class ExportScreen extends SurfaceScreen {
       {
         id: "button:subject-export",
         label: "Subject access export",
-        press: (c) => c.openCommand(spec("export --subject"), {}),
+        press: (c) => {
+          const db = (this.form.get("db") as string | undefined) || undefined;
+          const as = this.ctx.ws.actorId();
+          const person = as?.startsWith("person:") ? as : undefined;
+          return c.openCommand(spec("export --subject"), {
+            db,
+            ...(person === undefined ? {} : { subject: person }),
+          });
+        },
       },
     ];
   }

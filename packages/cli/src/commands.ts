@@ -1311,6 +1311,7 @@ export function subjectText(r: SubjectAccessReport): string {
       .join(", ") || "none";
   const lines = [
     `subject access export for ${r.subject} at ${r.at} under ${r.policy.id} v${r.policy.version}`,
+    `  scopes read: ${r.scopes.read.join(", ") || "none"}${r.scopes.not_read > 0 ? `; ${r.scopes.not_read} named but not readable at the person level` : ""}`,
     `  items: ${r.items.total} (${counts(r.items.by_status)}); by class: ${counts(r.items.by_class)}; by scope level: ${counts(r.items.by_level)}`,
     `  decisions on them: ${r.decisions.total}`,
   ];
@@ -1320,6 +1321,17 @@ export function subjectText(r: SubjectAccessReport): string {
   for (const x of d.shown)
     lines.push(`  ${x.id}${x.from.length === 0 ? "" : ` from ${x.from.join(", ")}`}`);
   if (d.withheld > 0) lines.push(`  ${d.withheld} more out of your reach: counted, not named`);
+  for (const [label, a] of [
+    ["your own items in scopes not read", r.owned_elsewhere],
+    ["items granted to you outside the bundle", r.granted],
+  ] as const) {
+    lines.push(`${label}: ${a.shown.length + a.withheld}`);
+    for (const id of a.shown) lines.push(`  ${id}`);
+    if (a.withheld > 0) lines.push(`  ${a.withheld} more out of your reach: counted, not named`);
+  }
+  lines.push(`your own events the bundle does not carry: ${r.own_events_elsewhere.total}`);
+  for (const [op, by] of Object.entries(r.own_events_elsewhere.by_op))
+    lines.push(`  ${op}: ${counts(by)}`);
   for (const n of r.notes) lines.push(`note: ${n}`);
   return `${lines.join("\n")}\n`;
 }
