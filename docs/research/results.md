@@ -433,7 +433,7 @@ Recorded by [`docs/log/2026-11-21-x14-measurement-redteam.md`](../log/2026-11-21
 - **Question.** Of the plane's governance claims mapped to EU AI Act and GDPR obligations, how many does a test in the repository evidence?
 - **Status.** support artefact: an input a registered analysis uses (a list, a draw, a mapping), not a measurement of any hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. Evidence for `docs/compliance/`, not compliance; filed under `h1-` by `docs/log/2026-11-21-r4-decision-result-under-h1.md`.
-- **Made by.** `research/scripts/crosswalk.py` from `research/configs/crosswalk.json`, MANIFEST commit `17c8a06e`, sha256 `cb41e492d3f5a19ea2aed87e39393df3301e1fd900fe66e516ae86061ab06c42`.
+- **Made by.** `research/scripts/crosswalk.py` from `research/configs/crosswalk.json`, MANIFEST commit `42cd1c50`, sha256 `cb41e492d3f5a19ea2aed87e39393df3301e1fd900fe66e516ae86061ab06c42`.
 
 | value | reads | key path |
 |---|---|---|
