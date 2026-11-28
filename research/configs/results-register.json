@@ -1004,86 +1004,47 @@
       "headline": [
         {
           "label": "canaries written",
-          "path": [
-            "canaries",
-            "written"
-          ]
+          "path": ["canaries", "written"]
         },
         {
           "label": "probes, all surfaces",
-          "path": [
-            "totals",
-            "probes"
-          ]
+          "path": ["totals", "probes"]
         },
         {
           "label": "leaks, all surfaces",
-          "path": [
-            "totals",
-            "leaks"
-          ]
+          "path": ["totals", "leaks"]
         },
         {
           "label": "probes over the HTTP API",
-          "path": [
-            "surfaces",
-            "http",
-            "probes"
-          ]
+          "path": ["surfaces", "http", "probes"]
         },
         {
           "label": "probes over MCP",
-          "path": [
-            "surfaces",
-            "mcp",
-            "probes"
-          ]
+          "path": ["surfaces", "mcp", "probes"]
         },
         {
           "label": "probes through the CLI",
-          "path": [
-            "surfaces",
-            "cli",
-            "probes"
-          ]
+          "path": ["surfaces", "cli", "probes"]
         },
         {
           "label": "probes through the TUI",
-          "path": [
-            "surfaces",
-            "tui",
-            "probes"
-          ]
+          "path": ["surfaces", "tui", "probes"]
         },
         {
           "label": "probes through the pi extension",
-          "path": [
-            "surfaces",
-            "pi",
-            "probes"
-          ]
+          "path": ["surfaces", "pi", "probes"]
         },
         {
           "label": "denied and missing ids compared over the HTTP API",
-          "path": [
-            "denied_and_missing",
-            "http",
-            "compared"
-          ]
+          "path": ["denied_and_missing", "http", "compared"]
         },
         {
           "label": "of them answering alike",
-          "path": [
-            "denied_and_missing",
-            "http",
-            "alike"
-          ]
+          "path": ["denied_and_missing", "http", "alike"]
         },
         {
           "label": "the suite passed",
-          "path": [
-            "suite_passed"
-          ]
+          "path": ["suite_passed"]
         }
       ]
     }
