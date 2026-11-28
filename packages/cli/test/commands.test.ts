@@ -30,6 +30,7 @@ commands:
   hook claude-code  a Claude Code PreToolUse hook that blocks store bypasses
   key               create, list or revoke the local API keys a server accepts
   doctor            check the log, policy, store, adapters, provider keys, pins and Node
+  discover          count harness memory files outside every store root, never their content
   log verify        verify the event log's hash chain: the first broken link, or OK or UNSIGNED
   log checkpoint    record a checkpoint of the chain's head, signed with --key when given
   tui               the terminal interface; --line or ENGRAM_TUI_LINE=1 for one prompt a line
@@ -242,6 +243,14 @@ doctor options:
                               on an in-memory log (counts only)
   --host and serve's credential flags: the bind engram serve would make; fails without
                               authentication, and beyond loopback without credentials
+
+discover options (card E9.10; no plane call, no log opened):
+  --home <folder>             the home whose .claude and .codex locations are walked (default yours)
+  --project <folder>          a project walked for CLAUDE.md, AGENTS.md and rules; repeatable
+                              (default the current folder)
+  --root <folder>             a store root: a file inside one is not counted as outside; repeatable
+  counts per harness and kind, then each file outside every root by path, size and time;
+  no file is opened, nothing is written; existence only, not whether a harness read it
 
 tui options (card E8.15b; docs/design/tui.md):
   --no-color  --high-contrast  --ascii  --reduced-motion  --no-mouse

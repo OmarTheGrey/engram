@@ -54,6 +54,8 @@ export const LETTERS: Readonly<Record<string, string>> = {
   "key list": "A",
   "key revoke": "R",
   doctor: "d",
+  // Card E9.10.
+  discover: "D",
 };
 
 /** What a command changes, in words, from its registry entry's `writes` (docs/design/tui.md 9.5). */

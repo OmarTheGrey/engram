@@ -131,8 +131,10 @@ const DOCTOR = [
   "ok   benchmark pins  fixture pins",
   "ok   pi pin          fixture pins",
   "ok   node            Node 24.0.0",
+  // Card E9.10: a warning, drawn after the failure and never counted as one.
+  "warn harness memory  2 harness memory files outside every store root (claude-code auto-memory 1, codex project-agents-md 1); 0 inside one; engram discover lists them",
   "skip serve           no serve flags given (--host, --keys, --issuer, --insecure-loopback)",
-  "doctor: 1 check failed",
+  "doctor: 1 check failed, 1 warning",
   "",
 ].join("\n");
 
@@ -217,6 +219,28 @@ const SCREENS: Record<
     given: USABLE,
     set: (s: SurfaceScreen) =>
       s.show(result(["doctor", "--db", "engram.db", "--root", "mem"], 1, DOCTOR)),
+  },
+  discover: {
+    name: "discover",
+    given: USABLE,
+    values: { home: "home", project: ["lantern"], root: ["mem"] },
+    set: (s: SurfaceScreen) =>
+      s.show(
+        result(
+          ["discover", "--home", "home", "--project", "lantern", "--root", "mem"],
+          0,
+          [
+            "discover: 2 harness memory files outside every store root, 1 inside one; sizes and times only, no file opened",
+            "  claude-code  project-claude-md     1 file      28 bytes  newest 2026-11-20T10:00:00.000Z",
+            "  codex        project-agents-md     1 file      38 bytes  newest 2026-11-20T10:00:00.000Z",
+            "outside every store root:",
+            "  lantern/CLAUDE.md  28 bytes  2026-11-20T10:00:00.000Z  claude-code project-claude-md",
+            "  lantern/AGENTS.md  38 bytes  2026-11-20T10:00:00.000Z  codex project-agents-md",
+            "searched: home home; projects lantern; store roots mem; locations as of 2026-11-28",
+            "",
+          ].join("\n"),
+        ),
+      ),
   },
   serve: {
     name: "serve",

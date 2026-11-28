@@ -5,7 +5,7 @@ policy: 11 retain  12 lint  13 simulate  14 policy
 audit: 15 events  16 log verify  17 log checkpoint
 data: 18 export  19 import
 surfaces: 20 serve  21 mcp setup  22 hook setup  23 key create  24 key list  25 key revoke
-machine: 26 doctor
+machine: 26 doctor  27 discover
 command: > write
 write one item through the plane's write gate
 content: > The deploy key rotates every 90 days.

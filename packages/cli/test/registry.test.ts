@@ -226,6 +226,7 @@ describe("the registry's entries", () => {
       ["key list", {}, {}, "none"],
       ["key revoke", {}, {}, "erase"],
       ["doctor", ROOT, {}, "none"],
+      ["discover", ROOT, SERVER, "none"],
       ["log verify", {}, {}, "none"],
       ["log checkpoint", {}, {}, "state"],
       // The TUI runs until quit; what each action changes is its own entry's answer.

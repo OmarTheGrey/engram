@@ -12,11 +12,11 @@ font-variant-ligatures:none}
 │ 1 Memory                                           ││ Read and explain                                               │
 │<span style="color:#1e1e1e;background:#d4d4d4"> &gt; [r] Read and explain                             </span>││                                                                │
 │   [o] Read one item                                ││ Read through the plane and explain every returned item.        │
-│   [w] Write a memory                               ││                                                                │
-│   [C] Check a writ┌─ Commands ───────────────────────────────────────────────────────────────────┐er, first sweeps   │
-│   [p] Promote an i│ &gt; prom<span style="color:#1e1e1e;background:#d4d4d4"> </span>                                                                      │ssion.             │
-│   [S] Supersede   │                                                                              │                   │
-│   [g] Grants on an│<span style="color:#1e1e1e;background:#d4d4d4"> &gt; Promote an item             engram promote &lt;itemId&gt;                        </span>│ use, a server that│
+│   [w] Write a memo┌─ Commands ───────────────────────────────────────────────────────────────────┐                   │
+│   [C] Check a writ│ &gt; prom<span style="color:#1e1e1e;background:#d4d4d4"> </span>                                                                      │er, first sweeps   │
+│   [p] Promote an i│                                                                              │ssion.             │
+│   [S] Supersede   │<span style="color:#1e1e1e;background:#d4d4d4"> &gt; Promote an item             engram promote &lt;itemId&gt;                        </span>│                   │
+│   [g] Grants on an│   Harness memory              engram discover                                │ use, a server that│
 │   [E] Explain a re│   Check a write               engram check                                   │ment, or a 501     │
 │   [n] Who can read│   Write a memory              engram write                                   │                   │
 │   [u] Scopes you c│   Grants on an item           engram grants &lt;itemId&gt;                         │                   │
@@ -38,7 +38,7 @@ font-variant-ligatures:none}
 │   [b] Claude Code │ enter open   tab fill   esc close                                            │                   │
 │   [a] Create a key└──────────────────────────────────────────────────────────────────────────────┘                   │
 │   [A] List keys                                    ││                                                                │
-│   ▾ 3 more below: pgdn                             ││                                                                │
+│   ▾ 4 more below: pgdn                             ││                                                                │
 └────────────────────────────────────────────────────┘└────────────────────────────────────────────────────────────────┘
  · doctor not run this session: d   log engram.db   policy fixture.inspector v1                                         
 $ engram read --db engram.db --policy policy.yaml --owner dana --member person:dana --member team:core --root mem       

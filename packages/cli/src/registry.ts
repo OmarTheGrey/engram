@@ -1585,7 +1585,7 @@ export const REGISTRY: readonly CommandSpec[] = [
   },
   {
     name: "discover",
-    title: "Harness memory outside the plane",
+    title: "Harness memory",
     usage: "discover",
     summary: "count harness memory files outside every store root, never their content",
     listed: true,

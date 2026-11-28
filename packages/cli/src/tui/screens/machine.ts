@@ -4,16 +4,23 @@
 // do" from a fixed table keyed by the check's name, never from parsing its
 // detail. Doctor's own flags are the workspace's; its bind flags (--host
 // and serve's credential flags, card E8.12) are the Serve screen's last
-// answers, so doctor checks the bind Serve would make.
+// answers, so doctor checks the bind Serve would make. A warning (card
+// E9.10's harness memory check) is drawn after the failures and before
+// the rest, and never counts as a failure.
+//
+// Discover (card E9.10): `engram discover` run as the plain command, its
+// counts drawn with a warning symbol when any file sits outside every
+// store root. The screen reads the command's own text, never a file.
+import { plural } from "../../format.ts";
 import type { CommandSpec, Values } from "../../registry.ts";
 import { clean, para, visibleWidth } from "../layout.ts";
 import type { RunResult } from "../runner.ts";
 import type { Ctx } from "../screen.ts";
 import type { StatusKind } from "../theme.ts";
-import { type Row, SurfaceScreen, sharedOf } from "./surface.ts";
+import { type Button, type Row, SurfaceScreen, sharedOf } from "./surface.ts";
 
 export interface DoctorCheck {
-  status: "ok" | "fail" | "skip";
+  status: "ok" | "warn" | "fail" | "skip";
   name: string;
   detail: string;
 }
@@ -27,7 +34,7 @@ export function parseDoctor(text: string): DoctorCheck[] {
   const out: DoctorCheck[] = [];
   for (const line of text.split("\n")) {
     const status = line.slice(0, 5).trim();
-    if (status !== "ok" && status !== "fail" && status !== "skip") continue;
+    if (status !== "ok" && status !== "warn" && status !== "fail" && status !== "skip") continue;
     if (line.length < 21) continue;
     out.push({ status, name: line.slice(5, 21).trim(), detail: line.slice(21) });
   }
@@ -82,6 +89,11 @@ export const DOCTOR_HELP: Readonly<Record<string, { means: string; todo: string 
     means: "The Node running the CLI: 24 or later (node:sqlite, type stripping).",
     todo: "Install Node 24 or later.",
   },
+  "harness memory": {
+    means:
+      "Harness memory files (CLAUDE.md, AGENTS.md, rules, Claude Code's auto memory) outside every store root: the plane never sees them. Counted by size and time; none is opened.",
+    todo: "Open Harness memory (D) on Home for the list. Adopt a memory folder as a store root (ctrl+o, Store folder), or know that what sits outside is not governed. A warning, never a failure.",
+  },
   serve: {
     means:
       "The bind engram serve would make with these flags: refused without authentication, or beyond loopback without credentials.",
@@ -89,7 +101,12 @@ export const DOCTOR_HELP: Readonly<Record<string, { means: string; todo: string 
   },
 };
 
-const KIND: Record<DoctorCheck["status"], StatusKind> = { ok: "ok", fail: "fail", skip: "skip" };
+const KIND: Record<DoctorCheck["status"], StatusKind> = {
+  ok: "ok",
+  warn: "warn",
+  fail: "fail",
+  skip: "skip",
+};
 
 /** The flags doctor takes from the Serve screen's answers. */
 export const BIND_FLAGS = [
@@ -148,10 +165,11 @@ export class DoctorScreen extends SurfaceScreen {
     const t = ctx.theme;
     const checks = parseDoctor(clean(result.out));
     if (checks.length === 0) return [{ kind: "text", lines: this.plainLines(result, width) }];
-    // A failing check first; the plain output (v) keeps doctor's order.
+    // A failing check first, then a warning; the plain output (v) keeps doctor's order.
     const sorted = [
       ...checks.filter((c) => c.status === "fail"),
-      ...checks.filter((c) => c.status !== "fail"),
+      ...checks.filter((c) => c.status === "warn"),
+      ...checks.filter((c) => c.status !== "fail" && c.status !== "warn"),
     ];
     const rows: Row[] = [];
     for (const c of sorted) {
@@ -167,7 +185,8 @@ export class DoctorScreen extends SurfaceScreen {
       const help = DOCTOR_HELP[c.name];
       if (this.open.has(id) && help !== undefined) {
         lines.push(...para(`What this means: ${help.means}`, width - 4, "    "));
-        if (c.status === "fail") lines.push(...para(`What to do: ${help.todo}`, width - 4, "    "));
+        if (c.status === "fail" || c.status === "warn")
+          lines.push(...para(`What to do: ${help.todo}`, width - 4, "    "));
       }
       rows.push({
         kind: "item",
@@ -194,14 +213,91 @@ export class DoctorScreen extends SurfaceScreen {
     return again.out;
   }
   protected override status(ctx: Ctx, result: RunResult): string {
-    const failed = parseDoctor(clean(result.out)).filter((c) => c.status === "fail").length;
+    const checks = parseDoctor(clean(result.out));
+    const failed = checks.filter((c) => c.status === "fail").length;
+    const warned = checks.filter((c) => c.status === "warn").length;
+    const warnings = warned === 0 ? "" : `  ${ctx.theme.status("warn", plural(warned, "warning"))}`;
     return failed === 0 && result.code === 0
-      ? ` ${ctx.theme.status("ok", "all checks passed")}   exit 0`
-      : ` ${ctx.theme.status("fail", `${failed} failed`)}   exit ${result.code}`;
+      ? ` ${ctx.theme.status("ok", "all checks passed")}${warnings}   exit 0`
+      : ` ${ctx.theme.status("fail", `${failed} failed`)}${warnings}   exit ${result.code}`;
   }
   protected override keyHints(): string {
     return this.result === undefined
       ? "enter run  ctrl+o workspace"
       : "r rerun  enter details  v plain  J json";
+  }
+}
+
+/** The counts of discover's first line: how many files sit outside every store root, and inside one. */
+export function discoverCounts(text: string): { outside: number; inside: number } | undefined {
+  const m =
+    /^discover: (no|\d+) harness memory files? outside every store root, (\d+) inside one/.exec(
+      text,
+    );
+  if (m === null) return undefined;
+  return { outside: m[1] === "no" ? 0 : Number(m[1]), inside: Number(m[2]) };
+}
+
+export class DiscoverScreen extends SurfaceScreen {
+  override title(): string {
+    return "Harness memory";
+  }
+  protected override top(): Row[] {
+    if (this.result !== undefined) return [];
+    return [
+      {
+        kind: "para",
+        text: "Counts the files Claude Code, Codex and Cursor keep as memory or instructions, outside every store root. Sizes and times only: no file is opened, and nothing changes.",
+      },
+      { kind: "field", id: "home", hint: "its .claude and .codex locations" },
+      { kind: "field", id: "project", hint: "walked for CLAUDE.md, AGENTS.md and rules" },
+      { kind: "field", id: "root", hint: "a file inside one is adopted through the plane" },
+    ];
+  }
+  protected override buttons(): Button[] {
+    return [
+      {
+        id: "button:run",
+        label: this.result === undefined ? "Count" : "Count again",
+        press: (c: Ctx) => this.run(c),
+      },
+    ];
+  }
+  protected override rich(ctx: Ctx, width: number, result: RunResult): Row[] {
+    const t = ctx.theme;
+    const text = clean(result.out);
+    const counts = discoverCounts(text);
+    if (counts === undefined) return [{ kind: "text", lines: this.plainLines(result, width) }];
+    const [, ...rest] = text.replace(/\n$/, "").split("\n");
+    const head =
+      counts.outside === 0
+        ? `${t.status("ok", "none outside")}  no harness memory file outside every store root; ${counts.inside} inside one`
+        : `${t.status("warn", `${counts.outside} outside`)}  ${plural(counts.outside, "harness memory file")} outside every store root; ${counts.inside} inside one`;
+    const lines = [...para(head, width, "   ")];
+    for (const l of rest) lines.push(...para(l, width, "    "));
+    lines.push(
+      "",
+      ...para(
+        "Discovery shows that a file exists, not that a harness read it. What sits outside a store root is not governed: the plane never sees a write or a read of it.",
+        width,
+      ),
+    );
+    return [{ kind: "text", lines }];
+  }
+  protected override async jsonOf(ctx: Ctx, result: RunResult) {
+    // Discover changes nothing, so its --json view is a second count.
+    return (await ctx.peek([...result.argv, "--json"])).out;
+  }
+  protected override status(ctx: Ctx, result: RunResult): string {
+    const counts = discoverCounts(clean(result.out));
+    if (counts === undefined || result.code !== 0) return super.status(ctx, result);
+    return counts.outside === 0
+      ? ` ${ctx.theme.status("ok", "none outside")}   exit 0`
+      : ` ${ctx.theme.status("warn", `${counts.outside} outside`)}   exit 0`;
+  }
+  protected override keyHints(): string {
+    return this.result === undefined
+      ? "ctrl+s count  ctrl+o workspace"
+      : "r again  v plain  J json";
   }
 }
