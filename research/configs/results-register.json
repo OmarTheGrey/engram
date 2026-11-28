@@ -993,6 +993,68 @@
           ]
         }
       ]
+    },
+    {
+      "file": "research/results/h1-leakage.json",
+      "hypothesis": "none",
+      "status": "proof of concept",
+      "prereg": null,
+      "question": "Do canaries written through every write path reach a non-member, an expired grantee, a former member or a partial grantee on any surface (the HTTP API, MCP, the CLI, the TUI, the pi extension)?",
+      "note": "Card E8.16's suites on a fixture workspace; the file is under `h1-` for the results glob only. Answers that tell existence by their shape, not by a canary, are counted apart as characterised oracles.",
+      "headline": [
+        {
+          "label": "canaries written",
+          "path": ["canaries", "written"]
+        },
+        {
+          "label": "probes, all surfaces",
+          "path": ["totals", "probes"]
+        },
+        {
+          "label": "leaks, all surfaces",
+          "path": ["totals", "leaks"]
+        },
+        {
+          "label": "probes over the HTTP API",
+          "path": ["surfaces", "http", "probes"]
+        },
+        {
+          "label": "probes over MCP",
+          "path": ["surfaces", "mcp", "probes"]
+        },
+        {
+          "label": "probes through the CLI",
+          "path": ["surfaces", "cli", "probes"]
+        },
+        {
+          "label": "probes through the TUI",
+          "path": ["surfaces", "tui", "probes"]
+        },
+        {
+          "label": "probes through the pi extension",
+          "path": ["surfaces", "pi", "probes"]
+        },
+        {
+          "label": "denied and missing ids compared over the HTTP API",
+          "path": ["denied_and_missing", "http", "compared"]
+        },
+        {
+          "label": "of them answering alike",
+          "path": ["denied_and_missing", "http", "alike"]
+        },
+        {
+          "label": "of them pinned as telling existence: writes under a held id",
+          "path": ["denied_and_missing", "http", "characterised", "write"]
+        },
+        {
+          "label": "a model's operations through the HTTP API agreeing with MCP",
+          "path": ["parity", "http (model)", "same"]
+        },
+        {
+          "label": "the suite passed",
+          "path": ["suite_passed"]
+        }
+      ]
     }
   ]
 }
