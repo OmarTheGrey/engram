@@ -5,17 +5,17 @@
 |   |                                                                      |ry |
 |   | > Promote an item             engram promote <itemId>                |   |
 |   |   Harness memory              engram discover                        |   |
-|   |   Check a write               engram check                           |ts |
-|   |   Write a memory              engram write                           |.  |
+|   |   Export an audit report      engram audit export                    |ts |
+|   |   Check a write               engram check                           |.  |
+|   |   Write a memory              engram write                           |   |
 |   |   Grants on an item           engram grants <itemId>                 |   |
 |   |   Read one item               engram read --item <id>                |   |
 |   |   Who can read                engram who-can-read                    |   |
-|   |   Retention sweep             engram retain                          |   |
-| 2 |   Read and explain            engram read [query]                    |t, |
+| 2 |   Retention sweep             engram retain                          |t, |
+|   |   Read and explain            engram read [query]                    |   |
 |   |   Export a bundle             engram export                          |   |
 |   |   MCP server                  engram mcp                             |   |
 |   |   Explain a read              engram explain <readId>                |   |
-|   |   Lint a scope                engram lint                            |   |
 | 3 |                                                                      |   |
 |   | enter open   tab fill   esc close                                    |   |
 +---+----------------------------------------------------------------------+---+

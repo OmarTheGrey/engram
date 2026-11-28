@@ -183,7 +183,7 @@ describe("the frame's keys", () => {
     for (const [typed, title] of [
       ["hook codex", "Codex hook setup"],
       ["hook install", "Install a hook"],
-      ["audit export", "Export a signed audit report"],
+      ["audit export", "Export an audit report"],
       ["audit verify", "Verify an audit report"],
     ] as const) {
       await h.press(";");

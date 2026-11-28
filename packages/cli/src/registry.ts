@@ -1860,7 +1860,7 @@ export const REGISTRY: readonly CommandSpec[] = [
   },
   {
     name: "audit export",
-    title: "Export a signed audit report",
+    title: "Export an audit report",
     usage: "audit export",
     summary: "a signed, content-free report of a window of the log: counts, head, checkpoint",
     listed: true,
