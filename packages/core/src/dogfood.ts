@@ -140,6 +140,12 @@ export interface DogfoodReport {
   watch: { provenance_raised: number; narrowed: number; expiry_cap: number };
 }
 
+/** One violation the report counts: the seq of the event that made it, and which count it is in. */
+export interface DogfoodViolation {
+  seq: number;
+  kind: "read" | "grant_change";
+}
+
 /**
  * The actor a principal is judged as when the member did not declare it: the
  * CLI's default for `--as` alone (packages/cli/src/setup.ts, buildActor).
@@ -309,19 +315,22 @@ function shapeOf(actor: Actor | undefined): DogfoodReport["declared"] {
 /**
  * The report of `events` (a whole log, parsed, in seq order) under `policy`,
  * with the actors the member declares (the first is the member's);
- * `details` names each violation, for the member alone.
+ * `details` names each violation, for the member alone; `violations` lists
+ * each by the seq of its event and its kind, for a caller that counts them
+ * over part of the log (card E9.15's audit report), never by its text.
  */
 export function dogfoodReport(
   events: readonly MemoryEvent[],
   policy: Policy,
   declared: readonly Actor[],
-): { report: DogfoodReport; details: string[] } {
+): { report: DogfoodReport; details: string[]; violations: DogfoodViolation[] } {
   const actors = new Map(declared.map((a) => [a.id, a]));
   const actorFor = (id: string) => actors.get(id) ?? defaultActor(id);
   const rules = printableRules(policy);
   const scopeOnly: Policy = { ...policy, read: { ...policy.read, honour_grants: false } };
   const state = new Map<string, MemoryItem>();
   const details: string[] = [];
+  const violations: DogfoodViolation[] = [];
   const days = new Set<number>();
   const r: DogfoodReport = {
     report: REPORT_FORMAT,
@@ -397,6 +406,7 @@ export function dogfoodReport(
                   : undefined;
         if (why !== undefined) {
           r.violations.read++;
+          violations.push({ seq: e.seq, kind: "read" });
           details.push(`read event ${e.seq} at ${e.ts} by ${e.actor} returned ${id}: ${why}`);
         } else if (!readable(scopeOnly, actor, was as MemoryItem, e.ts)) r.reads.items_via_grant++;
       }
@@ -417,6 +427,7 @@ export function dogfoodReport(
           : narrowingProblem(before, e);
       if (problem !== undefined) {
         r.violations.grant_change++;
+        violations.push({ seq: e.seq, kind: "grant_change" });
         details.push(
           `${e.op} event ${e.seq} at ${e.ts} by ${e.actor} (${e.policy_id}) on ${e.item.id}: ${problem}`,
         );
@@ -454,6 +465,7 @@ export function dogfoodReport(
         }
         if (problem !== undefined) {
           r.violations.grant_change++;
+          violations.push({ seq: e.seq, kind: "grant_change" });
           details.push(
             `${e.op} event ${e.seq} at ${e.ts} by ${e.actor} (${e.policy_id}) on ${item.id}: ${problem}`,
           );
@@ -475,7 +487,7 @@ export function dogfoodReport(
   r.violations.total = r.violations.read + r.violations.grant_change;
   r.days_with_events = days.size;
   r.span_days = days.size === 0 ? 0 : Math.max(...days) - Math.min(...days);
-  return { report: r, details };
+  return { report: r, details, violations };
 }
 
 /** The report as printed: JSON, keys sorted at every depth, two-space indent; byte-stable. */

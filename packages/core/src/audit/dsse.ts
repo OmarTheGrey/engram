@@ -87,7 +87,7 @@ export function parseEnvelope(value: unknown): Envelope | string {
   if (!isRecord(value)) return "the envelope is not a JSON object";
   const { payload, payloadType, signatures } = value;
   if (typeof payload !== "string" || base64Bytes(payload) === null)
-    return "the envelope's payload is not standard base64";
+    return "the envelope's payload is not canonical base64, standard or URL-safe";
   if (typeof payloadType !== "string" || payloadType === "")
     return "the envelope has no payloadType";
   if (!Array.isArray(signatures) || signatures.length === 0)

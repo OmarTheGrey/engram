@@ -34,12 +34,29 @@
 // (https://github.com/in-toto/attestation, commit 50bf01716982,
 // spec/v1/statement.md, Apache License, Version 2.0): `_type`, a `subject`
 // list of a name and a digest set, a `predicateType` URI and a `predicate`.
-// The subject is the log, and its digest the chain head's SHA-256 link.
+// The subject is the log, and its digest the chain head's SHA-256 link: a
+// hash of the chain's last link, not the SHA-256 of an artefact's bytes.
+//
+// The oracle (review of E9.15, finding 1, the orchestrator's decision): the
+// log records no memberships, so a reader the oracle is not told of would be
+// judged by its own scope alone, and every read through a team or role
+// membership would be signed as a violation. The count is therefore given
+// only for actors declared to it (`declared`, the dogfood report's shape),
+// with the declared set's sha256 in the statement, and is null otherwise.
+// It is read from the dogfood report's structured `violations`, never from
+// its text.
+//
+// What the head does not carry: its RFC 6962 root. The head is named by its
+// chain hash and size, which covers every entry (the chain is linear); core
+// exposes no Merkle root at a prefix, so a consistency or inclusion proof
+// against another checkpoint needs the log, not the report alone.
+import { createHash } from "node:crypto";
 import type { Actor } from "../actor.ts";
 import type { Db } from "../db/db.ts";
 import { dogfoodReport, parseEventRows, printableRules } from "../dogfood.ts";
 import { type ChainHead, chainCanonical, readGenesis, readHead } from "../log/chain.ts";
 import {
+  type Checkpoint,
   type CheckpointSigner,
   type SignatureCheck,
   type Verdict,
@@ -113,6 +130,8 @@ export interface AuditPredicate {
    */
   oracle: {
     declared: number;
+    /** The sha256 of the declared actors in canonical form, sorted by id: the set the count was judged with. */
+    declared_sha256: string;
     violations: { read: number; grant_change: number; total: number };
   } | null;
   notes: string[];
@@ -150,7 +169,12 @@ const NOTES = {
     "content-free by construction: counts, rule ids from a fixed list, hashes and seqs only; no content, item id, actor, scope, grant, reason or lineage id",
   window: "the window is half-open on the events' own times: from <= ts < to",
   oracle:
-    "the oracle is the invariants' (src/oracle.ts), replaying the whole log to the head; the log records no memberships, so a reader not declared to it is judged as the CLI builds an actor from --as alone, and a read through a membership it was not declared is counted as a violation",
+    "the oracle is the invariants' (src/oracle.ts), replaying the whole log to the head with the declared actors (their set's sha256 is stated); a reader not declared is judged as the CLI builds an actor from --as alone",
+  undeclared:
+    "no actor was declared (--declare), so the oracle is not counted: the log records no memberships, and a reader judged by its own scope alone would count every read through a membership as a violation",
+  policy:
+    "the policy's sha256 confirms a policy the reader already holds or guesses (a preset), and reveals nothing else",
+  root: "the head is named by its chain hash and size, not its RFC 6962 root; a consistency or inclusion proof against another checkpoint needs the log",
   viewer:
     "counted for a viewer: only the events that viewer may see; the oracle judges every event, so it is left out",
   unsigned:
@@ -177,8 +201,13 @@ function timestamp(what: string, ts: string): string {
   return ts;
 }
 
-/** The seq a dogfood report's detail names, and whether it is a read's. */
-const DETAIL = /^(\S+) event (\d+) at /;
+/** The sha256 of a declared set: each actor's id, level and sorted memberships, sorted by id, in canonical form. */
+export function declaredSha256(declared: readonly Actor[]): string {
+  const set = [...declared]
+    .map((a) => ({ id: a.id, level: a.level, memberships: [...a.memberships].sort() }))
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return createHash("sha256").update(chainCanonical(set)).digest("hex");
+}
 
 /** The statement's predicate: pure, from the input alone. */
 export function auditPredicate(input: AuditInput): AuditPredicate {
@@ -222,24 +251,28 @@ export function auditPredicate(input: AuditInput): AuditPredicate {
   const declared = input.declared ?? [];
   const judged = dogfoodReport(history, policy, declared);
   let oracle: AuditPredicate["oracle"] = null;
-  if (viewer === undefined) {
+  if (viewer === undefined && declared.length > 0) {
     const v = { read: 0, grant_change: 0, total: 0 };
-    for (const d of judged.details) {
-      const m = DETAIL.exec(d);
-      if (!m || !counted.has(Number(m[2]))) continue;
-      if (m[1] === "read") v.read++;
-      else v.grant_change++;
+    for (const found of judged.violations) {
+      if (!counted.has(found.seq)) continue;
+      v[found.kind]++;
       v.total++;
     }
-    oracle = { declared: declared.length, violations: v };
+    oracle = {
+      declared: declared.length,
+      declared_sha256: declaredSha256(declared),
+      violations: v,
+    };
   }
 
   const checkpoint = input.checkpoint;
   const headSigned = checkpoint?.signed === true && checkpoint.size === input.head.size;
   const notes: string[] = [NOTES.content, NOTES.window];
-  notes.push(viewer === undefined ? NOTES.oracle : NOTES.viewer);
+  notes.push(
+    viewer !== undefined ? NOTES.viewer : oracle !== null ? NOTES.oracle : NOTES.undeclared,
+  );
   if (!headSigned) notes.push(NOTES.unsigned);
-  notes.push(NOTES.limit);
+  notes.push(NOTES.policy, NOTES.root, NOTES.limit);
   return {
     format: AUDIT_FORMAT,
     issued_at: at,
@@ -344,6 +377,13 @@ export interface AuditExportOptions {
  * a report is never issued over a log that fails.
  */
 export function auditStatement(db: Db, options: AuditExportOptions): AuditStatement {
+  // One transaction: the chain check, the head, the checkpoint and the events
+  // are read as one state, so no entry a writer appends between them is
+  // signed unverified (review of E9.15, finding 5).
+  return db.transaction(() => exportedStatement(db, options));
+}
+
+function exportedStatement(db: Db, options: AuditExportOptions): AuditStatement {
   const chain = verifyChain(db, {
     ...(options.verify === undefined ? {} : { verify: options.verify }),
     ...(options.pin === undefined ? {} : { pin: options.pin }),
@@ -398,6 +438,8 @@ export interface AuditVerification {
 
 export interface AuditVerifyOptions {
   policy: Policy;
+  /** Checkpoints the operator kept outside the log (log checkpoint --out): the log must extend each. */
+  held?: Checkpoint[];
   viewer?: Actor;
   declared?: readonly Actor[];
   verify?: SignatureCheck;
@@ -508,6 +550,7 @@ export function verifyAuditReport(
   const chain = verifyChain(db, {
     ...(options.verify === undefined ? {} : { verify: options.verify }),
     ...(options.pin === undefined ? {} : { pin: options.pin }),
+    ...(options.held === undefined ? {} : { held: options.held }),
   });
   const genesis = readGenesis(db);
   if (chain.first_break !== null || !genesis)

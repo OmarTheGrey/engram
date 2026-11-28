@@ -22,6 +22,7 @@ import {
   AUDIT_PREDICATE_TYPE,
   type AuditStatement,
   auditStatement,
+  declaredSha256,
   STATEMENT_TYPE,
   signAuditStatement,
   statementBytes,
@@ -29,7 +30,7 @@ import {
 } from "../../../src/audit/report.ts";
 import type { Db } from "../../../src/db/db.ts";
 import { migrate } from "../../../src/db/migrate.ts";
-import { dogfoodReport, parseEventRows } from "../../../src/dogfood.ts";
+import { dogfoodReport, parseEventRows, printableRules } from "../../../src/dogfood.ts";
 import { keepChain } from "../../../src/log/chain.ts";
 import { writeCheckpoint } from "../../../src/log/verify.ts";
 import { createPlane } from "../../../src/plane.ts";
@@ -90,7 +91,7 @@ async function fixtureLog(db: Db, policy: Policy = testPolicy()) {
   return { plane, policy };
 }
 
-async function exported(db: Db, viewer?: Actor) {
+async function exported(db: Db, viewer?: Actor, declared?: Actor[]) {
   const { plane, policy } = await fixtureLog(db);
   const statement = auditStatement(db, {
     from: FROM,
@@ -99,9 +100,10 @@ async function exported(db: Db, viewer?: Actor) {
     policy,
     ...pinned,
     ...(viewer === undefined ? {} : { viewer }),
+    ...(declared === undefined ? {} : { declared }),
   });
   const envelope = signAuditStatement(statement, signer);
-  return { plane, policy, statement, envelope, text: envelopeText(envelope) };
+  return { plane, policy, statement, envelope, text: envelopeText(envelope), declared };
 }
 
 const fresh = () => sqliteBackend.open();
@@ -232,11 +234,12 @@ describe("the statement", () => {
     expect(p.log.checkpoint?.key).toBe(signer.key);
     expect(p.log.head_signed).toBe(true);
     expect(p.reach).toEqual({ whole_log: true });
-    // dana read the team's item through a membership the oracle was not told
-    // of: the log records none, so an undeclared reader is judged by its own
-    // scope alone, and the read is counted (the note says so).
-    expect(p.oracle).toEqual({ declared: 0, violations: { read: 1, grant_change: 0, total: 1 } });
-    expect(p.notes.join(" ")).toMatch(/not declared/);
+    // No actor declared: the log records no memberships, so dana's read of
+    // the team's item would be judged by her own scope alone and signed as a
+    // violation. No count is given (review of E9.15, finding 1).
+    expect(p.oracle).toBeNull();
+    expect(p.notes.join(" ")).toMatch(/no actor was declared/);
+    expect(p.notes.join(" ")).toMatch(/RFC 6962 root/);
     expect(p.schema_version).toBe(1);
     expect(p.policy_sha256).toMatch(/^[0-9a-f]{64}$/);
   });
@@ -254,8 +257,13 @@ describe("the statement", () => {
     });
     expect(s.predicate.oracle).toEqual({
       declared: 1,
+      declared_sha256: declaredSha256([dana]),
       violations: { read: 0, grant_change: 0, total: 0 },
     });
+    // The set's hash does not depend on the order of the actors or their memberships.
+    expect(declaredSha256([omar, { ...dana, memberships: [...dana.memberships].reverse() }])).toBe(
+      declaredSha256([dana, omar]),
+    );
     const text = envelopeText(signAuditStatement(s, signer));
     expect(
       verifyAuditReport(db, reparse(text), { policy, declared: [dana], ...pinned }).verdict,
@@ -267,19 +275,22 @@ describe("the statement", () => {
   test("the oracle's count is the dogfood report's over a window that holds the whole log", async () => {
     const db = fresh();
     const { policy } = await fixtureLog(db);
-    // A read returning an item it may not: an injected violation the oracle names.
+    // Read from the dogfood report's structured violations, not its text: the
+    // undeclared reader as the declared one, so one read violation is counted.
     const s = auditStatement(db, {
       from: "2026-01-01T00:00:00Z",
       to: "2027-01-01T00:00:00Z",
       at: ISSUED,
       policy,
+      declared: [omar],
     });
     const rows = db
       .prepare("SELECT seq, body FROM events ORDER BY seq")
       .all()
       .map((r) => ({ seq: r.seq, body: r.body }));
-    const whole = dogfoodReport(parseEventRows(rows).events, policy, []).report;
+    const whole = dogfoodReport(parseEventRows(rows).events, policy, [omar]).report;
     expect(s.predicate.oracle?.violations).toEqual(whole.violations);
+    expect(whole.violations.read).toBe(1);
     expect(s.predicate.events.counted).toBe(whole.events);
   });
 
@@ -299,9 +310,46 @@ describe("the statement", () => {
     expect(later).not.toBe(first);
   });
 
-  test("holds no content, item id, actor, scope or reason (rule 12)", async () => {
+  test("holds no content, item id, actor, scope, grant, lineage, reason or policy id naming a scope (rule 12)", async () => {
     const db = fresh();
-    const { text, envelope } = await exported(db);
+    // A policy whose rule ids embed a scope, a grant to another principal and a derived item with lineage.
+    const policy = testPolicy({ id: "acme.team:platform" });
+    const { plane } = await fixtureLog(db, policy);
+    const granted = await plane.write(
+      dana,
+      item(8, {
+        scope: "person:dana",
+        owner: "person:dana",
+        content: `${CANARY} granted`,
+        grants: [
+          { to: "person:erin", class: "semantic", mode: "read", expires: "2026-12-31T00:00:00Z" },
+        ],
+      }),
+      "2026-11-01T14:00:00Z",
+    );
+    expect(granted.event.decision, granted.event.reason).toBe("allow");
+    const derived = await plane.write(
+      dana,
+      item(9, {
+        scope: "person:dana",
+        owner: "person:dana",
+        content: `${CANARY} derived`,
+        lineage: [id(8)],
+      }),
+      "2026-11-01T14:30:00Z",
+    );
+    expect(derived.event.decision, derived.event.reason).toBe("allow");
+    writeCheckpoint(db, "2026-11-02T02:00:00Z", signer, pinned);
+    const statement = auditStatement(db, {
+      from: FROM,
+      to: TO,
+      at: ISSUED,
+      policy,
+      declared: [dana],
+      ...pinned,
+    });
+    const envelope = signAuditStatement(statement, signer);
+    const text = envelopeText(envelope);
     const payload = payloadBytes(envelope).toString("utf8");
     const events = parseEventRows(
       db
@@ -309,13 +357,29 @@ describe("the statement", () => {
         .all()
         .map((r) => ({ seq: r.seq, body: r.body })),
     ).events;
-    const forbidden = new Set<string>([CANARY, "person:dana", "person:omar", "team:platform"]);
+    const forbidden = new Set<string>([
+      CANARY,
+      "person:dana",
+      "person:omar",
+      "person:erin",
+      "team:platform",
+      "acme.team",
+    ]);
     for (const e of events) {
       forbidden.add(e.id);
+      forbidden.add(e.actor);
       if (e.item_id) forbidden.add(e.item_id);
+      if (e.scope_from) forbidden.add(e.scope_from);
+      if (e.scope_to) forbidden.add(e.scope_to);
       forbidden.add(e.reason);
-      if (e.item) forbidden.add(e.item.content as string);
+      if (!printableRules(policy).has(e.policy_id)) forbidden.add(e.policy_id);
+      if (e.item) {
+        forbidden.add(e.item.content as string);
+        for (const g of e.item.grants) forbidden.add(g.to);
+        for (const l of e.item.lineage) forbidden.add(l);
+      }
     }
+    expect(events.some((e) => (e.item?.grants.length ?? 0) > 0)).toBe(true);
     for (const f of forbidden) {
       expect(payload, f).not.toContain(f);
       expect(text, f).not.toContain(f);
@@ -350,6 +414,27 @@ describe("the statement", () => {
     expect(() => auditStatement(db, { from: "yesterday", to: TO, at: ISSUED, policy })).toThrow(
       /not a UTC timestamp/,
     );
+  });
+});
+
+describe("a checkpoint held outside the log", () => {
+  test("verify checks the log against it: the log's own passes, another log's fails at chain", async () => {
+    const db = fresh();
+    const { policy, text } = await exported(db);
+    const own = writeCheckpoint(db, "2026-11-02T03:00:00Z", signer, pinned);
+    const held = [{ note: own.note, key: own.key, signature: own.signature }];
+    expect(verifyAuditReport(db, reparse(text), { policy, held, ...pinned }).verdict).toBe("OK");
+    const other = fresh();
+    migrate(other);
+    keepChain(other, seededKeeper(916));
+    const theirs = writeCheckpoint(other, "2026-11-02T03:00:00Z", signer, pinned);
+    const v = verifyAuditReport(db, reparse(text), {
+      policy,
+      held: [{ note: theirs.note, key: theirs.key, signature: theirs.signature }],
+      ...pinned,
+    });
+    expect(v.checks.at(-1)).toMatchObject({ name: "chain", ok: false });
+    expect(v.checks.at(-1)?.detail).toMatch(/held/);
   });
 });
 
@@ -516,7 +601,7 @@ const resigned = (s: AuditStatement, change: (s: AuditStatement) => void, by = s
 };
 const asIs = (e: Exported) => ({
   envelope: reparse(e.text),
-  options: { policy: e.policy, ...pinned },
+  options: { policy: e.policy, declared: [dana], ...pinned },
 });
 
 const CASES: Case[] = [
@@ -545,7 +630,7 @@ const CASES: Case[] = [
       s.predicate.by_decision.allow = (s.predicate.by_decision.allow ?? 0) + 1;
       return {
         envelope: { ...e.envelope, payload: statementBytes(s).toString("base64") },
-        options: { policy: e.policy, ...pinned },
+        options: { policy: e.policy, declared: [dana], ...pinned },
       };
     },
   },
@@ -554,7 +639,7 @@ const CASES: Case[] = [
     expect: { verdict: "FAILED", failed: "signature" },
     make: async (_db, e) => ({
       envelope: resigned(e.statement, () => {}, fixedSigner("someone else")),
-      options: { policy: e.policy, ...pinned },
+      options: { policy: e.policy, declared: [dana], ...pinned },
     }),
   },
   {
@@ -564,7 +649,7 @@ const CASES: Case[] = [
       envelope: resigned(e.statement, (s) => {
         s.predicate.by_decision.deny = 0;
       }),
-      options: { policy: e.policy, ...pinned },
+      options: { policy: e.policy, declared: [dana], ...pinned },
     }),
   },
   {
@@ -574,7 +659,7 @@ const CASES: Case[] = [
       envelope: resigned(e.statement, (s) => {
         s.predicate.log.head.size += 5;
       }),
-      options: { policy: e.policy, ...pinned },
+      options: { policy: e.policy, declared: [dana], ...pinned },
     }),
   },
   {
@@ -609,7 +694,7 @@ const CASES: Case[] = [
     expect: { verdict: "FAILED", failed: "counts" },
     make: async (_db, e) => ({
       envelope: reparse(e.text),
-      options: { policy: { ...e.policy, id: "another" }, ...pinned },
+      options: { policy: { ...e.policy, id: "another" }, declared: [dana], ...pinned },
     }),
   },
   {
@@ -617,7 +702,7 @@ const CASES: Case[] = [
     expect: { verdict: "UNSIGNED", failed: null },
     make: async (_db, e) => ({
       envelope: reparse(e.text),
-      options: { policy: e.policy, verify: ed25519Check },
+      options: { policy: e.policy, declared: [dana], verify: ed25519Check },
     }),
   },
 ];
@@ -628,7 +713,7 @@ describe("the proof of concept", () => {
     let first: Exported | undefined;
     for (const c of CASES) {
       const db = fresh();
-      const e = await exported(db);
+      const e = await exported(db, undefined, [dana]);
       first ??= e;
       const { envelope, options } = await c.make(db, e);
       const v = verifyAuditReport(db, envelope, options);
