@@ -7,3 +7,7 @@ How Claude Code and Codex reach Engram, as a project would configure them. `make
 - `codex/config.toml`: the same MCP server under `[mcp_servers.engram]`. Codex has no hook, so a store command is not blocked on that path (condition C7).
 
 Neither names `--db`: the log is the per-user default, `<home>/.engram/engram.db` (decision D9), outside the project the model edits. Each `memory/` folder holds one Claude Code memory file, adopted through the plane on the first read.
+
+## The fake home (card E9.10)
+
+`home/` is a user's home folder as `engram discover` and doctor's `harness memory` check walk it, with one fake line in each file. Under `.claude/`: the user `CLAUDE.md`, a user rule, and one project's auto memory (`projects/-src-lantern/memory/`, two files), beside a settings file and a session transcript the classifier leaves out. Under `.codex/`: the user `AGENTS.md` and a memory, beside `config.toml`, left out. `lantern/` is a project: `CLAUDE.md`, a nested `packages/ui/CLAUDE.md`, `AGENTS.md`, a Claude Code project rule, a Cursor rule and a legacy `.cursorrules`, twelve harness memory files in all with the home's six. `lantern/memory/` is a store folder whose file is not harness memory by its path. The tests name the auto memory folder with `--root`, as a member who adopts it as a store would, to count the two files inside a root apart from the ten outside. The tests copy the folder and set every file's time, since a checkout's times are not fixed.
