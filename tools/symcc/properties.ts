@@ -393,9 +393,19 @@ class Names {
  * no two org scopes of the solver's collapse into Engram's one `org`.
  */
 export function decode(
-  cex: Counterexample,
+  given: Counterexample,
   action: Action,
 ): { decoded: Decoded; faithful: boolean; problems: string[] } {
+  // Cedar writes entities and parents in hash-map order, which varies by run;
+  // the names below are given in order of sight, so sort first.
+  const byUid = (a: { type: string; id: string }, b: { type: string; id: string }) =>
+    key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0;
+  const cex: Counterexample = {
+    ...given,
+    entities: given.entities
+      .map((e) => ({ ...e, parents: [...e.parents].sort(byUid) }))
+      .sort((a, b) => byUid(a.uid, b.uid)),
+  };
   const byKey = new Map(cex.entities.map((e) => [key(e.uid), e]));
   const levelOf = (k: string) => String(byKey.get(k)?.attrs.level ?? "");
   const names = new Names(levelOf);

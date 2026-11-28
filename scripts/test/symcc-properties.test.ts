@@ -212,6 +212,22 @@ describe("counterexamples", () => {
     expect(decoded.at).toBe(at);
   });
 
+  test("the decoded names do not depend on the order Cedar writes entities and parents in", () => {
+    const sara: Actor = {
+      id: "person:sara",
+      level: "person",
+      memberships: ["person:sara", "team:core", "role:dev"],
+    };
+    const cex = asSolver(cedarReadRequest(sara, item({ scope: "team:core" }), at));
+    const flipped: Counterexample = {
+      ...cex,
+      entities: [...cex.entities]
+        .reverse()
+        .map((e) => ({ ...e, parents: [...e.parents].reverse() })),
+    };
+    expect(decode(flipped, "read").decoded).toEqual(decode(cex, "read").decoded);
+  });
+
   test("an instant before 1970, which a timestamp can write, decodes and round-trips", () => {
     const early = item({ valid_from: "0001-01-01T00:00:00.25Z" });
     const { decoded, faithful } = decode(
