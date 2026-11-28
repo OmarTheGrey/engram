@@ -61,7 +61,12 @@ function ctx(items: MemoryItem[], policy: Policy): LintContext {
   };
 }
 
-const derived = (n: number, source: MemoryItem, content: string, over: Partial<MemoryItem> = {}) =>
+const derived = (
+  n: number,
+  source: MemoryItem,
+  content: string,
+  over: { class?: "episodic" | "semantic"; scope?: string } = {},
+) =>
   item(n, {
     content,
     provenance: {

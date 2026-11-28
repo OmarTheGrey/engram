@@ -115,9 +115,13 @@ def verdict(outcome: str) -> str:
     return "flag" if outcome == "ungrounded" else outcome
 
 
+def key(r: Row) -> tuple[str, int]:
+    """A row's fixture and seed."""
+    return (str(r["fixture"]), int(r["seed"]))
+
+
 def checks(plain: Sequence[Row], grounded: Sequence[Row]) -> dict[str, Any]:
     """The run's own checks; any failure stops the script."""
-    key = lambda r: (r["fixture"], r["seed"])  # noqa: E731
     by = {key(r): r for r in plain}
     same = 0
     for g in grounded:
