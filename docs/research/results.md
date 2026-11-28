@@ -15,10 +15,10 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | reach measurement | 5 | what the plane lets a reader reach on a benchmark's own data, with no model called |
 | cost estimate | 4 | dollars and calls estimated from token counts and prices; no model called |
 | power computation | 2 | a simulation of the registered test that sets or checks a sample size |
-| engineering check | 4 | a check of a component's behaviour or speed that decides no hypothesis |
+| engineering check | 5 | a check of a component's behaviour or speed that decides no hypothesis |
 | proof of concept | 10 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
 
-34 results in all, one per MANIFEST row.
+35 results in all, one per MANIFEST row.
 
 ## What each hypothesis still needs
 
@@ -650,3 +650,27 @@ Recorded by [`docs/log/2026-11-28-e9-15-measurement-audit-report-chain-v2.md`](.
 | refusals repeating the content | 0 | `candidate.consent_refusals_repeating_content` |
 
 Recorded by [`docs/log/2026-11-28-e9-12-measurement-consent-gate-limits.md`](../log/2026-11-28-e9-12-measurement-consent-gate-limits.md).
+
+### `research/results/h3-erasure-residue.json`
+
+- **Question.** After 20 person scopes are offboarded under twin, how many of their 200 canary facts are still found, outside what the plane keeps by decision, in the projection, the explanations, the log's events, the store's records, the database's file and write-ahead log, and the store's files and history, on SQLite and embedded Postgres and on each of the four stores?
+- **Status.** engineering check: a check of a component's behaviour or speed that decides no hypothesis.
+- **Serves.** no hypothesis; pre-registration section "U7. The erasure-residue check (not scheduled)". Card X19's engineering check of proposal U7, which is proposed and not yet registered: the lead registers it as a descriptive arm by amendment once this check merges. It decides nothing. The live tiers (rows and records the plane reads) hold only the two records card E1.7 names (a store that refuses the delete, a record that moved). The bytes the engines do not zero (SQLite's and Postgres's pages and WAL, Mem0's SQLite files) and Letta's git history hold most of the rest. In a byte tier the 40 canaries kept by decision are indeterminate, and the rate is over the 160 countable ones. Postgres runs with autovacuum off, so its heap counts are an upper bound on what a vacuumed server keeps. The search is verbatim and by hash.
+- **Made by.** `research/scripts/h3_erasure_residue.py` from `research/configs/h3-erasure-residue.json`, MANIFEST commit `47a18a34`, sha256 `45b037c2082088cf049e3d05bc7c2d0d44daa30a9c971d94c2ae56a514af8426`.
+
+| value | reads | key path |
+|---|---|---|
+| SQLite and files: exposed canaries found as residue in a live tier, of 200 | 2 | `runs.sqlite/files.live_tiers.residue.successes` |
+| SQLite and files: database file residue, of the countable canaries | 142 | `runs.sqlite/files.tiers.db-file.residue.successes` |
+| countable canaries in a byte tier | 160 | `runs.sqlite/files.tiers.db-file.countable` |
+| SQLite and files: database file residue in unreclaimed bytes | 140 | `runs.sqlite/files.tiers.db-file.residue_unreclaimed` |
+| Postgres and files: heap residue, of the countable (an upper bound: autovacuum off) | 157 | `runs.postgres/files.tiers.db-file.residue.successes` |
+| Postgres and files: WAL residue, of the countable | 160 | `runs.postgres/files.tiers.db-wal.residue.successes` |
+| SQLite and Mem0: residue in Mem0's own files, of the countable | 139 | `runs.sqlite/mem0.tiers.store-files.residue.successes` |
+| SQLite and Letta: residue in the repository's git objects, of the countable | 160 | `runs.sqlite/letta.tiers.store-history.residue.successes` |
+| SQLite and files: kept canaries indeterminate in the database file | 40 | `runs.sqlite/files.tiers.db-file.indeterminate` |
+| SQLite and files: retained by decision in the projection, promoted | 20 | `runs.sqlite/files.tiers.projection.retained_by_decision.promoted` |
+| SQLite and files: never-exposed canaries found anywhere | 0 | `runs.sqlite/files.any_tier.never_exposed_found.successes` |
+| decides a hypothesis | false | `decides` |
+
+Recorded by [`docs/log/2026-11-28-x19-measurement-erasure-residue-review.md`](../log/2026-11-28-x19-measurement-erasure-residue-review.md).
