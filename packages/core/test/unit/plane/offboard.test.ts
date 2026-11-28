@@ -108,6 +108,10 @@ describe("acceptance (card E9.7): offboarding Dana, Sam succeeds her in role:lea
     const report = await offboard(env.deps, f.actors.dana as Actor, leave(f), f.later);
     expect(report.erased.items).toEqual([...before].sort());
     expect(report.erased.store_failures).toEqual([]);
+    // The erasure deleted every record itself: with no crashed writer and no
+    // record the log never recorded, the closing sweep finds nothing left
+    // (card X16, mutant I1H-store-delete-skipped, which the sweep makes good).
+    expect(allEvents(db).filter((e) => e.policy_id === "engram/offboard/swept")).toEqual([]);
     // The store.
     expect(await adapter.list("person:dana")).toEqual([]);
     // The index: the projection, and a projection rebuilt from the log alone.

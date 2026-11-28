@@ -1,0 +1,10 @@
+{
+  "id": "I1H-store-delete-skipped",
+  "invariant": "I1H",
+  "area": "offboarding",
+  "file": "packages/core/src/plane/offboard.ts",
+  "find": "      await adapter.delete(ref);\n      deleted.push(ref);",
+  "replace": "      deleted.push(ref);",
+  "what": "offboarding erases an item from the log but never deletes its record from the store",
+  "note": "an observable difference the invariant does not state: the closing sweep (engram/offboard/swept) deletes the records the erasure skipped, so the store and the reads end as without the mutant, but the log gains a swept event per record and the deletion report's deleted list is short; the two-handle walk cannot pin it (its crash-free walks sweep records for other reasons), and the offboarding acceptance test (packages/core/test/unit/plane/offboard.test.ts, no swept event after a plain offboarding) kills it"
+}

@@ -1,0 +1,9 @@
+{
+  "id": "I9-link-ignores-previous",
+  "invariant": "I9",
+  "area": "log chain",
+  "file": "packages/core/src/log/chain.ts",
+  "find": "return sha256(Uint8Array.of(2), Buffer.from(prev, \"hex\"), Buffer.from(leaf, \"hex\")).toString(",
+  "replace": "return sha256(Uint8Array.of(2), Buffer.from(leaf, \"hex\")).toString(",
+  "what": "a chain link does not cover the previous hash"
+}

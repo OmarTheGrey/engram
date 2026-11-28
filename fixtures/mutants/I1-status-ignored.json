@@ -1,0 +1,10 @@
+{
+  "id": "I1-status-ignored",
+  "invariant": "I1",
+  "area": "read filter",
+  "file": "packages/core/src/policy/evaluate.ts",
+  "find": "if (item.status !== \"active\")\n    return result(false, \"not-active\"",
+  "replace": "if (false)\n    return result(false, \"not-active\"",
+  "what": "the read filter admits candidates and retired items",
+  "note": "survives by design: invariant 1 is a soundness check of scope and grants and ignores status and validity on purpose (the header of invariants.test.ts says so); a filter that admits candidates breaks no rule it states"
+}

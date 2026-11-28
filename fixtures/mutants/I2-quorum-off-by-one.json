@@ -1,0 +1,9 @@
+{
+  "id": "I2-quorum-off-by-one",
+  "invariant": "I2",
+  "area": "promotion",
+  "file": "packages/core/src/policy/promotion.ts",
+  "find": "if (counted.count >= k) met = \"confirmed\";",
+  "replace": "if (counted.count >= k - 1) met = \"confirmed\";",
+  "what": "a promotion lands with one confirmation fewer than the policy's k"
+}

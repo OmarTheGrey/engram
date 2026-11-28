@@ -1,0 +1,9 @@
+{
+  "id": "I8-floor-keeps-claim",
+  "invariant": "I8",
+  "area": "trust floors",
+  "file": "packages/core/src/policy/trust.ts",
+  "find": "provenance: { ...claimed, kind, actor: actor.id } }",
+  "replace": "provenance: { ...claimed, actor: actor.id } }",
+  "what": "the unattested floor records the claimed kind, not the least trusted"
+}

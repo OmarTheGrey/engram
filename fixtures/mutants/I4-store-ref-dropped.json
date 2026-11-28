@@ -1,0 +1,9 @@
+{
+  "id": "I4-store-ref-dropped",
+  "invariant": "I4",
+  "area": "write gate",
+  "file": "packages/core/src/plane/write.ts",
+  "find": "const stored = { ...toStore, store_ref: ref };",
+  "replace": "const stored = { ...toStore, store_ref: null };",
+  "what": "an allowed write records no store ref, so the projection names no stored record"
+}

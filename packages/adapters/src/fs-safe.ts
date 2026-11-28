@@ -1,5 +1,5 @@
 // File helpers the file-backed adapters share (files, card A3; Letta, card A2).
-import { rename, rm, writeFile } from "node:fs/promises";
+import { chmod, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 export const codeOf = (e: unknown) => (e as NodeJS.ErrnoException).code;
@@ -11,10 +11,30 @@ export const isRecord = (v: unknown): v is Record<string, unknown> =>
 /** Unique within the process; the pid separates processes. */
 let tempCounter = 0;
 
-/** Temp file with a unique name, then rename, retried briefly on the transient locks Windows scanners take. */
-export async function atomicWrite(path: string, dir: string, base: string, data: string | Buffer) {
+/**
+ * Temp file with a unique name, then rename, retried briefly on the transient
+ * locks Windows scanners take. With `mode`, the temp file is created with
+ * those permission bits and set to them (the umask can only narrow them), so
+ * the file it replaces keeps its mode (card A6, as the MCP memory server saves).
+ */
+export async function atomicWrite(
+  path: string,
+  dir: string,
+  base: string,
+  data: string | Buffer,
+  mode?: number,
+) {
   const tmp = join(dir, `.${base}.${process.pid}.${++tempCounter}.engram-tmp`);
-  await writeFile(tmp, data);
+  if (mode === undefined) await writeFile(tmp, data);
+  else {
+    try {
+      await writeFile(tmp, data, { mode });
+      await chmod(tmp, mode);
+    } catch (e) {
+      await rm(tmp, { force: true });
+      throw e;
+    }
+  }
   for (let attempt = 0; ; attempt++) {
     try {
       await rename(tmp, path);
