@@ -20,6 +20,7 @@
 //   engram/write/default-deny       no write rule for the item's scope level (D6)
 //   engram/write/downgrade          a less trusted source rewrites or retires a more trusted item (ADR 0040, policy/trust.ts)
 //   engram/write/injection-screen   held as a candidate by the injection screen (ADR 0039, policy/injection-screen.ts)
+//   engram/write/consent            an opt-out of the person scope covers the write (card E9.12, policy/consent.ts)
 //   engram/write/schema             the item failed the schema
 //   engram/write/store-failure      the store failed after the gate allowed the write (D6)
 //   engram/read/default-deny        no read matrix row for the actor's level (D6)
@@ -32,6 +33,7 @@ import { contentHash } from "../content-hash.ts";
 import { canonicalJson } from "../model.ts";
 import type { Grant, MemoryItem, Policy, ScopeLevel } from "../schema.ts";
 import { compareTimestamps } from "../time.ts";
+import { CONSENT_ID, consentRefusal } from "./consent.ts";
 import { INJECTION_SCREEN_ID, injectionHold } from "./injection-screen.ts";
 import { itemExpiry } from "./retention.ts";
 import { contentGuard } from "./secrets.ts";
@@ -188,6 +190,7 @@ export type WriteCheck =
   | "below-floor"
   | "retired-content"
   | "content-guard"
+  | "consent"
   | "move";
 
 export interface WriteDecision {
@@ -242,6 +245,14 @@ export interface WriteDecision {
  * transition (`promotion`), which a reviewer who is not the owner makes and
  * which changes nothing but the status and the version; it is exempt only
  * when the item is exactly that.
+ *
+ * Consent (card E9.12, policy/consent.ts): off unless the policy has a
+ * `consent` block. After the identity, grant and trust checks, a write that
+ * records content into a person scope an active opt-out covers is denied
+ * (`engram/write/consent`), whatever the write rule would say, so it lands
+ * neither active nor as a candidate. Its window is judged at `at`, or at
+ * `options.consentAt` for a caller that passes no `at` (the promotion gate,
+ * which judges grants without a time).
  */
 export function evaluateWrite(
   policy: Policy,
@@ -250,7 +261,7 @@ export function evaluateWrite(
   existing: MemoryItem | undefined,
   retired: ReadonlyMap<string, string>,
   at?: string,
-  options: { promotion?: boolean } = {},
+  options: { promotion?: boolean; consentAt?: string } = {},
 ): WriteDecision {
   const level = scopeLevel(item.scope);
   const policy_id = `${policy.id}/write/${level}`;
@@ -405,6 +416,11 @@ export function evaluateWrite(
           `${actor.id} cannot write item ${item.id}: the item id is held by an item you cannot access`,
           WRITE_MEMBERSHIP_ID,
         );
+  // Consent (card E9.12): off unless the policy has the block. Only a member
+  // of the item's scope gets here, so the reason, which names the opt-out
+  // and never the content, reaches no one outside it.
+  const optedOut = consentRefusal(policy, item, existing, at ?? options.consentAt);
+  if (optedOut !== null) return deny("consent", optedOut, CONSENT_ID);
 
   const rule = policy.write.find((r) => r.scope === level);
   if (!rule)

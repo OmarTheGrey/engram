@@ -524,7 +524,8 @@ export function evaluatePromotion(
     // An in-place promotion changes only the status and the version, so a
     // reviewer who is not the owner may make it on an item carrying grants
     // (card RV7: the owner's rule of RV-CORE-1 exempts exactly this).
-    { promotion: transition === "in-place" },
+    // Consent's windows are judged at the promotion's time (card E9.12).
+    { promotion: transition === "in-place", consentAt: at },
   );
   if (write.decision === "deny")
     return deny("write", `as a write into ${target}: ${write.reason}`, write.policy_id);

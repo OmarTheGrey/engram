@@ -129,4 +129,18 @@ lints:
     near-duplicate: 0.85
     replay-drift.success-floor: 0.7
     replay-drift.min-trials: 10
+# Consent (card E9.12, packages/core/src/policy/consent.ts): opt-outs a
+# person declares for their own person scope. Left absent here, so the
+# profile records as before; uncomment and name your own scope to use it.
+# A write that records content an active opt-out covers is denied under
+# engram/write/consent, with a reason naming the opt-out, never the content.
+# A topic matches whole words of the content, case-insensitively; a source
+# is a provenance kind; a window is since (inclusive) to until (exclusive);
+# except_topics carve writes out of an opt-out. An opt-out with only a
+# window is Incognito.
+# consent:
+#   opt_outs:
+#     - { scope: person:omar, topic: health }
+#     - { scope: person:omar, source: model, except_topics: [calendar] }
+#     - { scope: person:omar, since: "2026-12-01T00:00:00Z", until: "2026-12-02T00:00:00Z" }
 schema_version: 1

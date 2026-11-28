@@ -17,7 +17,6 @@ export const NOT_BUILT_YET: readonly { path: readonly string[]; card: string }[]
   { path: ["lints", "model", "evidence"], card: "L9" },
   { path: ["procedures", "safety_scan"], card: "D5" },
   { path: ["procedures", "drift"], card: "D4" },
-  { path: ["consent"], card: "E9.12" },
   { path: ["erasure", "mode"], card: "E9.13" },
   { path: ["approval"], card: "E2.19" },
   { path: ["grants", "expiry_cap"], card: "E2.21" },

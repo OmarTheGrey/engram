@@ -183,6 +183,7 @@ export const ENGRAM_RULES: readonly string[] = [
   "engram/retention/protected",
   "engram/retention/sweep",
   "engram/write/conflict",
+  "engram/write/consent",
   "engram/write/content-size",
   "engram/write/default-deny",
   "engram/write/downgrade",

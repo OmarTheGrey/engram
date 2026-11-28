@@ -46,6 +46,10 @@
 //     encoder's, so agreement there holds modulo grants;
 //   - content guards and trust options: exportCedar refuses a policy that
 //     turns any on, rather than export a gate that disagrees with it;
+//   - consent (card E9.12): an opt-out matches the words of the content, a
+//     loop over a string Cedar's language cannot express, so exportCedar
+//     refuses a policy that declares one; an empty `opt_outs` refuses no
+//     write and exports as if absent;
 //   - instants finer than a nanosecond: an instant is two Longs, epoch seconds
 //     and nanoseconds, and the encoder refuses a finer one.
 //
@@ -264,6 +268,14 @@ function refuseUntranslatable(policy: Policy): void {
   if (on.length > 0)
     throw new CedarExportError(
       `policy ${policy.id} sets ${on.join(", ")}; the Cedar export does not translate content guards or trust options, and refuses rather than export a gate that disagrees with the evaluator`,
+    );
+  // Card E9.12: an opt-out's topic is matched against the content's words
+  // (policy/consent.ts), which Cedar cannot do; flattening it into a request
+  // attribute would be the encoder computing the verdict, which tests nothing.
+  const optOuts = policy.consent?.opt_outs.length ?? 0;
+  if (optOuts > 0)
+    throw new CedarExportError(
+      `policy ${policy.id} declares ${optOuts} consent opt-out${optOuts === 1 ? "" : "s"}; the Cedar export does not translate consent, which matches the words of the content, and refuses rather than export a gate that disagrees with the evaluator`,
     );
   // Card E2.14: an option nothing builds yet is refused as the loader refuses
   // it; the card that builds one decides whether the export translates it.

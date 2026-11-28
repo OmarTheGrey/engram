@@ -913,3 +913,76 @@ export function protectionProblem(
   }
   return undefined;
 }
+
+// Consent (card E9.12; a `decision` log entry records the change): the
+// oracle's own reading of when an opt-out covers a write, written apart from
+// policy/consent.ts. A write records content when it is a first write, moves
+// the item into a scope, or its content reads differently from the item it
+// rewrites (the oracle's `sameContent`), and its status is not retired. An
+// opt-out covers it when it names the item's scope, its source (if set) is
+// the recorded kind, the write's time is inside its window, its topic (if
+// set) is a phrase of the content and none of its carve-outs is. A phrase is
+// read by padding: the content's strings are folded (NFKC, without the
+// code points that render as nothing, NFKC again, lower case),
+// every character that is not a letter, mark or digit becomes a space, and
+// the folded topic, padded with a space on each side, must occur in a padded
+// string. Absent consent covers nothing.
+
+/** Folded words joined by single spaces, padded with a space at each end; "" when there is no word. */
+const padded = (s: string): string => {
+  const folded = [...s.normalize("NFKC")]
+    .filter((ch) => !IGNORABLE.has(ch) && !/^\p{Default_Ignorable_Code_Point}$/u.test(ch))
+    .join("")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}]+/gu, " ")
+    .trim();
+  return folded === "" ? "" : ` ${folded} `;
+};
+
+/** Every string a content holds: text, each key and leaf of a record (numbers and booleans as text). */
+const leaves = (v: unknown): string[] =>
+  typeof v === "string"
+    ? [v]
+    : typeof v === "number" || typeof v === "boolean"
+      ? [String(v)]
+      : Array.isArray(v)
+        ? v.flatMap(leaves)
+        : v !== null && typeof v === "object"
+          ? Object.entries(v).flatMap(([k, x]) => [k, ...leaves(x)])
+          : [];
+
+/** Is `topic` a phrase of `content`, read by padding? A topic with no word is a phrase of nothing. */
+export function phraseOf(content: unknown, topic: string): boolean {
+  const t = padded(topic);
+  return t !== "" && leaves(content).some((s) => padded(s).includes(t));
+}
+
+/**
+ * Invariant reading for consent: the opt-out of `policy` that the write of
+ * `item` (over `before`, the item of its id just before it) at `at` would
+ * record content under, as its index, or undefined when none covers it.
+ */
+export function consentForbids(
+  policy: Policy,
+  item: MemoryItem,
+  before: MemoryItem | undefined,
+  at: string,
+): number | undefined {
+  const records =
+    item.status !== "retired" &&
+    (before === undefined ||
+      before.scope !== item.scope ||
+      !sameContent(before.content, item.content));
+  if (!records) return undefined;
+  const k = (policy.consent?.opt_outs ?? []).findIndex(
+    (o) =>
+      o.scope === item.scope &&
+      (o.source === undefined || o.source === item.provenance.kind) &&
+      (o.since === undefined || compareTimestamps(at, o.since) >= 0) &&
+      (o.until === undefined || compareTimestamps(at, o.until) < 0) &&
+      (o.topic === undefined || phraseOf(item.content, o.topic)) &&
+      !(o.except_topics ?? []).some((t) => phraseOf(item.content, t)),
+  );
+  return k === -1 ? undefined : k;
+}
