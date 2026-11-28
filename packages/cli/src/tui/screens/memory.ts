@@ -9,6 +9,7 @@ import { GrantsScreen } from "./grants.ts";
 import { ItemScreen } from "./item.ts";
 import { ExplainScreen, ReadScreen } from "./read.ts";
 import { SupersedeScreen, WhoScreen } from "./who.ts";
+import { WhyNotScreen } from "./why-not.ts";
 import { PromoteScreen, WriteScreen } from "./write.ts";
 
 type Make = (spec: CommandSpec, ctx: Ctx, values: Values, positionals: readonly string[]) => Screen;
@@ -24,6 +25,7 @@ const SCREENS: Readonly<Record<string, Make>> = {
   policy: (s, c, v, p) => new PolicyScreen(s, c, v, p),
   "who-can-read": (s, c, v, p) => new WhoScreen(s, c, v, p),
   supersede: (s, c, v, p) => new SupersedeScreen(s, c, v, p),
+  "explain --absent": (s, c, v, p) => new WhyNotScreen(s, c, v, p),
 };
 
 /** The commands with a screen of their own here. */

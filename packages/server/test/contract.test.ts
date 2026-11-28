@@ -394,6 +394,47 @@ describe("the routes, through the generated client, on the fake store", () => {
     expect(workspace.plane.events().length).toBe(logged);
   });
 
+  it("explainAbsent: the owner is told the stage; an outsider gets the unknown id's refusal; no event", async () => {
+    const { client, workspace } = testWorkspace();
+    const owner = { ...dana, source: "user" as const };
+    await client.POST("/api/v1/items", { body: { actor: owner, item: itemFor(1) } });
+    const logged = workspace.plane.events().length;
+    const ask = async (actor: typeof dana, item_id: string, text?: string) =>
+      C.AbsenceExplanation.parse(
+        (
+          await client.POST("/api/v1/explain-absent", {
+            body: { actor, item_id, ...(text === undefined ? {} : { text }) },
+          })
+        ).data,
+      );
+    hit.add("explainAbsent");
+    expect(await ask(dana, id(501), "nothing like it")).toMatchObject({
+      answered: true,
+      absent: true,
+      stage: "match",
+      policy_id: "engram/read/match",
+      at: NOW,
+    });
+    expect(await ask(dana, id(501), "fact")).toMatchObject({
+      answered: true,
+      absent: false,
+      stage: null,
+    });
+    const hidden = await ask(eve, id(501), "fact");
+    const unknown = await ask(eve, id(999), "fact");
+    expect(hidden.answered).toBe(false);
+    expect(hidden).toEqual({
+      ...unknown,
+      item_id: id(501),
+      reason: unknown.reason.replace(id(999), id(501)),
+    });
+    const bad = await client.POST("/api/v1/explain-absent", {
+      body: { actor: dana, item_id: "nope" },
+    });
+    expect(bad.response.status).toBe(400);
+    expect(workspace.plane.events().length).toBe(logged);
+  });
+
   it("whoCanRead: a member of the scope is answered by the read matrix; a non-member is refused", async () => {
     const { client } = testWorkspace();
     const { data, response } = await client.POST("/api/v1/who-can-read/scope", {

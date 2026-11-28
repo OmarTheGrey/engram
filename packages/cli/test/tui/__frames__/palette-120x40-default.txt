@@ -3,31 +3,31 @@
 │ 1 Memory                                                             ││ Read and explain                             │
 │ > [r] Read and explain                engram read [query]            ││                                              │
 │   [o] Read one item                   engram read --item <id>        ││ Read through the plane and explain every     │
-│   [w] Write a memory                  engram write                   ││ returned item.                               │
-│   [C] Check a writ┌─ Commands ───────────────────────────────────────────────────────────────────┐                   │
-│   [p] Promote an i│ > prom                                                                       │he log; as its     │
-│   [S] Supersede   │                                                                              │xpired items. Asks │
-│   [g] Grants on an│ > Promote an item             engram promote <itemId>                        │                   │
-│   [E] Explain a re│   Harness memory              engram discover                                │                   │
-│   [n] Who can read│   Export an audit report      engram audit export                            │r: a log it cannot │
-│   [u] Scopes you c│   Check a write               engram check                                   │t answer; 2 usage: │
-│ 2 Policy          │   Write a memory              engram write                                   │ a 501 naming a    │
-│   [t] Retention sw│   Grants on an item           engram grants <itemId>                         │                   │
-│   [l] Lint a scope│   Read one item               engram read --item <id>                        │                   │
-│   [s] Simulate a p│   Who can read                engram who-can-read                            │                   │
-│   [y] Policy in fo│   Retention sweep             engram retain                                  │                   │
-│ 3 Audit           │   Read and explain            engram read [query]                            │d                  │
-│   [e] Events      │   Export a bundle             engram export                                  │                   │
-│   [f] Verify the l│   MCP server                  engram mcp                                     │                   │
-│   [F] Checkpoint t│   Explain a read              engram explain <readId>                        │                   │
-│ 4 Data            │   Lint a scope                engram lint                                    │                   │
-│   [x] Export a bun│   Supersede                   engram supersede <itemId>                      │                   │
-│   [i] Import a bun│   Install a hook              engram hook install <harness>                  │                   │
-│ 5 Surfaces        │   Serve the API and inspector engram serve                                   │                   │
-│   [h] Serve the AP│   Import a bundle             engram import <bundle>                         │                   │
-│   [m] MCP server  │   Scopes you can see          engram scopes                                  │                   │
-│   [b] Claude Code │   Events                      engram events                                  │                   │
-│   [a] Create a key│   Verify an audit report      engram audit verify                            │                   │
+│   [w] Write a memo┌─ Commands ───────────────────────────────────────────────────────────────────┐                   │
+│   [C] Check a writ│ > prom                                                                       │                   │
+│   [p] Promote an i│                                                                              │he log; as its     │
+│   [S] Supersede   │ > Promote an item             engram promote <itemId>                        │xpired items. Asks │
+│   [g] Grants on an│   Harness memory              engram discover                                │                   │
+│   [E] Explain a re│   Export an audit report      engram audit export                            │                   │
+│   [n] Who can read│   Check a write               engram check                                   │r: a log it cannot │
+│   [u] Scopes you c│   Write a memory              engram write                                   │t answer; 2 usage: │
+│ 2 Policy          │   Grants on an item           engram grants <itemId>                         │ a 501 naming a    │
+│   [t] Retention sw│   Read one item               engram read --item <id>                        │                   │
+│   [l] Lint a scope│   Who can read                engram who-can-read                            │                   │
+│   [s] Simulate a p│   Retention sweep             engram retain                                  │                   │
+│   [y] Policy in fo│   Read and explain            engram read [query]                            │                   │
+│ 3 Audit           │   Export a bundle             engram export                                  │d                  │
+│   [e] Events      │   MCP server                  engram mcp                                     │                   │
+│   [f] Verify the l│   Explain a read              engram explain <readId>                        │                   │
+│   [F] Checkpoint t│   Lint a scope                engram lint                                    │                   │
+│ 4 Data            │   Supersede                   engram supersede <itemId>                      │                   │
+│   [x] Export a bun│   Install a hook              engram hook install <harness>                  │                   │
+│   [i] Import a bun│   Serve the API and inspector engram serve                                   │                   │
+│ 5 Surfaces        │   Import a bundle             engram import <bundle>                         │                   │
+│   [h] Serve the AP│   Scopes you can see          engram scopes                                  │                   │
+│   [m] MCP server  │   Events                      engram events                                  │                   │
+│   [b] Claude Code │   Verify an audit report      engram audit verify                            │                   │
+│   [a] Create a key│   Why not this item           engram explain --absent <id> [query]           │                   │
 │   [A] List keys   │   Simulate a policy           engram simulate                                │                   │
 │   [R] Revoke a key│                                                                              │                   │
 │ 6 Machine         │ enter open   tab fill   esc close                                            │                   │
@@ -41,5 +41,5 @@ $ engram read --db engram.db --owner dana --root mem
 --- styles
 r0 c0-119 inverse
 r3 c1-70 inverse
-r7 c28-28 inverse
-r9 c21-98 inverse
+r6 c28-28 inverse
+r8 c21-98 inverse

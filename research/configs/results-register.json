@@ -1405,6 +1405,47 @@
           "path": ["envelope", "bytes"]
         }
       ]
+    },
+    {
+      "file": "research/results/h1-consent-gate.json",
+      "title": "Consent at the write gate",
+      "meter": {
+        "part": ["candidate", "consent_refusals_repeating_content"],
+        "whole": ["candidate", "consent_refusals"],
+        "label": "refusals repeated no content",
+        "complement": "repeated content"
+      },
+      "hypothesis": "none",
+      "status": "proof of concept",
+      "prereg": null,
+      "question": "With a person's opt-outs of their own person scope (a topic, a source with a carve-out, an Incognito window with a carve-out), does the write gate refuse exactly the writes they cover, each refusal naming its opt-out and none repeating the refused content, while the same workload under the twin profile without them is allowed as before?",
+      "note": "Card E9.12, by engram simulate on a fixture workload (fixtures/workloads/e9-12-consent.json); consent is absent in every registered preset and in the twin profile. The file is under `h1-` for the results glob only.",
+      "headline": [
+        {
+          "label": "writes",
+          "path": ["candidate", "writes"]
+        },
+        {
+          "label": "allowed without opt-outs",
+          "path": ["baseline", "writes_allowed"]
+        },
+        {
+          "label": "allowed with opt-outs",
+          "path": ["candidate", "writes_allowed"]
+        },
+        {
+          "label": "consent refusals",
+          "path": ["candidate", "consent_refusals"]
+        },
+        {
+          "label": "refusals naming their opt-out",
+          "path": ["candidate", "consent_refusals_naming_their_opt_out"]
+        },
+        {
+          "label": "refusals repeating the content",
+          "path": ["candidate", "consent_refusals_repeating_content"]
+        }
+      ]
     }
   ]
 }

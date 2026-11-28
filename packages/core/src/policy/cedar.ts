@@ -50,6 +50,10 @@
 //     and expires requests, and the promotion gate is not exported; the read
 //     and write gates are the same with or without it, so a policy that sets
 //     it is exported, with a header line naming its routes as not exported;
+//   - consent (card E9.12): an opt-out matches the words of the content, a
+//     loop over a string Cedar's language cannot express, so exportCedar
+//     refuses a policy that declares one; an empty `opt_outs` refuses no
+//     write and exports as if absent;
 //   - procedures.safety_scan (card D5): exported as if absent, faithfully,
 //     since it acts only on the promotion gate's admission of a procedural
 //     item (lint/procedural.ts), which the export does not model; the read
@@ -288,6 +292,14 @@ function refuseUntranslatable(policy: Policy): void {
   if (on.length > 0)
     throw new CedarExportError(
       `policy ${policy.id} sets ${on.join(", ")}; the Cedar export does not translate content guards or trust options, and refuses rather than export a gate that disagrees with the evaluator`,
+    );
+  // Card E9.12: an opt-out's topic is matched against the content's words
+  // (policy/consent.ts), which Cedar cannot do; flattening it into a request
+  // attribute would be the encoder computing the verdict, which tests nothing.
+  const optOuts = policy.consent?.opt_outs.length ?? 0;
+  if (optOuts > 0)
+    throw new CedarExportError(
+      `policy ${policy.id} declares ${optOuts} consent opt-out${optOuts === 1 ? "" : "s"}; the Cedar export does not translate consent, which matches the words of the content, and refuses rather than export a gate that disagrees with the evaluator`,
     );
   // Card E2.21: grants.expiry_cap is refused when on, not translated.
   if (policy.grants?.expiry_cap === "on")

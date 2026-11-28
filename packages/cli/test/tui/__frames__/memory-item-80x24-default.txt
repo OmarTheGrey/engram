@@ -21,7 +21,7 @@
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 $ engram events --owner dana --db engram.db   exit 0
- ? help  p promote  g grants  w who  S supersede  enter event  tab pane  ; co...
+ ? help  p promote  g grants  w who  S supersede  n why not  enter event  tab...
 --- styles
 r0 c0-79 inverse
 r17 c17-17 fg #00A67A

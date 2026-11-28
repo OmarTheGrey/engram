@@ -2573,7 +2573,8 @@ async function promotionsLandOnlyWherePermitted(name: string) {
  * and append no event (card E2.13, decision item 53);
  * `approvals` lists only requests in scopes the caller may read, `refuse`
  * refuses an outsider as for an unknown id with no item and no scope, and
- * `expireRequests` sweeps only a scope the caller is a member of (card E2.19).
+ * `expireRequests` sweeps only a scope the caller is a member of (card E2.19);
+ * `explainAbsent` returns no item (card E2.17).
  */
 async function planeSurfaceLeaksNothing() {
   const SECRET = "the vault code is 4711";
@@ -2593,6 +2594,7 @@ async function planeSurfaceLeaksNothing() {
     "events",
     "expireRequests",
     "explain",
+    "explainAbsent",
     "export",
     "lint",
     "listScopes",
@@ -2844,6 +2846,10 @@ async function planeSurfaceLeaksNothing() {
   const lifted = await plane.promote(owner, secret.id, "person:s", at, { review: false });
   expect(lifted.decision).toBe("allow");
   expect(lifted.item?.lineage[0]).toBe(secret.id);
+  // Why not this item (card E2.17) returns no item and no content, ever; its
+  // refusal and its stages are pinned by test/property/explain-absent.test.ts.
+  // Last, so a mutant this function kills is killed where it was before.
+  leaks("explainAbsent", await plane.explainAbsent(outsider, secret.id, { at, text: "vault" }));
 }
 
 // Invariant 1 across two handles (card E2.6; a `decision` log entry records
