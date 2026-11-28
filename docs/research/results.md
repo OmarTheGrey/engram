@@ -45,7 +45,7 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | checkpoints where a plain refusal scores as a leak | 41 | `by_preset.medium.all.refusal_leak` |
 | identical across the three presets | true | `identical_across_presets` |
 
-Recorded by [`docs/log/2026-11-02-pr2-r2-measurement-gatemem-reach.md`](../log/2026-11-02-pr2-r2-measurement-gatemem-reach.md).
+Recorded by [`docs/log/2026-11-02-pr2-r2-measurement-gatemem-reach.md`](../log/2026-11-02-pr2-r2-measurement-gatemem-reach.md), [`docs/log/2026-11-28-e2-21-measurement-repro-rows.md`](../log/2026-11-28-e2-21-measurement-repro-rows.md).
 
 ### `research/results/h1-mem-inv-admission.json`
 
