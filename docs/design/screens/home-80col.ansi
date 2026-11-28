@@ -17,7 +17,7 @@
 │   [s] Simulate a policy          ││ engram read [query]                      │
 │   [y] Policy in force            ││                                          │
 │ 3 Audit                          ││ enter open   c copy command              │
-│   ▾ 15 more below: pgdn          ││                                          │
+│   ▾ 16 more below: pgdn          ││                                          │
 └──────────────────────────────────┘└──────────────────────────────────────────┘
  · doctor not run this session: d   log engram.db   policy fixture.inspector v1
 $ engram read --db engram.db --policy po...on:dana --member team:core --root mem

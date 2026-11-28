@@ -30,7 +30,13 @@ export const VALID_FROM = "2026-10-01T00:00:00.000Z";
 
 /** The home every in-process command sees unless the test passes one: never the real one. */
 export const HOME = mkdtempSync(join(tmpdir(), "engram-cli-home-"));
-const dirs: string[] = [HOME];
+/**
+ * The folder every in-process command runs in unless the test passes one:
+ * an empty folder of this file's own, so doctor's harness memory walk of
+ * the current folder (card E9.10) never lists the shared system temp folder.
+ */
+export const CWD = mkdtempSync(join(tmpdir(), "engram-cli-cwd-"));
+const dirs: string[] = [HOME, CWD];
 export async function tempDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "engram-cli-"));
   dirs.push(dir);
@@ -76,7 +82,7 @@ export interface CliOptions {
 export async function cli(
   args: string[],
   {
-    cwd = tmpdir(),
+    cwd = CWD,
     home = HOME,
     env = {},
     nodeVersion = process.versions.node,

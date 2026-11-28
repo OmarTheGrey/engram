@@ -1,0 +1,45 @@
+ engram  Harness memory                                                 in process  log engram.db  person:dana (person)
+ > ~ More flags: 3, set: --home --project --root
+
+ [ Count again ]
+
+ ! 2 outside   exit 0
+
+   ! 2 outside  2 harness memory files outside every store root; 1 inside one
+      claude-code  project-claude-md     1 file      28 bytes  newest 2026-11-20T10:00:00.000Z
+      codex        project-agents-md     1 file      38 bytes  newest 2026-11-20T10:00:00.000Z
+    outside every store root:
+      lantern/CLAUDE.md  28 bytes  2026-11-20T10:00:00.000Z  claude-code project-claude-md
+      lantern/AGENTS.md  38 bytes  2026-11-20T10:00:00.000Z  codex project-agents-md
+    searched: home home; projects lantern; store roots mem; locations as of 2026-11-28
+
+ Discovery shows that a file exists, not that a harness read it. What sits outside a store root is not governed: the
+ plane never sees a write or a read of it.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram discover --home home --project lantern --root mem   exit 0
+ ? help  r again  v plain  J json  ; commands  esc back
+--- styles
+r0 c0-119 inverse
+r1 c0-119 inverse
+r5 c1-1 fg #E69F00
+r7 c3-3 fg #E69F00

@@ -29,7 +29,7 @@
 |   [b] Claude Code hook setup                       ||                                                                |
 |   [a] Create a key                                 ||                                                                |
 |   [A] List keys                                    ||                                                                |
-|   v 3 more below: pgdn                             ||                                                                |
+|   v 4 more below: pgdn                             ||                                                                |
 +----------------------------------------------------++----------------------------------------------------------------+
  - doctor not run this session: d   log engram.db   policy fixture.inspector v1
 $ engram read --db engram.db --policy policy.yaml --owner dana --member person:dana --member team:core --root mem
