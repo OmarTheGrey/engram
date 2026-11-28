@@ -309,7 +309,10 @@ export function createMcpMemoryAdapter(options: McpMemoryAdapterOptions): McpMem
             `holds Engram item ${JSON.stringify(id)} under the entity ${JSON.stringify(entity)}, not the one its id names; a copy or a rename of an Engram entity is not read`,
             entity,
           );
-        const parsed = MemoryItemSchema.safeParse({ ...engram, store_ref: { adapter: name, key } });
+        const parsed = MemoryItemSchema.safeParse({
+          ...(engram as Record<string, unknown>),
+          store_ref: { adapter: name, key },
+        });
         if (!parsed.success) {
           diagnostics.push({
             key,

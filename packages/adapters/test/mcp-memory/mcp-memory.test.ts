@@ -227,7 +227,7 @@ describe("the server's own records list as read-only items under derived refs", 
     const [record] = await adapter.list("person:dana");
     if (!record?.store_ref) throw new Error("no record");
     const original = await readFile(file, "utf8");
-    await expect(adapter.write({ ...record, content: "rewritten" })).rejects.toThrow(
+    await expect(adapter.write({ ...record, content: "rewritten" } as MemoryItem)).rejects.toThrow(
       ReadOnlyRecordError,
     );
     const refused = await adapter.delete(record.store_ref).catch((e: unknown) => e);
@@ -274,7 +274,11 @@ describe("a governed write keeps what the adapter does not understand (card A6, 
 
     const stored = first.item as MemoryItem;
     const adapter = open(file);
-    await adapter.write({ ...stored, version: 2, content: "The freeze moved to Wednesday." });
+    await adapter.write({
+      ...stored,
+      version: 2,
+      content: "The freeze moved to Wednesday.",
+    } as MemoryItem);
     expect(lines(await readFile(file, "utf8")).slice(0, -1)).toEqual(lines(original));
     await adapter.delete(stored.store_ref as NonNullable<MemoryItem["store_ref"]>);
     expect(await readFile(file, "utf8")).toBe(original);
@@ -289,7 +293,7 @@ describe("a governed write keeps what the adapter does not understand (card A6, 
       const e = g.entities.find((x) => x.name === `engram:${id(2)}`);
       if (e) e.extras = { createdAt: "2026-11-02T00:00:00Z", ...e.extras };
     });
-    await adapter.write({ ...item(2), version: 2, content: "second version" });
+    await adapter.write({ ...item(2), version: 2, content: "second version" } as MemoryItem);
     const record = JSON.parse(lines(await readFile(file, "utf8"))[0] ?? "");
     expect(Object.keys(record)).toEqual([
       "type",
