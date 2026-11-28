@@ -70,6 +70,28 @@ const FINDING: LintFinding = {
   schema_version: 1,
 };
 
+/**
+ * Card L9: a model finding under `lints.model.evidence: "on"`, as card L3's
+ * fault fixture gives it with card L9's scripted model, its quotes in its
+ * evidence (fixtures/lint/l9-script.json, research/configs/l9-grounding-fixture.json).
+ */
+const GROUNDED: LintFinding = {
+  id: "01950000-0000-7000-8000-0000000000f2",
+  lint_id: "contradiction",
+  item_id: ID2,
+  tier: "model",
+  severity: "warn",
+  message: `it contradicts ${ID1}, an earlier active semantic item in team:core, as scripted/lint-1 judged it`,
+  evidence: [
+    `contradicts ${ID1}`,
+    "model scripted/lint-1, seed 1",
+    "reason: The freeze cannot start on both Friday and Monday.",
+    `quote of ${ID1}: "The release freeze starts on Friday"`,
+    `quote of ${ID2}: "The release freeze starts on Monday"`,
+  ],
+  schema_version: 1,
+};
+
 const outcome = (step: number, decision: "allow" | "deny", policy: string, reason: string) => ({
   step,
   op: "write" as const,
@@ -146,6 +168,8 @@ const SCREENS: Record<
     given: Record<string, string>;
     values?: Record<string, unknown>;
     set: (s: never, h: Harness) => void | Promise<void>;
+    /** Keys pressed once the screen is pushed (card L9: open a finding's evidence). */
+    after?: (h: Harness) => Promise<void>;
   }
 > = {
   retain: {
@@ -191,6 +215,31 @@ const SCREENS: Record<
           ],
         ),
       ),
+  },
+  // Card L9: a grounded model finding, its evidence opened, so its quotes show.
+  "lint-grounded": {
+    name: "lint",
+    given: USABLE,
+    values: { scope: "team:core" },
+    set: (s: SurfaceScreen) =>
+      s.show(
+        result(
+          ["lint", "--scope", "team:core", "--db", "engram.db", "--owner", "dana", "--root", "mem"],
+          1,
+          "lint team:core at 2026-11-06T12:00:00Z as person:dana: allow, 1 finding\nlog engram.db\n",
+          [
+            call("/api/v1/lint", {
+              decision: "allow",
+              findings: [GROUNDED],
+              events: [{ policy_id: "fixture.faults/lint/contradiction" }],
+            }),
+          ],
+        ),
+      ),
+    after: async (h) => {
+      await h.focusField(`finding:${GROUNDED.id}`);
+      await h.press(" ");
+    },
   },
   simulate: {
     name: "simulate",
@@ -436,9 +485,36 @@ const SCREENS: Record<
             "engram log verify: UNSIGNED",
             "  ok    tables",
             "  ok    links",
+            "  ok    attestations",
             "  ok    checkpoints",
             "log fixture: 2 chain entries, 1 events chained, 0 unchained, 0 erased, 0 manifests, 0 checkpoints",
+            "chain version 2: 1 attestations chained, 0 not covered",
             "note: no checkpoint: nothing signs this log's head",
+            "",
+          ].join("\n"),
+        ),
+      ),
+  },
+  // Card E1.9: an attestation edited after its event was chained.
+  "log-verify-attestation": {
+    name: "log verify",
+    given: USABLE,
+    set: (s: SurfaceScreen) =>
+      s.show(
+        result(
+          ["log", "verify", "--db", "engram.db"],
+          1,
+          [
+            "engram log verify: FAILED",
+            "  ok    tables",
+            "  ok    genesis",
+            "  ok    links",
+            "  ok    anchor",
+            "  ok    commitments",
+            "  fail  attestations: event 0's attestation row does not match the digest chained with it: edited",
+            "first broken link: attestations, chain position 1, event seq 0",
+            "log fixture: 2 chain entries, 1 events chained, 0 unchained, 0 erased, 0 manifests, 0 checkpoints",
+            "chain version 2: 1 attestations chained, 0 not covered",
             "",
           ].join("\n"),
         ),
@@ -509,6 +585,7 @@ async function shoot(key: string, mode: Mode, columns: number, rows: number) {
   const screen = surfaceScreen(spec, h.app, (s.values ?? {}) as never, []) as SurfaceScreen;
   await s.set(screen as never, h);
   h.app.push(screen);
+  await s.after?.(h);
   const frame = await h.frame();
   const cells = await h.cells();
   const drawn = h.app.render(columns);

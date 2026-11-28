@@ -19,6 +19,7 @@ import {
   visit,
 } from "yaml";
 import type { z } from "zod";
+import { driftThresholdProblem } from "../distill/drift.ts";
 import { NLI_LINT_ID, nliThresholdProblems } from "../lint/nli.ts";
 import { LIFECYCLE_TRIGGERS, LINT_IDS, LINT_THRESHOLD_KEYS } from "../lint.ts";
 import { Policy, ScopeLevel } from "../schema.ts";
@@ -163,7 +164,9 @@ const NOT_ENFORCED_YET = {
 
 // The options card E2.14 of the second absorb plan added, which nothing
 // builds yet, are refused by `notBuiltOptions` (policy/options.ts), the check
-// Plane.simulate and exportCedar share with this loader.
+// Plane.simulate and exportCedar share with this loader. Built so far:
+// `lints.model.evidence`, quote grounding of the model lints (card L9,
+// lint/evidence.ts), loaded as written, "off" and absent alike.
 
 /** The blocks whose options are words, where YAML 1.1 may read a bare on or off as a boolean. */
 const OPTION_BLOCKS: readonly (readonly string[])[] = [
@@ -292,6 +295,11 @@ function semanticProblems(policy: Policy): Located[] {
     }
   }
   for (const { path, message } of notBuiltOptions(policy)) out.push({ path, atKey: true, message });
+  // Card D4: drift retires on ADR 0011's two thresholds, so a policy that
+  // turns it on must set both. A policy without procedures.drift (every
+  // registered preset) is not judged by this rule.
+  const drift = driftThresholdProblem(policy);
+  if (drift !== null) out.push({ path: ["procedures", "drift"], atKey: true, message: drift });
   const { replay_k, replay_n } = policy.promotion.procedural;
   if (replay_k > replay_n)
     out.push({

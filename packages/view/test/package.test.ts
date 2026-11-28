@@ -76,4 +76,80 @@ describe("@engram/view", () => {
     expect(graph?.items).toBe(1);
     expect(JSON.stringify(view.itemVersions(focus.id, [focus], events))).not.toContain(id(1));
   });
+
+  it("shows an item an allowed retire event names as retired, as core's projection does (card D4)", () => {
+    const id = (n: number) => `01950000-0000-7000-8000-${String(n).padStart(12, "0")}`;
+    const state = {
+      id: id(3),
+      class: "procedural",
+      scope: "person:dana",
+      owner: "person:dana",
+      content: { body: "edit, then read the file back", tools: ["edit", "read"] },
+      provenance: {
+        kind: "model",
+        ref: "distill:awm:s1",
+        hash: `sha256:${"0".repeat(64)}`,
+        actor: "person:dana",
+      },
+      confidence: 0.9,
+      valid_from: "2026-10-01T00:00:00.000Z",
+      valid_to: null,
+      ttl: null,
+      grants: [],
+      version: 2,
+      lineage: [],
+      status: "active",
+      store_ref: null,
+      schema_version: 1,
+    } as MemoryItem;
+    const base = {
+      actor: "person:dana",
+      scope_from: "person:dana",
+      scope_to: "person:dana",
+      ts: "2026-11-28T13:00:00.000Z",
+      schema_version: 1,
+    };
+    const promoted = {
+      ...base,
+      id: id(10),
+      seq: 1,
+      op: "promote",
+      item_id: state.id,
+      decision: "allow",
+      reason: "admitted",
+      policy_id: "p/promotion/procedural",
+      item: state,
+    } as MemoryEvent;
+    const kept = {
+      ...base,
+      id: id(11),
+      seq: 2,
+      op: "retire",
+      item_id: state.id,
+      decision: "deny",
+      reason: "kept",
+      policy_id: "p/drift/replay-drift",
+    } as MemoryEvent;
+    const retired = {
+      ...kept,
+      id: id(12),
+      seq: 3,
+      decision: "allow",
+      reason: "below the floor",
+      policy_id: "p/drift/environment-changed",
+    } as MemoryEvent;
+    expect(view.knownItems([], [promoted, kept]).get(state.id)?.state?.status).toBe("active");
+    expect(view.knownItems([], [promoted, kept, retired]).get(state.id)?.state).toEqual({
+      ...state,
+      status: "retired",
+    });
+    // An erasure removes the item, as core's projection does: absent, not retired.
+    const erased = {
+      ...retired,
+      id: id(13),
+      seq: 4,
+      policy_id: "engram/offboard/erase",
+    } as MemoryEvent;
+    expect(view.knownItems([], [promoted, erased]).has(state.id)).toBe(false);
+  });
 });

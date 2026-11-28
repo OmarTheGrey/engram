@@ -141,28 +141,14 @@ describe("absent, every option parses as today", () => {
 // the refusal points at, and the card that builds it. Every value the
 // option's schema admits is listed, so "off" is refused too: absent is the
 // only value accepted (the card's step 2).
+// Card L9 built lints.model.evidence: its loader test is in
+// test/unit/lint/evidence.test.ts.
 const NOT_BUILT: [option: string, card: string, key: string, texts: string[]][] = [
-  [
-    "lints.model.evidence",
-    "L9",
-    "    evidence:",
-    ["off", "on"].map((v) => withLints(`  model:\n    evidence: "${v}"\n`)),
-  ],
   [
     "procedures.safety_scan",
     "D5",
     "  safety_scan:",
     ["off", "report", "hold"].map((v) => withBlocks(`procedures:\n  safety_scan: "${v}"\n`)),
-  ],
-  [
-    "procedures.drift",
-    "D4",
-    "  drift:",
-    [
-      withBlocks("procedures:\n  drift: {}\n"),
-      withBlocks('procedures:\n  drift:\n    environment_change: "on"\n'),
-      withBlocks('procedures:\n  drift:\n    environment_change: "off"\n    period: 604800\n'),
-    ],
   ],
   [
     "consent",
@@ -274,9 +260,7 @@ describe("readers of an already-parsed policy refuse what the loader refuses", (
   const medium = loadPreset("medium");
   /** One policy per option, each setting it, typed as the schema admits it. */
   const SETTING: [option: string, policy: Policy][] = [
-    ["lints.model.evidence", { ...medium, lints: { ...medium.lints, model: { evidence: "on" } } }],
     ["procedures.safety_scan", { ...medium, procedures: { safety_scan: "hold" } }],
-    ["procedures.drift", { ...medium, procedures: { drift: { environment_change: "on" } } }],
     ["consent", { ...medium, consent: { opt_outs: [] } }],
     ["erasure.mode", { ...medium, erasure: { mode: "redact" } }],
     ["approval", { ...medium, approval: { routes: [] } }],

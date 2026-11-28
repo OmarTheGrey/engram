@@ -53,6 +53,14 @@
 //     modulo grants), so it is refused rather than flattened, as content
 //     guards and trust options are. Off is exported, since off is the gate
 //     without it;
+//   - `procedures.drift` (card D4): a lifecycle outside the gate, like
+//     promotion and retention sweeps. Plane.revalidate's events set an
+//     item's status, which the exported status rule judges, so a policy that
+//     sets it exports the same rules as one that does not, faithfully;
+//   - the lints (`lints`, `lints.model.evidence` of card L9 included): a
+//     lint decides no read or write, so the export is the same with or
+//     without them, and a policy turning quote grounding on is exported as
+//     faithfully as one leaving it out;
 //   - instants finer than a nanosecond: an instant is two Longs, epoch seconds
 //     and nanoseconds, and the encoder refuses a finer one.
 //

@@ -25,6 +25,12 @@
 // @engram/model's NLI cache in the block's `scores` folder; a miss is an
 // error unless a real scorer is passed (run.ts --record-nli, `make
 // nli-scores`), so a replay computes no score.
+//
+// A config with `evidence: "on"` (card L9 of the second absorb plan, not
+// registered) lints each fixture under its policy with `lints.model.evidence`
+// on, its id kept: quote grounding, whose grounded requests are keyed apart
+// from the plain ones by their prompt hash. Without it the fixture's policy
+// is used as written, so every registered config sends what it sent.
 import { createHash } from "node:crypto";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -109,6 +115,20 @@ export function withNliTier(policy: Policy, nli: Pick<NliRunnerConfig, "threshol
   };
 }
 
+/** `policy` with quote grounding on (card L9): `lints.model.evidence: "on"`, everything else kept. */
+export function withEvidence(policy: Policy): Policy {
+  return {
+    ...policy,
+    lints: { ...policy.lints, model: { ...policy.lints.model, evidence: "on" } },
+  };
+}
+
+/** The policy a fixture is linted under: its own, with the config's NLI tier and grounding when set. */
+function runPolicy(config: Pick<LintRunnerConfig, "nli" | "evidence">, policy: Policy): Policy {
+  const tiered = config.nli === undefined ? policy : withNliTier(policy, config.nli);
+  return config.evidence === "on" ? withEvidence(tiered) : tiered;
+}
+
 /** What a run's NLI scores did: computed and recorded, or answered by the cassettes. */
 export interface NliTally {
   new: number;
@@ -179,6 +199,8 @@ export const LintRunnerConfig = z.strictObject({
   cassettes: z.string(),
   /** Card L7: the contradiction lint's NLI tier, run before the model. */
   nli: NliRunnerConfig.optional(),
+  /** Card L9: quote grounding (`lints.model.evidence: "on"`) on every fixture's policy; absent, the policy as written. */
+  evidence: z.literal("on").optional(),
   /**
    * OpenRouter's upstream for the lint model (card R6; model/upstream.ts):
    * `answer` routes the lint model, `answer_model` names the model it was
@@ -367,6 +389,14 @@ export interface LintRow {
     other_id: string;
     outcome: string;
     reason: string | null;
+    /** Card L9: each quote of a grounded flag, checked; only for a config with `evidence`. */
+    grounding?: {
+      field: string;
+      item_id: string;
+      quote: string | null;
+      found: boolean;
+      reason?: string;
+    }[];
   }[];
   /** Card L7: every pair the NLI tier scored and its band; only for a config with `nli`. */
   nli?: NliRowJudgment[];
@@ -409,7 +439,7 @@ export async function runLintConfig(
         const plane = createPlane({
           db,
           adapter: createFakeAdapter(),
-          policy: config.nli === undefined ? f.policy : withNliTier(f.policy, config.nli),
+          policy: runPolicy(config, f.policy),
           newId: sequentialIds(),
           ...(nli === undefined ? {} : { lintNli: nli }),
           lintModel: {
@@ -454,6 +484,7 @@ export async function runLintConfig(
             other_id: j.other_id,
             outcome: j.outcome,
             reason: j.reason,
+            ...(j.grounding === undefined ? {} : { grounding: j.grounding }),
           })),
           ...(config.nli === undefined ? {} : { nli: nliRowJudgments(report.nli) }),
         });
@@ -530,7 +561,7 @@ export function countLintConfig(config: LintRunnerConfig, repo: string): LintCou
       migrate(db);
       for (const { seq: _seq, ...e } of f.events) appendEvent(db, e);
       const units = planModelLints(
-        { db, policy: f.policy },
+        { db, policy: runPolicy({ evidence: config.evidence }, f.policy) },
         f.actor,
         f.at,
         f.scope,

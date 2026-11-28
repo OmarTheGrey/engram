@@ -9,11 +9,13 @@
 //   records it: to its end with every compared state equal, or diverging at
 //   the step that file names, explained by one of the findings (replay.ts
 //   FINDINGS); an unexplained divergence fails.
-// - The two known gaps of card E1.5, restated in the code's order
-//   (specs/replay.qnt), replay to their end: the code reaches the state the
-//   model says it reaches.
-// - Each finding is pinned by its scenario (specs/replay.qnt), at the step
-//   the code leaves the model.
+// - The two gaps of card E1.5, as card E1.7 closed them, restated in the
+//   code's order (specs/replay.qnt), replay to their end: the code reaches
+//   the state the model says it reaches, with no erased content left in the
+//   store and no committed write losing its record.
+// - Each open finding is pinned by its scenario (specs/replay.qnt), at the
+//   step the code leaves the model; each finding card E1.7 closed (FIXED)
+//   replays its scenario to the end.
 // - A trace edited to claim another state is refused at that step.
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -36,6 +38,7 @@ import {
 import {
   attribute,
   FINDINGS,
+  FIXED,
   kindOf,
   type Mark,
   type Mismatch,
@@ -170,8 +173,8 @@ describe("the committed traces", () => {
   );
 });
 
-describe("the two known gaps of card E1.5, as the model states them", () => {
-  test("the put-back across a third offboarding leaves erased content in the store, every handle idle", async () => {
+describe("the two gaps of card E1.5, as card E1.7 closed them", () => {
+  test("the put-back across a third offboarding deletes the record it wrote once b is erased, every handle idle", async () => {
     const t = load("putBackAcrossThirdErasureReplayTest.itf.json.gz");
     const r = await replay(t);
     expect(r.mismatch).toBeNull();
@@ -179,42 +182,46 @@ describe("the two known gaps of card E1.5, as the model states them", () => {
     const last = modelState(t.states.at(-1) as Record<string, ItfValue>);
     expect(last.erasedIds.has("b")).toBe(true);
     expect(r.final.proj.b?.live).toBe(false);
-    expect(r.final.store.b?.present).toBe(true);
-    expect(last.erasedContent.has(r.final.store.b?.content as number)).toBe(true);
+    expect(r.final.store.b?.present).toBe(false);
     expect(r.final.marks).toEqual([]);
     expect(Object.values(r.final.busy)).toEqual([false, false, false]);
+    // The put-back wrote b back once and deleted it on its next round.
+    const puts = t.states.filter(
+      (s) => (s.lastAction as { name: string }).name === "obPutBackWrite",
+    );
+    expect(puts).toHaveLength(2);
   });
 
-  test("a write under a swept id committed during adoption's purge keeps its item and loses its record", async () => {
+  test("known limit: a put-back stopped after its write leaves b's erased content, which the code's adoption refuses without the model's purge (E18-F7)", async () => {
+    const t = load("putBackCrashReplayTest.itf.json.gz");
+    const r = await replay(t);
+    // The code reaches the leftover the model states, every handle idle...
+    expect(r.mismatch?.step).toBe(29);
+    expect(r.mismatch?.what).toBe("whether handle h3 is inside a call");
+    // ...and leaves the model where it purges: the third erasure found no
+    // record at b's ref, so adoption refuses the record and keeps it.
+    expect(r.finding).toBe("E18-F7");
+    expect(r.final.proj.b?.live).toBe(false);
+    expect(r.final.store.b?.present).toBe(true);
+    const leftover = modelState(t.states[28] as Record<string, ItfValue>);
+    expect(leftover.erasedContent.has(r.final.store.b?.content as number)).toBe(true);
+  });
+
+  test("a write under a swept id is refused, and adoption's purge deletes the record dropped in by hand", async () => {
     const r = await replay(load("sweptIdPurgeRaceReplayTest.itf.json.gz"));
     expect(r.mismatch).toBeNull();
-    expect(r.final.proj.b?.live).toBe(true);
+    expect(r.final.proj.b?.live).toBe(false);
     expect(r.final.store.b?.present).toBe(false);
     expect(r.final.events.some((e) => e.includes(" engram/offboard/swept allow b"))).toBe(true);
+    const refused = r.final.events.filter((e) => e.includes(" engram/write/erased deny b"));
+    expect(refused).toHaveLength(1);
+    expect(refused[0]).toMatch(/swept out of the store/);
   });
 });
 
 describe("the findings of card E1.8, each pinned where the code leaves the model", () => {
   const pinned: { file: string; finding: keyof typeof FINDINGS; step: number; what: string }[] = [
-    {
-      file: "e18RetractionWhileErasingTest",
-      finding: "E18-F1",
-      step: 12,
-      what: "the projection of a",
-    },
-    {
-      file: "e18ErasingRefusalFinalTest",
-      finding: "E18-F2",
-      step: 11,
-      what: "the projection of a",
-    },
     { file: "e18OwnBytesEditedTest", finding: "E18-F3", step: 7, what: "the projection of b" },
-    {
-      file: "e18RepeatedPurgeTest",
-      finding: "E18-F4",
-      step: 21,
-      what: "whether handle h3 is inside a call",
-    },
     { file: "e18VersionOnlyTest", finding: "E18-F5", step: 43, what: "the trail of decisions" },
     { file: "e18WithdrawnStillHeldTest", finding: "E18-F6", step: 19, what: "the projection of a" },
     {
@@ -245,19 +252,6 @@ describe("the findings of card E1.8, each pinned where the code leaves the model
     },
   );
 
-  test("E18-F1: the retraction is appended while the scope's erasure is open", async () => {
-    const r = await replay(load("e18RetractionWhileErasingTest.itf.json.gz"));
-    const rules = r.final.events.map((e) => e.split(" ")[2]);
-    expect(rules).toEqual(["test/write/person", "engram/offboard/begin", "engram/adopt/retract"]);
-    expect(r.final.marks).toEqual([0]);
-  });
-
-  test("E18-F1's status: the retracted item is no item in the code, a live one in the model", async () => {
-    const r = await replay(load("e18RetractionWhileErasingTest.itf.json.gz"));
-    expect(r.mismatch?.model).toMatchObject({ live: true });
-    expect(r.mismatch?.code).toMatchObject({ live: false });
-  });
-
   test("a divergence is attributed only by a mark about its item, at or before its step, of a kind it can cause", () => {
     const m: Mismatch = {
       step: 10,
@@ -273,11 +267,11 @@ describe("the findings of card E1.8, each pinned where the code leaves the model
       step,
       item,
     });
-    expect(attribute(m, [mark("E18-F1", 9, "a")], items)).toBe("E18-F1");
-    expect(attribute(m, [mark("E18-F1", 11, "a")], items)).toBe("unexplained");
-    expect(attribute(m, [mark("E18-F1", 9, "b")], items)).toBe("unexplained");
+    expect(attribute(m, [mark("E18-F6", 9, "a")], items)).toBe("E18-F6");
+    expect(attribute(m, [mark("E18-F6", 11, "a")], items)).toBe("unexplained");
+    expect(attribute(m, [mark("E18-F6", 9, "b")], items)).toBe("unexplained");
     expect(attribute(m, [mark("E18-F7", 9, "a")], items)).toBe("unexplained");
-    expect(attribute(m, [mark("E18-F1", 3, "a"), mark("E18-F6", 8, "a")], items)).toBe("E18-F6");
+    expect(attribute(m, [mark("E18-F3", 3, "a"), mark("E18-F6", 8, "a")], items)).toBe("E18-F6");
     expect(kindOf("the trail of decisions")).toBe("trail");
     const t: Mismatch = {
       ...m,
@@ -286,6 +280,49 @@ describe("the findings of card E1.8, each pinned where the code leaves the model
       code: ["write allow a", "engram/offboard/erase allow b"],
     };
     expect([...subjects(t, "", [])]).toEqual(["b"]);
+  });
+});
+
+describe("the findings card E1.7 closed, each scenario replayed to its end", () => {
+  const fixed: { file: string; finding: keyof typeof FIXED }[] = [
+    { file: "e18RetractionWhileErasingTest", finding: "E18-F1" },
+    { file: "e18ErasingRefusalFinalTest", finding: "E18-F2" },
+    { file: "e18RepeatedPurgeTest", finding: "E18-F4" },
+  ];
+
+  test("every closed finding has its scenario, and none is still open", () => {
+    expect(fixed.map((f) => f.finding)).toEqual(Object.keys(FIXED));
+    for (const f of Object.keys(FIXED)) expect(Object.keys(FINDINGS)).not.toContain(f);
+  });
+
+  test.for(fixed)("$finding: $file replays to its end", async ({ file }) => {
+    const r = await replay(load(`${file}.itf.json.gz`));
+    expect(r.mismatch).toBeNull();
+    expect(r.steps).toBeGreaterThan(10);
+  });
+
+  test("E18-F1: no retraction is appended while the scope's erasure is open", async () => {
+    const r = await replay(load("e18RetractionWhileErasingTest.itf.json.gz"));
+    const rules = r.final.events.map((e) => e.split(" ")[2]);
+    expect(rules).not.toContain("engram/adopt/retract");
+    expect(rules.at(-1)).toBe("engram/write/conflict");
+    expect(r.final.marks).toEqual([0]);
+  });
+
+  test("E18-F2: the record refused while erasing is adopted once the erasure completes", async () => {
+    const r = await replay(load("e18ErasingRefusalFinalTest.itf.json.gz"));
+    const a = r.final.events.filter((e) => / a: /.test(e));
+    expect(a.map((e) => e.split(" ").slice(2, 4).join(" "))).toEqual([
+      "engram/offboard/erasing deny",
+      "test/write/person allow",
+    ]);
+    expect(r.final.proj.a).toMatchObject({ live: true });
+  });
+
+  test("E18-F4: the second adoption, listed before the first one's refusal, leaves the record and appends nothing", async () => {
+    const r = await replay(load("e18RepeatedPurgeTest.itf.json.gz"));
+    expect(r.final.store.a?.present).toBe(false);
+    expect(r.final.events.filter((e) => e.includes(" engram/adopt/erased deny a"))).toHaveLength(1);
   });
 });
 

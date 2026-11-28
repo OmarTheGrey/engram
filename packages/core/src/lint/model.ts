@@ -41,12 +41,26 @@
 // Evidence follows ADR 0009's post-merge amendment: a finding about an item
 // whose source is outside the linted scope carries the source's id and the
 // recorded hash only, never the model's reason, which may restate the source.
+//
+// Quote grounding (card L9 of the second absorb plan) runs only when the
+// policy sets `lints.model.evidence: "on"`; absent or "off", every request,
+// reply, judgment and finding is byte for byte what it was before (the
+// registered H3 runs and their cassettes). On, each lint sends its grounded
+// prompt and schema (GROUNDED_PROMPTS, GROUNDED_SCHEMAS, GROUNDED_MAX_TOKENS),
+// asking a flag for the words behind it: the contradiction lint a span of A
+// and a span of B, the unsupported-claim lint a span of the claim, never of
+// its source, so a quote shown in evidence is always text of an item in the
+// linted scope. A flag whose every quote is found in its item (lint/evidence.ts)
+// is a finding whose evidence carries the quotes; a flag with a quote that is
+// missing, too short or not in its item is the judgment `ungrounded`, which is
+// not a finding.
 import { strictContentHash } from "../content-hash.ts";
 import { MODEL_LINT_IDS, type ModelLintId } from "../lint.ts";
 import { canonicalJson, type ModelCall, type ModelRequest, type ModelUsage } from "../model.ts";
 import type { LintFinding, MemoryItem } from "../schema.ts";
 import { compareTimestamps } from "../time.ts";
 import { type DetFinding, expiredValidity, type LintContext, refItemId } from "./det.ts";
+import { checkQuote, quotableText } from "./evidence.ts";
 
 /** The settings every model-lint request carries. */
 export const MODEL_LINT_SETTINGS = { temperature: 0, maxTokens: 256 } as const;
@@ -111,6 +125,64 @@ export const LINT_SCHEMAS: Record<ModelLintId, NonNullable<ModelRequest["respons
   "unsupported-claim": schemaOf("unsupported-claim"),
 };
 
+/**
+ * The quote fields each lint's grounded reply carries (card L9): the
+ * contradiction lint one span of A and one of B, the unsupported-claim lint
+ * one span of the claim.
+ */
+export const QUOTE_FIELDS: Record<ModelLintId, readonly string[]> = {
+  contradiction: ["quote_a", "quote_b"],
+  "unsupported-claim": ["quote"],
+};
+
+/** The token limit of a grounded request: its reply carries the quotes beside the reason. */
+export const GROUNDED_MAX_TOKENS = 512;
+
+const GROUNDED_ANSWER: Record<ModelLintId, string> = {
+  contradiction:
+    'Reply with one JSON object and nothing else: {"verdict": "contradiction" or "consistent", "reason": "<one sentence>", "quote_a": "<the words of A>", "quote_b": "<the words of B>"}.',
+  "unsupported-claim":
+    'Reply with one JSON object and nothing else: {"verdict": "unsupported" or "supported", "reason": "<one sentence>", "quote": "<the words of the claim>"}.',
+};
+
+/** The system prompt of each lint when `lints.model.evidence` is on (card L9): the plain prompt, the quote rule, the grounded answer shape. */
+export const GROUNDED_PROMPTS: Record<ModelLintId, string> = {
+  contradiction: [
+    ...LINT_PROMPTS.contradiction.split("\n").slice(0, -1),
+    'With "contradiction", copy into quote_a the words of A and into quote_b the words of B that cannot both be true, each exactly as written and at least 12 characters long. With "consistent", leave both empty.',
+    GROUNDED_ANSWER.contradiction,
+  ].join("\n"),
+  "unsupported-claim": [
+    ...LINT_PROMPTS["unsupported-claim"].split("\n").slice(0, -1),
+    'With "unsupported", copy into quote the words of the claim that the source does not support, exactly as written in the claim and at least 12 characters long; never quote the source. With "supported", leave it empty.',
+    GROUNDED_ANSWER["unsupported-claim"],
+  ].join("\n"),
+};
+
+const groundedSchemaOf = (lint: ModelLintId): NonNullable<ModelRequest["responseSchema"]> => ({
+  name: `engram_lint_${lint}`,
+  schema: {
+    type: "object",
+    properties: {
+      verdict: { type: "string", enum: [...LINT_VERDICTS[lint]] },
+      reason: { type: "string" },
+      ...Object.fromEntries(QUOTE_FIELDS[lint].map((f) => [f, { type: "string" }])),
+    },
+    required: ["verdict", "reason", ...QUOTE_FIELDS[lint]],
+    additionalProperties: false,
+  },
+});
+
+/** The strict JSON schema of each lint's grounded reply (card L9). */
+export const GROUNDED_SCHEMAS: Record<ModelLintId, NonNullable<ModelRequest["responseSchema"]>> = {
+  contradiction: groundedSchemaOf("contradiction"),
+  "unsupported-claim": groundedSchemaOf("unsupported-claim"),
+};
+
+/** Whether the policy turns quote grounding on (`lints.model.evidence: "on"`, card L9). */
+export const groundingOn = (policy: LintContext["policy"]): boolean =>
+  policy.lints.model?.evidence === "on";
+
 /** Is `id` a model-based lint id. */
 export function isModelLint(id: string): id is ModelLintId {
   return (MODEL_LINT_IDS as readonly string[]).includes(id);
@@ -141,15 +213,56 @@ export interface ModelLintUnit {
   /** For a claim, the source hash it recorded (its source's content still has it); else null. */
   recorded: string | null;
   request: ModelRequest;
+  /**
+   * Present only when `lints.model.evidence` is on (card L9): for each quote
+   * field of the reply, the item its quote must come from and that item's text.
+   */
+  grounding?: QuoteSource[];
 }
 
-export type LintOutcome = "flag" | "pass" | "refused" | "malformed";
+/** Where one quote of a grounded reply must be found (card L9). */
+export interface QuoteSource {
+  field: string;
+  item_id: string;
+  text: string;
+  /**
+   * The text of the pair's other item, for a contradiction's quote: a flag
+   * whose every quote is also a span of the other item quotes what the two
+   * share, which shows no conflict (review L9-1).
+   */
+  other?: string;
+}
+
+/** The reason a contradiction's quotes fail when every one is also in the other item. */
+export const SHARED_QUOTE_REASON =
+  "the quote is also in the other item, so the quotes show no difference between them";
+
+/**
+ * `ungrounded` (card L9, only with `lints.model.evidence` on): a flag verdict
+ * with a quote that is missing, too short or not in its item, or a
+ * contradiction whose every quote is also in the other item; not a finding.
+ */
+export type LintOutcome = "flag" | "pass" | "refused" | "malformed" | "ungrounded";
+
+/** One quote of a grounded flag, checked (card L9). */
+export interface QuoteJudgment {
+  field: string;
+  /** The item the quote must come from. */
+  item_id: string;
+  /** The quote, folded (NFC, whitespace runs as one space); null when the reply gave none. */
+  quote: string | null;
+  found: boolean;
+  /** Why it was not found; absent when it was. */
+  reason?: string;
+}
 
 /** A reply, parsed. */
 export interface LintReply {
   outcome: LintOutcome;
   /** The model's reason, whitespace collapsed and clipped; null when it gave none or none was read. */
   reason: string | null;
+  /** A grounded reply's quote fields as given (card L9); present only when parsed as grounded. */
+  quotes?: Record<string, unknown>;
 }
 
 /** One unit and what its reply said. */
@@ -163,6 +276,8 @@ export interface ModelJudgment {
   /** The reply as it came. */
   reply: string;
   usage: ModelUsage;
+  /** Each quote of a grounded flag, checked (card L9); present only for a flag of a grounded unit. */
+  grounding?: QuoteJudgment[];
 }
 
 /**
@@ -196,15 +311,16 @@ function lintRequest(
   lint: ModelLintId,
   input: Record<string, unknown>,
   setup: Omit<ModelLintSetup, "call">,
+  grounded = false,
 ): ModelRequest {
   return {
     model: setup.model,
     seed: setup.seed,
-    system: LINT_PROMPTS[lint],
+    system: grounded ? GROUNDED_PROMPTS[lint] : LINT_PROMPTS[lint],
     messages: [{ role: "user", content: canonicalJson(input) }],
     temperature: MODEL_LINT_SETTINGS.temperature,
-    maxTokens: MODEL_LINT_SETTINGS.maxTokens,
-    responseSchema: LINT_SCHEMAS[lint],
+    maxTokens: grounded ? GROUNDED_MAX_TOKENS : MODEL_LINT_SETTINGS.maxTokens,
+    responseSchema: grounded ? GROUNDED_SCHEMAS[lint] : LINT_SCHEMAS[lint],
   };
 }
 
@@ -261,6 +377,7 @@ export function contradictionUnits(
   scope: string,
   setup: Omit<ModelLintSetup, "call">,
 ): ModelLintUnit[] {
+  const grounded = groundingOn(ctx.policy);
   return contradictionPairs(ctx, scope).map(([a, b]) => ({
     unit: `contradiction:${a.id}+${b.id}`,
     lint_id: "contradiction",
@@ -269,7 +386,25 @@ export function contradictionUnits(
     scope,
     other_in_scope: true,
     recorded: null,
-    request: lintRequest("contradiction", { A: a.content, B: b.content }, setup),
+    request: lintRequest("contradiction", { A: a.content, B: b.content }, setup, grounded),
+    ...(grounded
+      ? {
+          grounding: [
+            {
+              field: "quote_a",
+              item_id: a.id,
+              text: quotableText(a.content),
+              other: quotableText(b.content),
+            },
+            {
+              field: "quote_b",
+              item_id: b.id,
+              text: quotableText(b.content),
+              other: quotableText(a.content),
+            },
+          ],
+        }
+      : {}),
   }));
 }
 
@@ -289,6 +424,7 @@ export function unsupportedClaimUnits(
         ctx.canReach(i),
     )
     .sort(byId);
+  const grounded = groundingOn(ctx.policy);
   const out: ModelLintUnit[] = [];
   for (const claim of claims) {
     const id = refItemId(claim.provenance.ref);
@@ -311,7 +447,12 @@ export function unsupportedClaimUnits(
         "unsupported-claim",
         { claim: claim.content, source: source.content },
         setup,
+        grounded,
       ),
+      // The quote is of the claim alone: the source may be outside the scope (ADR 0009).
+      ...(grounded
+        ? { grounding: [{ field: "quote", item_id: claim.id, text: quotableText(claim.content) }] }
+        : {}),
     });
   }
   return out;
@@ -346,8 +487,10 @@ const FENCE = /^```[A-Za-z]*[ \t]*\r?\n([\s\S]*?)\r?\n?```$/;
  * A reply as the lint reads it: one JSON object, alone or inside one markdown
  * code fence, whose `verdict` (trimmed, any letter case) is one of the lint's
  * two verdicts. An empty reply is a refusal; anything else is malformed.
+ * `grounded` (card L9) also keeps the reply's quote fields, as given, in
+ * `quotes`; a missing quote is not malformed but checked as missing.
  */
-export function parseLintReply(lint: ModelLintId, text: string): LintReply {
+export function parseLintReply(lint: ModelLintId, text: string, grounded = false): LintReply {
   const trimmed = text.trim();
   if (trimmed === "") return { outcome: "refused", reason: null };
   const body = (FENCE.exec(trimmed)?.[1] ?? trimmed).trim();
@@ -367,10 +510,58 @@ export function parseLintReply(lint: ModelLintId, text: string): LintReply {
   return {
     outcome: said === flag ? "flag" : "pass",
     reason: typeof reason === "string" && reason.trim() !== "" ? clip(reason) : null,
+    ...(grounded
+      ? {
+          quotes: Object.fromEntries(
+            QUOTE_FIELDS[lint].map((f) => [f, (value as Record<string, unknown>)[f]]),
+          ),
+        }
+      : {}),
   };
 }
 
-function findingOf(unit: ModelLintUnit, parsed: LintReply, usage: ModelUsage): ModelFinding {
+/**
+ * Each quote of a grounded flag checked against the item it must come from
+ * (card L9). When every quote is found and every source names an other item
+ * (a contradiction's pair), and every quote is also a span of that other
+ * item, the quotes show only what the two share: each is marked not found
+ * with SHARED_QUOTE_REASON, so the flag is ungrounded (review L9-1). One
+ * quote the other item lacks ("port 8080" against "port 80") keeps the flag.
+ */
+export function groundFlag(
+  sources: readonly QuoteSource[],
+  quotes: Record<string, unknown> | undefined,
+): QuoteJudgment[] {
+  const checked = sources.map(({ field, item_id, text }) => {
+    const check = checkQuote(quotes?.[field], text);
+    return check.found
+      ? { field, item_id, quote: check.quote, found: true }
+      : { field, item_id, quote: check.quote, found: false, reason: check.reason };
+  });
+  const shared =
+    sources.length > 0 &&
+    sources.every(
+      (s, i) =>
+        s.other !== undefined &&
+        checked[i]?.found === true &&
+        checkQuote(checked[i]?.quote, s.other).found,
+    );
+  return shared
+    ? checked.map((c) => ({ ...c, found: false, reason: SHARED_QUOTE_REASON }))
+    : checked;
+}
+
+/** A grounded finding's quote lines: each quote, clipped, with the item it is a span of. */
+const quoteEvidence = (grounding: readonly QuoteJudgment[]): string[] =>
+  grounding.map((g) => `quote of ${g.item_id}: "${clip(g.quote ?? "")}"`);
+
+function findingOf(
+  unit: ModelLintUnit,
+  parsed: LintReply,
+  usage: ModelUsage,
+  grounding?: readonly QuoteJudgment[],
+): ModelFinding {
+  const quotes = grounding === undefined ? [] : quoteEvidence(grounding);
   const { scope } = unit;
   const by = unit.request.model;
   const model = `model ${unit.request.model}, seed ${unit.request.seed}`;
@@ -385,7 +576,7 @@ function findingOf(unit: ModelLintUnit, parsed: LintReply, usage: ModelUsage): M
       item_id: unit.item_id,
       severity: MODEL_LINT_SEVERITY.contradiction,
       message: `it contradicts ${unit.other_id}, an earlier active semantic item in ${scope}, as ${by} judged it`,
-      evidence: [`contradicts ${unit.other_id}`, model, reason],
+      evidence: [`contradicts ${unit.other_id}`, model, reason, ...quotes],
       usage,
     };
   return {
@@ -393,7 +584,7 @@ function findingOf(unit: ModelLintUnit, parsed: LintReply, usage: ModelUsage): M
     item_id: unit.item_id,
     severity: MODEL_LINT_SEVERITY["unsupported-claim"],
     message: `its content is not supported by its source ${unit.other_id}, as ${by} judged it`,
-    evidence: [`source ${unit.other_id}`, `recorded ${unit.recorded}`, model, reason],
+    evidence: [`source ${unit.other_id}`, `recorded ${unit.recorded}`, model, reason, ...quotes],
     ...(unit.other_in_scope ? { usage } : {}),
   };
 }
@@ -401,7 +592,9 @@ function findingOf(unit: ModelLintUnit, parsed: LintReply, usage: ModelUsage): M
 /**
  * Sends every unit to `call`, one at a time in unit order, and parses each
  * reply. A flag verdict is a finding; every unit is a judgment. A call that
- * fails rejects the whole run, so nothing partial is recorded.
+ * fails rejects the whole run, so nothing partial is recorded. A grounded
+ * unit's flag (card L9) is a finding only when every quote is found in its
+ * item; otherwise its judgment is `ungrounded` and no finding is made.
  */
 export async function runModelLints(
   units: readonly ModelLintUnit[],
@@ -411,18 +604,25 @@ export async function runModelLints(
   const judgments: ModelJudgment[] = [];
   for (const unit of units) {
     const response = await call(unit.request);
-    const parsed = parseLintReply(unit.lint_id, response.text);
+    const parsed = parseLintReply(unit.lint_id, response.text, unit.grounding !== undefined);
+    const grounding =
+      unit.grounding !== undefined && parsed.outcome === "flag"
+        ? groundFlag(unit.grounding, parsed.quotes)
+        : undefined;
+    const outcome: LintOutcome =
+      grounding?.some((g) => !g.found) === true ? "ungrounded" : parsed.outcome;
     judgments.push({
       unit: unit.unit,
       lint_id: unit.lint_id,
       item_id: unit.item_id,
       other_id: unit.other_id,
-      outcome: parsed.outcome,
+      outcome,
       reason: parsed.reason,
       reply: response.text,
       usage: response.usage,
+      ...(grounding === undefined ? {} : { grounding }),
     });
-    if (parsed.outcome === "flag") findings.push(findingOf(unit, parsed, response.usage));
+    if (outcome === "flag") findings.push(findingOf(unit, parsed, response.usage, grounding));
   }
   return { findings, judgments };
 }

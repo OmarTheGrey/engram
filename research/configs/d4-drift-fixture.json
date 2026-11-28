@@ -1,0 +1,13 @@
+{
+  "name": "d4-drift-fixture",
+  "kind": "pipeline",
+  "benchmark": "replay-drift",
+  "admit": "./d3-validate-fixture.json",
+  "data": "../../fixtures/distill/d4-drift",
+  "drift": { "environment_change": "on" },
+  "candidate": "edit-a-file-and-check-the-edit",
+  "at": { "drift": "2026-11-28T13:00:00.000Z", "restore": "2026-11-29T13:00:00.000Z" },
+  "expected": { "drift": "retired", "restore": "active" },
+  "cassettes": "../../fixtures/cassettes/d4-drift-fixture",
+  "fixture": "../../fixtures/distill/d4-drift/revalidation.json"
+}

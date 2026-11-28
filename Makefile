@@ -158,9 +158,13 @@ RUNNER_FIXTURES += x1-h1-mem-inv
 RUNNER_FIXTURES += b5-longmemeval-plane
 RUNNER_FIXTURES += l3-lint-fixture
 RUNNER_FIXTURES += h3-lint-model-fixture
+# Card L9: quote grounding on card L3's model fault fixtures.
+RUNNER_FIXTURES += l9-grounding-fixture
 RUNNER_FIXTURES += d2-induce-fixture
 # After D2: card D3 replays the candidates D2's cassette induces.
 RUNNER_FIXTURES += d3-validate-fixture
+# After D3: card D4 re-validates D3's admitted procedure on a changed pool, from D3's cassettes and its own.
+RUNNER_FIXTURES += d4-drift-fixture
 
 # MEM-INV-Bench at its pinned commit (card B4); the vendoring clones it here when missing.
 MEM_INV_UPSTREAM ?= .engram/upstream/mem-inv-bench
@@ -247,13 +251,17 @@ verify-spec: ## card E1.5: typecheck and test specs/commit.qnt, simulate the goo
 	$(QUINT) typecheck specs/replay.qnt
 	$(QUINT) test specs/commit.qnt --main=good
 	$(QUINT) test specs/commit.qnt --main=broken
-	$(QUINT) test specs/commit.qnt --main=knownGapThreeOffboardings
+	$(QUINT) test specs/commit.qnt --main=threeOffboardings
 	@for seed in $(SPEC_SEEDS); do \
 	  echo "simulation of the good model: seed $$seed, $(SPEC_SAMPLES) traces of $(SPEC_STEPS) steps"; \
 	  $(QUINT) run specs/commit.qnt --main=good --invariant=safety --max-samples=$(SPEC_SAMPLES) \
 	    --max-steps=$(SPEC_STEPS) --seed=$$seed --n-threads=4 --verbosity=1 --witnesses $(SPEC_WITNESSES) \
 	    || { echo "verify-spec: the good model violates a property (seed $$seed)"; exit 1; }; \
 	done
+	@echo "simulation of three offboardings (card E1.7): seed 1, $(SPEC_SAMPLES) traces of $(SPEC_STEPS) steps"
+	$(QUINT) run specs/commit.qnt --main=threeOffboardings --invariant=safety --max-samples=$(SPEC_SAMPLES) \
+	  --max-steps=$(SPEC_STEPS) --seed=1 --n-threads=4 --verbosity=1 --witnesses sawPutBack sawSwept \
+	  || { echo "verify-spec: three offboardings violate a property (seed 1)"; exit 1; }
 	@for inv in $(SPEC_BROKEN_SIM); do \
 	  out=$(SPEC_OUT)/broken-simulation-$$inv; rm -f $$out.itf.json $$out.txt; \
 	  echo "simulation of the broken model: the checker must refute $$inv"; \

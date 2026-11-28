@@ -1,0 +1,27 @@
+ engram  Item page                             in process  person:dana (person)
+ 01940000-0000-7000-8000-000000000003   procedural   person:dana   retired
+ {"body":"Edit the file, then read it back to check the edit.","tools":["edit...
+ owner person:dana  source model distill:awm:d1-01,d1-02  confidence 0.9  valid
+ from 2026-10-01T00:00:00.000Z, open  grants none  stored
+ files:01940000-0000-7000-8000-000000000003.md
+┌─ Provenance ─────────────────────────────────────────────────────────────────┐
+│ This item  v2  person:dana                                                   │
+│ ├─ written by event 1, write ✓ allow, person:dana                            │
+│ ├─ promote by event 2, promote ✓ allow, person:dana                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─ Versions  1 of 2 ───────────────────────────────────────────────────────────┐
+│ this item v1, event 1 (write)  to  this item v2, event 2 (promote)   up do...│
+│   {                                                                          │
+│     "body": "Edit the file, then read it back to check the edit.",           │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─ Event 3  enter goes back to the list ───────────────────────────────────────┐
+│ event 3  retire  ✓ allow  by person:dana                                     │
+│   reason     re-validation on environment-changed: a success rate of 0.533 (8│
+│   of 15 trials with the procedure), below the success floor 0.700 after at   │
+│   least 10 trials, so the procedure is retired; the retired version stays in │
+└──────────────────────────────────────────────────────────────────────────────┘
+$ engram events --owner dana --db engram.db   exit 0
+ ? help  p promote  g grants  w who  S supersede  enter event  tab pane  ; co...
+--- styles
+r0 c0-79 inverse
+r17 c19-19 fg #00A67A

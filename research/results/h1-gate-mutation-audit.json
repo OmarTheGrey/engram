@@ -304,7 +304,7 @@
       "file": "packages/core/src/log/chain.ts",
       "id": "I9-commitment-ignores-value",
       "invariant": "I9",
-      "killed_by": "an edited lint evidence: [{\"name\":\"tables\",\"ok\":true},{\"name\":\"genesis\",\"ok\":true},{\"name\":\"links\",\"ok\":true},{\"name\":\"anchor\",\"ok\":true},{\"name\":\"commitments\",\"ok\":true},{\"name\":\"checkpoints\",\"ok\":tr",
+      "killed_by": "an edited lint evidence: [{\"name\":\"tables\",\"ok\":true},{\"name\":\"genesis\",\"ok\":true},{\"name\":\"links\",\"ok\":true},{\"name\":\"anchor\",\"ok\":true},{\"name\":\"commitments\",\"ok\":true},{\"name\":\"attestations\",\"ok\":t",
       "verdict": "killed",
       "what": "a part's commitment does not cover its value, so edited content verifies"
     },
@@ -313,7 +313,7 @@
       "file": "packages/core/src/log/chain.ts",
       "id": "I9-link-ignores-previous",
       "invariant": "I9",
-      "killed_by": "chain entry 0 (genesis) does not cover its predecessor: expected '75d39aac658ad2a95e2a051c13fee21b3b3b7…' to be 'f476e67412d39c3e0a7406feddbc3e9fe7bef…' // Object.is equality",
+      "killed_by": "chain entry 0 (genesis) does not cover its predecessor: expected 'cafa36a4d5c3015d5133ea4f507fa6c1f38fa…' to be 'f5fc0284a31966df2e994b977982e52e5e2e3…' // Object.is equality",
       "verdict": "killed",
       "what": "a chain link does not cover the previous hash"
     }
