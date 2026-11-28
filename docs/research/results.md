@@ -537,3 +537,20 @@ Recorded by [`docs/log/2026-11-28-e1-8-measurement-trace-replay-status.md`](../l
 | log chain, killed | 2 | `per_invariant.I9.killed` |
 
 Recorded by [`docs/log/2026-11-28-x16-measurement-audit-after-review.md`](../log/2026-11-28-x16-measurement-audit-after-review.md).
+
+### `research/results/h2-cedar-properties.json`
+
+- **Question.** Does the Cedar export of each registered preset satisfy, for every request in the stated domain (every level, status, class, source kind, version, ttl, confidence and instant from 0000 to 9999 that Engram's schema accepts), that strict allows no read medium denies and medium none permissive denies, that a model-sourced write lands only in a person scope its writer is a member of, and that a person's item is read only by a member or under a live grant; are the converse and the non-vacuity checks refuted, each with a counterexample the evaluator reproduces?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. Card E2.18. Proved by cedar-policy-symcc 0.8.1 and cvc5 1.4.2 of exportCedar's text, modulo grants (ADR 0041, decision 5), not of evaluate.ts itself: the two are tied only by card E2.12's differential test, which samples requests (`scope.evaluator`). `make verify-policy` reruns it; without cargo or cvc5 `make test-repro` reports the row as skipped. The file is under `h2-` for the results glob only.
+- **Made by.** `research/scripts/h2_cedar_properties.py` from `research/configs/h2-cedar-properties.json`, MANIFEST commit `4dd709e1`, sha256 `9e6d4084b0e19a6e00c7c1605e73ba808dd552fdd44dd5e67663bffff11f5d86`.
+
+| value | reads | key path |
+|---|---|---|
+| checks | 31 | `summary.checks` |
+| proved | 11 | `summary.proved` |
+| refuted (the control and the non-vacuity checks, all expected to fail) | 20 | `summary.refuted` |
+| refutations the evaluator reproduces | 20 | `summary.reproduced` |
+| every check as the config expects | true | `summary.all_as_expected` |
+
+Recorded by [`docs/log/2026-11-28-e2-18-measurement-cedar-properties.md`](../log/2026-11-28-e2-18-measurement-cedar-properties.md).

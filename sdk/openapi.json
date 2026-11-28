@@ -2927,6 +2927,19 @@
                 "additionalProperties": {
                   "type": "number"
                 }
+              },
+              "model": {
+                "type": "object",
+                "properties": {
+                  "evidence": {
+                    "type": "string",
+                    "enum": [
+                      "off",
+                      "on"
+                    ]
+                  }
+                },
+                "additionalProperties": false
               }
             },
             "required": [
@@ -2981,6 +2994,182 @@
                 ]
               },
               "protect_trusted": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "on"
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "procedures": {
+            "type": "object",
+            "properties": {
+              "safety_scan": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "report",
+                  "hold"
+                ]
+              },
+              "drift": {
+                "type": "object",
+                "properties": {
+                  "environment_change": {
+                    "type": "string",
+                    "enum": [
+                      "off",
+                      "on"
+                    ]
+                  },
+                  "period": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          "consent": {
+            "type": "object",
+            "properties": {
+              "opt_outs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "scope": {
+                      "type": "string",
+                      "pattern": "^person:[A-Za-z0-9._\\-/]+$"
+                    },
+                    "topic": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "document",
+                        "tool",
+                        "model",
+                        "import",
+                        "compaction",
+                        "external"
+                      ]
+                    },
+                    "since": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "until": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "except_topics": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  "required": [
+                    "scope"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "opt_outs"
+            ],
+            "additionalProperties": false
+          },
+          "erasure": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "redact",
+                  "shred"
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "approval": {
+            "type": "object",
+            "properties": {
+              "routes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "scope": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "person",
+                            "role",
+                            "team",
+                            "org"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^(?:(?:person|role|team):[A-Za-z0-9._\\-/]+|org)$"
+                        }
+                      ]
+                    },
+                    "approvers": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "const": "owner"
+                          },
+                          {
+                            "type": "string",
+                            "pattern": "^(?:role|person):[A-Za-z0-9._\\-/]+$"
+                          }
+                        ]
+                      }
+                    },
+                    "expires_after": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "scope",
+                    "approvers"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "routes"
+            ],
+            "additionalProperties": false
+          },
+          "grants": {
+            "type": "object",
+            "properties": {
+              "expiry_cap": {
                 "type": "string",
                 "enum": [
                   "off",
