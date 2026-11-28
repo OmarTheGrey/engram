@@ -17,9 +17,12 @@ import { createApp } from "../src/app.ts";
 import { API_PREFIX, ROUTES, type Route } from "../src/routes.ts";
 import { workspaceOf } from "../src/workspace.ts";
 import {
+  byLabel,
   CANARIES,
   CONTROL,
   DANA,
+  FRED,
+  HR,
   LIVE,
   leaksIn,
   MISSING_ID,
@@ -204,13 +207,10 @@ export function coverage(
 function normalised(text: string, asked: readonly string[]) {
   let out = asked.reduce((t, id) => t.replaceAll(id, "<asked>"), text);
   const seen = new Map<string, string>();
-  out = out.replace(
-    /[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/g,
-    (u) => {
-      if (!seen.has(u)) seen.set(u, `<id${seen.size}>`);
-      return seen.get(u) as string;
-    },
-  );
+  out = out.replace(/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/g, (u) => {
+    if (!seen.has(u)) seen.set(u, `<id${seen.size}>`);
+    return seen.get(u) as string;
+  });
   return out.replace(/"seq":\d+/g, '"seq":<n>');
 }
 
@@ -280,25 +280,56 @@ describe("E8.16: no route of the HTTP API leaks a canary", () => {
     it(`${probe.name} (${probe.actor.id}) is shown no canary it may not see, on any route`, async () => {
       const { seeded, call, errors } = await served();
       const leaks: string[] = [];
-      // The ids this actor has named so far: its own events may echo them.
-      const asked = new Set<string>();
-      for (const route of ROUTES) {
-        const make = PROBES[route.id];
-        if (make === undefined) continue;
-        for (const request of make({ actor: probe.actor, danaReadId: seeded.danaReadId })) {
+      const all = ROUTES.flatMap((route) =>
+        (PROBES[route.id]?.({ actor: probe.actor, danaReadId: seeded.danaReadId }) ?? []).map(
+          (request) => ({ route, request }),
+        ),
+      );
+      const naming = all.filter((p) => (p.request.asks ?? []).length > 0);
+      const listing = all.filter((p) => (p.request.asks ?? []).length === 0);
+      const asked = naming.flatMap((p) => p.request.asks ?? []);
+      // Three passes: the calls that name no id, before the actor has named
+      // any, so a listing (events, export) must show no canary id at all;
+      // then each call naming ids, which may echo its own; then the listings
+      // again, which may echo the ids the actor's own events named, never a
+      // nonce.
+      const passes = [
+        { calls: listing, echo: () => [] as string[] },
+        { calls: naming, echo: (r: Request_) => r.asks ?? [] },
+        { calls: listing, echo: () => asked },
+      ];
+      for (const { calls, echo } of passes)
+        for (const { route, request } of calls) {
           const { status, text } = await call(route, request);
           expect([200, ...route.errors], `${route.id} answered ${status}: ${text}`).toContain(
             status,
           );
-          for (const id of request.asks ?? []) asked.add(id);
-          const leaked = leaksIn(text, probe, [...asked]);
+          const leaked = leaksIn(text, probe, echo(request));
           records.push({ surface: "http", probe: route.id, actor: probe.name, leaked });
           if (leaked.length > 0) leaks.push(`${route.id}: ${leaked.join(", ")}: ${text}`);
         }
-      }
       expect(errors).toEqual([]);
       expect(leaks).toEqual([]);
     });
+
+  it("an erased canary is gone for the members of its scope too: no route shows its content", async () => {
+    const { seeded, call } = await served();
+    const erased = byLabel("fred-person");
+    for (const actor of [HR, FRED])
+      for (const route of ROUTES.filter((r) =>
+        ["read", "events", "export", "readById"].includes(r.id),
+      ))
+        for (const request of PROBES[route.id]?.({ actor, danaReadId: seeded.danaReadId }) ?? []) {
+          const { text } = await call(route, request);
+          records.push({
+            surface: "http",
+            probe: `${route.id} (erased)`,
+            actor: actor === HR ? "erasing-member" : "former-member",
+            leaked: text.includes(erased.nonce) ? [erased.label] : [],
+          });
+          expect(text, `${route.id} as ${actor.id}`).not.toContain(erased.nonce);
+        }
+  });
 
   it("the positive control: a member of team:x is shown the team's canaries", async () => {
     const { call } = await served();

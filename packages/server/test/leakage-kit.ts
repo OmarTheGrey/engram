@@ -25,8 +25,9 @@
 // - sam, a live grantee of one item, which he may see, whose lineage names
 //   an item he may not (card RD1).
 // Every probe actor may see only its `allowed` canaries; any other one found
-// in an answer is a leak. Fred's erased person item may be seen by nobody,
-// so it is checked against every actor, its owner's colleagues included.
+// in an answer, by its nonce or its id, is a leak. The nonce of fred's
+// erased person item may be seen by nobody, so it is checked against every
+// actor; its id stays in the audit trail by design (ADR 0010).
 // Lee, a member of team:x, is the positive control: the scanner must find the
 // team's canaries in his answers, or a clean count would mean nothing.
 //
@@ -107,7 +108,7 @@ const FRED_MEMBER: Actor = {
 /** Fred after offboarding, as the harness presents him. */
 export const FRED: Actor = { id: "person:fred", level: "person", memberships: ["person:fred"] };
 /** Who offboards fred: a user-sourced member of his person scope. */
-const HR: Actor = {
+export const HR: Actor = {
   id: "person:hr",
   level: "person",
   memberships: ["person:hr", "person:fred"],
@@ -195,11 +196,13 @@ export const CONTROL: ProbeActor = {
 export function leaksIn(text: string, probe: ProbeActor, asked: readonly string[] = []): string[] {
   // An id the probe itself sent is echoed legitimately (a read by id names it).
   const shown = asked.reduce((t, id) => t.replaceAll(id, "<asked>"), text);
-  return CANARIES.filter(
-    (c) =>
-      (!probe.allowed.includes(c.label) || c.path === "offboard-erased") &&
-      (shown.includes(c.nonce) || shown.includes(c.id)),
-  ).map((c) => c.label);
+  return CANARIES.filter((c) => {
+    // Erasure removes content, never the audit trail (ADR 0010): the erased
+    // item's id stays in its scope's events, which its members still see, so
+    // for it only the nonce is a leak, and to anyone.
+    if (c.path === "offboard-erased") return shown.includes(c.nonce);
+    return !probe.allowed.includes(c.label) && (shown.includes(c.nonce) || shown.includes(c.id));
+  }).map((c) => c.label);
 }
 
 /** The labels whose nonce `text` carries (the positive control's check). */
@@ -228,7 +231,7 @@ export function canaryItem(c: Canary, owner: string, over: Partial<MemoryItem> =
     store_ref: null,
     schema_version: 1,
     ...over,
-  };
+  } as MemoryItem;
 }
 
 const grant = (to: string, expires: string) => ({
@@ -375,4 +378,105 @@ export function recordProbes(records: SuiteRecords): void {
   if (out === undefined || out === "") return;
   mkdirSync(out, { recursive: true });
   writeFileSync(join(out, `${records.suite}.json`), `${JSON.stringify(records, null, 2)}\n`);
+}
+
+/**
+ * The operations a model's tools can make, run in this order on one canary
+ * workspace by MCP (packages/cli/test/parity.test.ts, beside the HTTP API)
+ * and by the pi extension (packages/pi-extension/test/parity.test.ts). Each
+ * is the tool's name and arguments; `{read}` in an argument is the read id
+ * of the operation before it. Both suites match what each operation answered
+ * and logged, normalised by `opRecord`, against one file snapshot,
+ * MODEL_PARITY, so the two surfaces agree with each other through it.
+ */
+export const MODEL_OPS: readonly { name: string; tool: string; args: Record<string, unknown> }[] = [
+  {
+    name: "a write to the agent's person scope",
+    tool: "memory_write",
+    args: { scope: "person:dana", content: "parity: the agent's own note" },
+  },
+  {
+    name: "a write under the person floor",
+    tool: "memory_write",
+    args: { scope: "person:dana", content: "parity: a guess", confidence: 0.1 },
+  },
+  {
+    name: "a write to a team the preset closes to model content",
+    tool: "memory_write",
+    args: { scope: "team:x", content: "parity: the agent's team note" },
+  },
+  { name: "a read", tool: "memory_read", args: { query: "canary" } },
+  { name: "the read explained", tool: "memory_explain", args: { read_id: "{read}" } },
+];
+
+/** The file snapshot both model surfaces match. */
+export const MODEL_PARITY = join(REPO, "packages/server/test/__parity__/model-operations.json");
+
+/** Every UUID in `text` named by its first appearance, the canaries' by label. */
+export function blindIds(text: string, seen = new Map<string, string>()): string {
+  for (const c of CANARIES) seen.set(c.id, `<${c.label}>`);
+  return text.replace(
+    /[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/g,
+    (u) => {
+      if (!seen.has(u)) seen.set(u, `<id${seen.size - CANARIES.length}>`);
+      return seen.get(u) as string;
+    },
+  );
+}
+
+/** An event's fields that a surface decides: what parity compares. */
+const DECIDED = [
+  "op",
+  "item_id",
+  "actor",
+  "scope_from",
+  "scope_to",
+  "decision",
+  "reason",
+  "policy_id",
+] as const;
+/** An item's fields that are the plane's, not the surface's label (provenance ref and hash, store ref). */
+const ITEM_FIELDS = [
+  "class",
+  "scope",
+  "owner",
+  "content",
+  "confidence",
+  "valid_from",
+  "valid_to",
+  "grants",
+  "lineage",
+  "status",
+  "version",
+] as const;
+
+/**
+ * One operation as a surface ran it: the text it answered and the events it
+ * logged, each event's decided fields and its item's plane fields, every id
+ * blind. The provenance ref and hash are each surface's own label (pi's tool
+ * call id, MCP's request id) and the store ref is the store's; they are left
+ * out, and nothing else is.
+ */
+export function opRecord(
+  name: string,
+  answer: string,
+  events: readonly Record<string, unknown>[],
+  seen: Map<string, string>,
+) {
+  const shown = events.map((e) => {
+    const out: Record<string, unknown> = {};
+    for (const k of DECIDED) out[k] = e[k];
+    const item = e.item as Record<string, unknown> | undefined;
+    if (item) {
+      const kept: Record<string, unknown> = {};
+      for (const k of ITEM_FIELDS) kept[k] = item[k];
+      out.item = kept;
+    }
+    return out;
+  });
+  return {
+    name,
+    answer: blindIds(answer, seen),
+    events: JSON.parse(blindIds(JSON.stringify(shown), seen)) as unknown[],
+  };
 }

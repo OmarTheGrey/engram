@@ -1,0 +1,84 @@
+[
+  {
+    "name": "a write to the agent's person scope",
+    "answer": "stored <id0> in person:dana as active",
+    "events": [
+      {
+        "op": "write",
+        "item_id": "<id0>",
+        "actor": "person:dana",
+        "scope_from": null,
+        "scope_to": "person:dana",
+        "decision": "allow",
+        "reason": "semantic item from source model passes the person write rule; provenance set by the plane: source model, actor person:dana",
+        "policy_id": "preset.medium/write/person",
+        "item": {
+          "class": "semantic",
+          "scope": "person:dana",
+          "owner": "person:dana",
+          "content": "parity: the agent's own note",
+          "confidence": 0.5,
+          "valid_from": "2026-10-29T12:00:00.000Z",
+          "valid_to": null,
+          "grants": [],
+          "lineage": [],
+          "status": "active",
+          "version": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "a write under the person floor",
+    "answer": "engram: confidence 0.1 is below the person floor 0.3; provenance set by the plane: source model, actor person:dana (preset.medium/write/person)",
+    "events": [
+      {
+        "op": "write",
+        "item_id": "<id1>",
+        "actor": "person:dana",
+        "scope_from": null,
+        "scope_to": "person:dana",
+        "decision": "deny",
+        "reason": "confidence 0.1 is below the person floor 0.3; provenance set by the plane: source model, actor person:dana",
+        "policy_id": "preset.medium/write/person"
+      }
+    ]
+  },
+  {
+    "name": "a write to a team the preset closes to model content",
+    "answer": "engram: source model is not allowed in team scope; provenance set by the plane: source model, actor person:dana (preset.medium/write/team)",
+    "events": [
+      {
+        "op": "write",
+        "item_id": "<id2>",
+        "actor": "person:dana",
+        "scope_from": null,
+        "scope_to": "team:x",
+        "decision": "deny",
+        "reason": "source model is not allowed in team scope; provenance set by the plane: source model, actor person:dana",
+        "policy_id": "preset.medium/write/team"
+      }
+    ]
+  },
+  {
+    "name": "a read",
+    "answer": "<engram:memory read_id=\"<id3>\" policy_id=\"preset.medium/read/person\" filtered=\"1\">\n<engram:item item_id=\"<adopted>\" scope=\"person:dana\" rank=\"1\" policy_id=\"preset.medium/read/person\">\ncanary-46e61cf834b432d4c3be is the adopted canary\n</engram:item>\n<engram:item item_id=\"<dana-person>\" scope=\"person:dana\" rank=\"2\" policy_id=\"preset.medium/read/person\">\ncanary-ddaf3f162a1f6862d5e3 is the dana-person canary\n</engram:item>\n<engram:item item_id=\"<expired-eve-grant>\" scope=\"person:dana\" rank=\"3\" policy_id=\"preset.medium/read/person\">\ncanary-919ae0ec7568a1e4cfb9 is the expired-eve-grant canary\n</engram:item>\n<engram:item item_id=\"<superseded-new>\" scope=\"person:dana\" rank=\"4\" policy_id=\"preset.medium/read/person\">\ncanary-f4cd437df3843e534bd6 is the superseded-new canary\n</engram:item>\n<engram:item item_id=\"<lee-team>\" scope=\"team:x\" rank=\"5\" policy_id=\"preset.medium/read/person\">\ncanary-a2e2dfac496560eb26b9 is the lee-team canary\n</engram:item>\n<engram:item item_id=\"<granted-sam>\" scope=\"person:dana\" rank=\"6\" policy_id=\"preset.medium/read/person\">\ncanary-643d60536e28c1109b90 is the granted-sam canary\n</engram:item>\n<engram:item item_id=\"<expired-eve-write>\" scope=\"person:dana\" rank=\"7\" policy_id=\"preset.medium/read/person\">\ncanary-a10c441fb181f068314e is the expired-eve-write canary\n</engram:item>\n<engram:item item_id=\"<fred-team>\" scope=\"team:x\" rank=\"8\" policy_id=\"preset.medium/read/person\">\ncanary-61b793726ab5ff4d943c is the fred-team canary\n</engram:item>\n<engram:item item_id=\"<dana-team>\" scope=\"team:x\" rank=\"9\" policy_id=\"preset.medium/read/person\">\ncanary-526ddb7e226f5a142f76 is the dana-team canary\n</engram:item>\n<engram:item item_id=\"<imported>\" scope=\"person:dana\" rank=\"10\" policy_id=\"preset.medium/read/person\">\ncanary-76aefe01e7bc9bb735cf is the imported canary\n</engram:item>\n</engram:memory>",
+    "events": [
+      {
+        "op": "read",
+        "item_id": null,
+        "actor": "person:dana",
+        "scope_from": null,
+        "scope_to": null,
+        "decision": "allow",
+        "reason": "returned 10 of 11 candidates; 1 filtered (1 outside the validity window, 0 not active, 0 past their ttl, 0 by a grant's class or expiry); 0 projected items outside the reader's reach were not candidates",
+        "policy_id": "preset.medium/read/person"
+      }
+    ]
+  },
+  {
+    "name": "the read explained",
+    "answer": "[\n  {\n    \"item_id\": \"<adopted>\",\n    \"rank\": 1,\n    \"score\": {\n      \"total\": 2.4128205128205127,\n      \"components\": {\n        \"relevance\": 1,\n        \"confidence\": 0.9,\n        \"recency\": 0.5128205128205129\n      }\n    },\n    \"policy_id\": \"preset.medium/read/person\",\n    \"grants_used\": [],\n    \"validity\": {\n      \"at\": \"2026-10-29T12:00:00.000Z\",\n      \"valid_from\": \"2026-10-01T00:00:00.000Z\",\n      \"valid_to\": null\n    },\n    \"schema_version\": 1\n  },\n  {\n    \"item_id\": \"<dana-person>\",\n    \"rank\": 2,\n    \"score\": {\n      \"total\": 2.312820512820513,\n      \"components\": {\n        \"relevance\": 0.9,\n        \"confidence\": 0.9,\n        \"recency\": 0.5128205128205129\n      }\n    },\n    \"policy_id\": \"preset.medium/read/person\",\n    \"grants_used\": [],\n    \"validity\": {\n      \"at\": \"2026-10-29T12:00:00.000Z\",\n      \"valid_from\": \"2026-10-01T00:00:00.000Z\",\n      \"valid_to\": null\n    },\n    \"schema_version\": 1\n  },\n  {\n    \"item_id\": \"<expired-eve-grant>\",\n    \"rank\": 3,\n    \"score\": {\n      \"total\": 2.212820512820513,\n      \"components\": {\n        \"relevance\": 0.8,\n        \"confidence\": 0.9,\n        \"recency\": 0.5128205128205129\n      }\n    },\n    \"policy_id\": \"preset.medium/read/person\",\n    \"grants_used\": [],\n    \"validity\": {\n      \"at\": \"2026-10-29T12:00:00.000Z\",\n      \"valid_from\": \"2026-10-01T00:00:00.000Z\",\n      \"valid_to\": null\n    },\n    \"schema_version\": 1\n  },\n  {\n    \"item_id\": \"<superseded-new>\",\n    \"rank\": 4,\n    \"score\": {\n      \"total\": 2.206060606060606,\n      \"components\": {\n        \"relevance\": 0.7,\n        \"confidence\": 0.9,\n        \"recency\": 0.6060606060606061\n      }\n    },\n    \"policy_id\": \"preset.medium/read/person\",\n    \"grants_used\": [],\n    \"validity\": {\n      \"at\": \"2026-10-29T12:00:00.000Z\",\n      \"valid_from\": \"2026-10-10T00:00:00.000Z\",\n      \"valid_to\": null\n    },\n    \"schema_version\": 1\n  },\n  {\n    \"item_id\": \"<lee-team>\",\n    \"rank\": 5,\n    \"score\": {\n      \"total\": 2.0128205128205128,\n      \"components\": {\n        \"relevance\": 0.6,\n        \"confidence\": 0.9,\n        \"recency\": 0.5128205128205129\n      }\n    },\n    \"policy_id\": \"preset.medium/read/person\",\n    \"grants_used\": [],\n    \"validity\": {\n      \"at\": \"2026-10-29T12:00:00.000Z\",\n      \"valid_from\": \"2026-10-01T00:00:00.000Z\",\n      \"valid_to\": null\n    },\n    \"schema_version\": 1\n  },\n  {\n    \"item_id\": \"<granted-sam>\",\n    \"rank\": 6,\n    \"score\": {\n      \"total\": 1.9128205128205127,\n      \"components\": {\n        \"relevance\": 0.5,\n        \"confidence\": 0.9,\n        \"recency\": 0.5128205128205129\n      }\n    },\n    \"policy_id\": \"preset.medium/read/person\",\n    \"grants_used\": [],\n    \"validity\": {\n      \"at\": \"2026-10-29T12:00:00.000Z\",\n      \"valid_from\": \"2026-10-01T00:00:00.000Z\",\n      \"valid_to\": null\n    },\n    \"schema_version\": 1\n  },\n  {\n    \"item_id\": \"<expired-eve-write>\",\n    \"rank\": 7,\n    \"score\": {\n      \"total\": 1.812820512820513,\n      \"components\": {\n        \"relevance\": 0.4,\n        \"confidence\": 0.9,\n        \"recency\": 0.5128205128205129\n      }\n    },\n    \"policy_id\": \"preset.medium/read/person\",\n    \"grants_used\": [],\n    \"validity\": {\n      \"at\": \"2026-10-29T12:00:00.000Z\",\n      \"valid_from\": \"2026-10-01T00:00:00.000Z\",\n      \"valid_to\": null\n    },\n    \"schema_version\": 1\n  },\n  {\n    \"item_id\": \"<fred-team>\",\n    \"rank\": 8,\n    \"score\": {\n      \"total\": 1.712820512820513,\n      \"components\": {\n        \"relevance\": 0.30000000000000004,\n        \"confidence\": 0.9,\n        \"recency\": 0.5128205128205129\n      }\n    },\n    \"policy_id\": \"preset.medium/read/person\",\n    \"grants_used\": [],\n    \"validity\": {\n      \"at\": \"2026-10-29T12:00:00.000Z\",\n      \"valid_from\": \"2026-10-01T00:00:00.000Z\",\n      \"valid_to\": null\n    },\n    \"schema_version\": 1\n  },\n  {\n    \"item_id\": \"<dana-team>\",\n    \"rank\": 9,\n    \"score\": {\n      \"total\": 1.6128205128205129,\n      \"components\": {\n        \"relevance\": 0.19999999999999996,\n        \"confidence\": 0.9,\n        \"recency\": 0.5128205128205129\n      }\n    },\n    \"policy_id\": \"preset.medium/read/person\",\n    \"grants_used\": [],\n    \"validity\": {\n      \"at\": \"2026-10-29T12:00:00.000Z\",\n      \"valid_from\": \"2026-10-01T00:00:00.000Z\",\n      \"valid_to\": null\n    },\n    \"schema_version\": 1\n  },\n  {\n    \"item_id\": \"<imported>\",\n    \"rank\": 10,\n    \"score\": {\n      \"total\": 1.5128205128205128,\n      \"components\": {\n        \"relevance\": 0.09999999999999998,\n        \"confidence\": 0.9,\n        \"recency\": 0.5128205128205129\n      }\n    },\n    \"policy_id\": \"preset.medium/read/person\",\n    \"grants_used\": [],\n    \"validity\": {\n      \"at\": \"2026-10-29T12:00:00.000Z\",\n      \"valid_from\": \"2026-10-01T00:00:00.000Z\",\n      \"valid_to\": null\n    },\n    \"schema_version\": 1\n  }\n]",
+    "events": []
+  }
+]

@@ -11,8 +11,6 @@ import { createFakeAdapter } from "@engram/adapters";
 import { type Actor, loadPreset, migrate, openSqlite } from "@engram/core";
 import { createEngramClient } from "@engram/sdk";
 import { createApp, workspaceOf } from "@engram/server";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
 import {
   CANARIES,
@@ -29,8 +27,9 @@ import {
   recordProbes,
   seedCanaries,
 } from "../../server/test/leakage-kit.ts";
-import { createMcpServer, toolList } from "../src/server.ts";
-import { readIdOf, textOf } from "./helpers.ts";
+import { toolList } from "../src/server.ts";
+import { readIdOf } from "./helpers.ts";
+import { mcpAgent } from "./leakage-agent.ts";
 
 const eventId = (n: number) => `01960000-0000-7000-8000-${String(n).padStart(12, "0")}`;
 
@@ -49,16 +48,7 @@ async function served() {
     baseUrl: "http://127.0.0.1:7313",
     fetch: async (request) => app.fetch(request),
   });
-  const agent = async (actor: Actor) => {
-    const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
-    await createMcpServer({ client, actor, now: () => NOW, newId, supersede: true }).connect(
-      serverSide,
-    );
-    const mcp = new Client({ name: "leakage", version: "0" });
-    await mcp.connect(clientSide);
-    return async (name: string, args: Record<string, unknown>) =>
-      textOf(await mcp.callTool({ name, arguments: args }));
-  };
+  const agent = (actor: Actor) => mcpAgent({ client, actor, now: () => NOW, newId });
   return { seeded, agent };
 }
 
@@ -100,7 +90,7 @@ const controls: { surface: string; found: string[] }[] = [];
 
 describe("E8.16: no MCP tool leaks a canary", () => {
   it("every tool the server can list has a probe or a listed exemption, and no entry is stale", () => {
-    const names = toolList(true).map((t) => t.name);
+    const names: string[] = toolList(true).map((t) => t.name);
     expect(names.filter((n) => !(n in PROBES) && !(n in EXEMPT))).toEqual([]);
     expect(
       [...Object.keys(PROBES), ...Object.keys(EXEMPT)].filter((n) => !names.includes(n)),
@@ -111,26 +101,38 @@ describe("E8.16: no MCP tool leaks a canary", () => {
     it(`${probe.name} (${probe.actor.id}) is shown no canary it may not see, by any tool`, async () => {
       const { seeded, agent } = await served();
       const call = await agent(probe.actor);
-      const asked = new Set<string>();
       const leaks: string[] = [];
-      const scan = (tool: string, text: string, p: ProbeActor) => {
-        const leaked = leaksIn(text, p, [...asked]);
+      const scan = (tool: string, text: string, p: ProbeActor, echo: readonly string[]) => {
+        const leaked = leaksIn(text, p, echo);
         records.push({ surface: "mcp", probe: tool, actor: p.name, leaked });
         if (leaked.length > 0) leaks.push(`${tool}: ${leaked.join(", ")}: ${text}`);
       };
-      for (const t of toolList(true)) {
-        for (const c of PROBES[t.name]?.({ actor: probe.actor, danaReadId: seeded.danaReadId }) ??
-          []) {
-          for (const id of c.asks ?? []) asked.add(id);
-          const text = await call(t.name, c.args);
-          scan(t.name, text, probe);
+      const all = toolList(true).flatMap((t) =>
+        (PROBES[t.name]?.({ actor: probe.actor, danaReadId: seeded.danaReadId }) ?? []).map(
+          (c) => ({ tool: t.name, c }),
+        ),
+      );
+      const naming = all.filter((p) => (p.c.asks ?? []).length > 0);
+      const plain = all.filter((p) => (p.c.asks ?? []).length === 0);
+      const asked = naming.flatMap((p) => p.c.asks ?? []);
+      // As over HTTP: the calls naming no id first, so none may show a canary
+      // id; then each naming call, which may echo its own ids; then the first
+      // again (memory_simulate replays the session's own calls), never a nonce.
+      const passes = [
+        { calls: plain, echo: (_: Call) => [] as string[] },
+        { calls: naming, echo: (c: Call) => c.asks ?? [] },
+        { calls: plain, echo: (_: Call) => asked },
+      ];
+      for (const { calls, echo } of passes)
+        for (const { tool, c } of calls) {
+          const text = await call(tool, c.args);
+          scan(tool, text, probe, echo(c));
           // The actor's own read, explained: its explanations are its own.
-          if (t.name === "memory_read" && c.args.query === "canary") {
+          if (tool === "memory_read" && c.args.query === "canary") {
             const own = readIdOf(text);
-            scan("memory_explain", await call("memory_explain", { read_id: own }), probe);
+            scan("memory_explain", await call("memory_explain", { read_id: own }), probe, echo(c));
           }
         }
-      }
       expect(leaks).toEqual([]);
     });
 
