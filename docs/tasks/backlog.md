@@ -330,3 +330,9 @@ Found while selecting `docs/tasks/absorb-plan-2.md`. None is absorb work, so the
 |---|---|---|
 | Gate work with no card | done: the gate-work cards pull request (2026-11-25, fixed 2026-11-26) gives each item a card: R5 (condition 2), X21 and X20 (condition 3), R6 (condition 5), X22 (condition 7's runner half, after H1; H1 is capped by the operator's credit check), X23 (the request-identity check), E9.17 (the Knowledge dogfood), L10 (the contradiction prompt). Left: H5's prerequisites (lead-decisions item 30), drafted apart as a proposed amendment (the lead's answer to Q4 of 2026-11-25) | `docs/log/2026-11-25-ap2-finding-gate-work-unowned.md`; `docs/log/2026-11-25-gw-milestone-cards.md` |
 | Schema version bumps after the tag | the policy shares `SCHEMA_VERSION` with items and events, and C3 and C4 embed it, so any bump moves H1's cassette keys and H3's pinned fault-set hashes; an ADR separating the policy's version from the item and event version would free the plans the second absorb plan left out for this reason | `docs/log/2026-11-25-ap2-finding-schema-bump-after-tag.md` |
+
+## Follow-ups from the results register (2026-11-28)
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| H1's table in the register | card X4 writes `research/results/h1-table.json`, the first hypothesis result; `research/scripts/results_register.py` refuses its MANIFEST row until X4's PR adds the row's section to `research/configs/results-register.json`, adds a status for a hypothesis result to `STATUSES` and `HYPOTHESIS_RESULTS`, and rewrites the config's dated intro paragraph about H1's live runs | `research/scripts/results_register.py` (docstring), `docs/conventions/documentation.md` rule 3, `docs/log/2026-11-28-rr-decision-register-staleness.md` |

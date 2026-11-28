@@ -794,6 +794,7 @@ Consolidated from docs/log by research/scripts/consolidate_log.py. Edit the entr
 - **2026-11-28, RD1, failure.** After main (E9.9) was merged, invariant 2's promotion check failed. It compared the promoter's answer with the raw log events. Consequence: The invariant now checks the answer against the log as the promoter may see it.
 - **2026-11-28, RD1, failure.** The item-page e2e "shows sam, who cannot read the note, no node, edge or count that reveals it" failed in the orchestrator's run: on the team item's page it found no `lineage:TEAM>CHECKLIST` edge. Consequence: Nothing further.
 - **2026-11-28, failure.** The first `make lint` on the branch failed: biome would reformat `research/configs/results-register.json`. Consequence: An edit to the config is formatted with biome before commit.
+- **2026-11-28, failure.** In the review fix pass, `make thesis` refused twice and `make lint` once before both passed. Consequence: Nothing beyond the record.
 - **2026-11-28, failure.** `make thesis` on b30cdffd refused to write any draft: 20 entries of `type: measurement` broke the measurement rules, so the drafts under `research/thesis/drafts/` were last committed on 2026-10-22 (27261e6f). Consequence: A measurement with no bare config path still fails `make thesis`, not `make lint-docs`.
 
 ## Govern

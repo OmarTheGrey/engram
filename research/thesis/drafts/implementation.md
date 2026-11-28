@@ -2412,21 +2412,33 @@ Consolidated from docs/log by research/scripts/consolidate_log.py. Edit the entr
 
 **2026-11-27, X20, finding.** No passing `make test-repro` is recorded for X20. The failure entry `2026-11-26-x20-failure-test-repro-timeout.md` says the rerun is "in the report and PR.md". That rerun was never logged, and PR.md is not committed. The final review's finding 8. The fix pass of 2026-11-27 does not run `make test-repro`, because the orchestrator runs it serially before the merge to keep load off the shared machine. The only evidence on the branch is the first run's ten matching rows out of 25. No MANIFEST row, fixture or cassette is touched by the branch (`git diff origin/main...HEAD --stat` names none). The orchestrator's serial `make test-repro` at the final head is the acceptance evidence. It goes in a measurement entry that names the head, the rows reproduced and the worker count.[^3354][^3355]
 
-**2026-11-28, change.** `research/scripts/consolidate_log.py` no longer holds a superseded entry to the measurement rules, and `make thesis` rebuilt `research/thesis/drafts/`. Entries are immutable, so a measurement entry with no MANIFEST results file or bare config path can only be corrected by superseding it; before, the old entry still failed validation and blocked every draft. Before: a superseded measurement was checked for its MANIFEST row and config like a current one. After: it is still checked for its fields, values, body and evidence paths, and is left out of every draft as before. Two tests pin it: a superseded measurement without a config consolidates, and a superseded entry with a missing evidence path is still refused. Rule 5 of `docs/conventions/documentation.md` says so. The drafts are current as of 2026-11-28.[^3356][^3357][^3358][^3359]
+**2026-11-28, change.** The status lines of 39 card files now name the merged pull request and its merge date, in the style of cards already done ("done in PR #N (merged YYYY-MM-DD)"). The finding `docs/log/2026-11-28-roadmap-finding-stale-card-statuses.md` counted 37 cards reading "awaiting review" after their pull request merged; the documentation convention writes a finished card's PR number back into the card. Before: "done on branch <name>, awaiting review" (or "in review"). After: the PR and date from `gh pr list`. All 37 are fixed, plus two the finding missed: X4's effect sizes (#57) and E8.15's merge into main (#114). RV4's line also had its review fix pass marked as merged in #58. Only the status line changed in each file. The card files agree with the roadmap's "What is left" table; this closes the finding.[^3356][^3357][^3358]
 
-**2026-11-28, change.** Added the results register `docs/research/results.md`, its script, config and test, the `make results-register` target, its AGENTS.md command line (CLAUDE.md copied) and a row in `docs/README.md`'s registers. No single page said which research results exist, what each answers, whether it is a hypothesis result, and which entries record it. Before: results were findable only through `research/results/MANIFEST.md` and the log. After: one section per MANIFEST row, grouped by hypothesis, each with its question, status, pre-registration section, headline values read from the file with their key paths, and its current measurement entries; a top section says no hypothesis has a result yet and what H1 to H5 still need. `research/tests/test_results_register.py` keeps the register current.[^3360][^3361][^3362][^3363][^3364][^3365]
+**2026-11-28, decision, supersedes 2026-11-28-roadmap-decision-status-from-merged-prs.** The "What is left" table takes a card's status from the merged pull requests, and the plan's task-card tables stay as they are. The task cards' tables have no status column. Many card files read "awaiting review" after their pull request merged. A merged pull request is the stronger record. "Not started" means no merged pull request. A card whose engineering merged but whose acceptance is a live run (B1, B5, B6, L3, R1, X4, E9.5) is listed as left. Cards whose week passed unmerged (E8.7 in W7, E0.6 and E0.7 in W8) are marked "planned W7" or "planned W8" and not moved; moving them is a planning call. B5 and B6 wait for X22, which the card requires before any live run after H1. Merge dates are UTC. The stale status lines were rewritten in the same pull request (`docs/log/2026-11-28-roadmap-change-card-statuses.md`).[^3359][^3360][^3361]
 
-**2026-11-28, failure.** The first `make lint` on the branch failed: biome would reformat `research/configs/results-register.json`. The config was written by Python's `json.dumps` with an indent of 2, which puts every key path segment on its own line; biome joins short arrays onto one line. `pnpm exec biome format --write research/configs/results-register.json` fixed it; `make results-register CHECK=1` still passed, since the script reads the JSON, not its layout, and `make lint` then exited 0. An edit to the config is formatted with biome before commit.[^3366][^3367]
+**2026-11-28, decision.** The card-status pass changes status lines only; four "Depends on" lines that still call a merged card "(in flight)" are left as written. E8.16 and E2.17 name RD1, E2.19 names E9.9, and E2.15 names E2.21 and its branch `e2-14-grant-cap`. Each is a dependency line, not a status line, and the pass was scoped to status lines. Another reader could rewrite them in the same pass. The roadmap says the status lines are current and names the four dependency lines. Each is rewritten when its card is worked.[^3362][^3363][^3364][^3365]
 
-**2026-11-28, failure.** `make thesis` on b30cdffd refused to write any draft: 20 entries of `type: measurement` broke the measurement rules, so the drafts under `research/thesis/drafts/` were last committed on 2026-10-22 (27261e6f). Seven were gate or model checks typed as measurements with no results file or config (two of E1.5, E9.9, L8, R5, R6, X20); eleven named the config only inside a command string; two cited `research/results/h2-perf-budget-samples.jsonl`, which is not a MANIFEST row. `make lint-docs` does not check a measurement's results file or config, so no gate caught them. Six were already superseded, but the script held superseded entries to the same rules, so rule 5's only correction could not clear them. The script now skips the measurement rules for a superseded entry (tested in `research/tests/test_consolidate.py`), and fourteen 2026-11-28 entries supersede the other fourteen. A measurement with no bare config path still fails `make thesis`, not `make lint-docs`.[^3368][^3369][^3370]
+**2026-11-28, finding, supersedes 2026-11-28-roadmap-finding-stale-card-statuses.** Thirty-seven card files said "done on branch ..., awaiting review" although their pull request had merged. Found while deriving the roadmap's "What is left" table from the card files and the merged pull requests. They are B6 (#51), D2 (#98), D3 (#99), E1.6 (#102), E2.6 (#50), E2.11 to E2.13 (#93, #92, #97), E2.21 part 1 (#126), E8.11 to E8.14 (#91, #94, #95, #101), E9.4 (#44), E9.5's kit (#48), E9.8 (#104), E9.9 (#125), H5P (#121), L5 to L8 (#105, #103, #109, #124), R5 (#118), R6 (#120), RD1 (#127), RV1 to RV8 (#55, #53, #54, #58, #59, #60, #61, #65), X14 (#107), X20 (#122), X21 (#117) and ANS-2026-11-25 (#113). The documentation convention asks that a finished card's PR number be written back into the card. Done in the same pull request (`docs/log/2026-11-28-roadmap-change-card-statuses.md`).[^3366][^3367]
 
-**2026-11-28, R6, finding, H1, supersedes 2026-11-27-r6-measurement-counts-unchanged.** Card R6's two COUNT=1 comparisons, restated as a finding: a session count from the runner, not a MANIFEST result. Typed as a measurement with no results file under `research/results/`, the entry made `make thesis` fail. As the superseded entry records, each config's `count.json` was byte identical on R6's branch and on `origin/main`: `h1-gatemem` 26,616 sessions, 6,654 per condition (sha256 `aa7fd0b7...faa7`); `h1-mem-inv` 456 sessions, 114 per condition (sha256 `943c8816...4569`), the hashes the PR recorded on 2026-11-26. The pin is part of no count; the test-repro part of R6's acceptance was run at X20's head (`docs/log/2026-11-27-x20-measurement-test-repro-at-head.md`).[^3371][^3372][^3373][^3374]
+**2026-11-28, change.** `research/scripts/consolidate_log.py` no longer holds a superseded entry to the measurement rules, and `make thesis` rebuilt `research/thesis/drafts/`. Entries are immutable, so a measurement entry with no MANIFEST results file or bare config path can only be corrected by superseding it; before, the old entry still failed validation and blocked every draft. Before: a superseded measurement was checked for its MANIFEST row and config like a current one. After: it is still checked for its fields, values, body and evidence paths, and is left out of every draft as before. Two tests pin it: a superseded measurement without a config consolidates, and a superseded entry with a missing evidence path is still refused. Rule 5 of `docs/conventions/documentation.md` says so. The drafts are current as of 2026-11-28.[^3368][^3369][^3370][^3371]
 
-**2026-11-28, L8, milestone, H3, supersedes 2026-11-27-l8-measurement-gates-and-rows.** Card L8's merge gate of 2026-11-27, restated as a milestone: a gate run, not a number a research script makes from a config. Typed as a measurement with no results file or config, the entry made `make thesis` fail. As the superseded entry records, at 282c3c66: `make lint`, `make lint-docs` and `make test` exited 0 (vitest 6,773 passed, 42 skipped; pytest 564 passed), and the four MANIFEST rows the lint code reaches (h3-lint-floor, h3-near-duplicate, h3-lint-nli, h3-fault-set), rerun alone, matched their committed sha256. Nothing beyond the record: L8 merged as #124.[^3375][^3376][^3377]
+**2026-11-28, change.** Added the results register `docs/research/results.md`, its script, config and test, the `make results-register` target, its AGENTS.md command line (CLAUDE.md copied) and a row in `docs/README.md`'s registers. No single page said which research results exist, what each answers, whether it is a hypothesis result, and which entries record it. Before: results were findable only through `research/results/MANIFEST.md` and the log. After: one section per MANIFEST row, grouped by hypothesis, each with its question, status, pre-registration section, headline values read from the file with their key paths, and its current measurement entries; a top section says no hypothesis has a result yet and what H1 to H5 still need. `research/tests/test_results_register.py` keeps the register current.[^3372][^3373][^3374][^3375][^3376][^3377]
 
-**2026-11-28, R5, milestone, supersedes 2026-11-27-r5-measurement-test-repro-complete.** Card R5's completed reproduction of 2026-11-27, restated as a milestone: a gate run over every MANIFEST row, not one result from one config. Typed as a measurement with no results file or config, the entry made `make thesis` fail. As the superseded entry records: `h4-holm-levels.json` with one worker and `h2-frontier-axes.json` with four workers, each rerun alone, matched; with the 22 rows of 2026-11-26, all 24 rows matched, the two label-audit rows at their new hashes. The 13 test files that failed under load passed, 162 of 162, and `uv run pytest research` passed 561. Nothing beyond the record: R5's acceptance held and it merged as #118.[^3378][^3379][^3380]
+**2026-11-28, change.** The review fix pass on the results-register branch, after merging origin/main with the roadmap PR #128. The branch's independent review asked for it before merge. Before, then after: H1's needs named only the label audit; now also the smoke and B1 checks, the spend cap or credit check and the Zenodo deposit. H2 omitted C1; now it is named, and only GateMem's medium cells are shared with H1. 0.000031 rendered as 3.1e-05; now positional. The Holm levels show their thresholds. MEM-INV-Bench admission and C4's walk are reach measurements, not support artefacts. The branch's own unmerged entries were edited: the milestone names the orchestrator's run at 42131029 and engineering checks, perf-budget cites the superseded entry for load, and the audit says stale M1. The drafts and the register were rebuilt.[^3378][^3379][^3380][^3381]
 
-**2026-11-28, X20, milestone, H1, supersedes 2026-11-27-x20-measurement-test-repro-at-head.** Card X20's gate and full `make test-repro` at a553b311, restated as a milestone: a gate run over every MANIFEST row, not one result from one config. Typed as a measurement with no results file or config, the entry made `make thesis` fail. As the superseded entry records: `make lint`, `make lint-docs` and `make test` exited 0 (vitest 6,760 passed, 42 skipped; pytest 564 passed); 23 of 24 rows matched in the run, and `h1-redteam.json`, stopped for want of its two pinned payload sets in `.engram/upstream`, matched once they were supplied. All 24 rows match. Nothing beyond the record: X20 and R6 moved no MANIFEST row and merged.[^3381][^3382][^3383]
+**2026-11-28, failure.** The first `make lint` on the branch failed: biome would reformat `research/configs/results-register.json`. The config was written by Python's `json.dumps` with an indent of 2, which puts every key path segment on its own line; biome joins short arrays onto one line. `pnpm exec biome format --write research/configs/results-register.json` fixed it; `make results-register CHECK=1` still passed, since the script reads the JSON, not its layout, and `make lint` then exited 0. An edit to the config is formatted with biome before commit.[^3382][^3383]
+
+**2026-11-28, failure.** In the review fix pass, `make thesis` refused twice and `make lint` once before both passed. The new decision entry's body ran to 154 and then 151 words, over the 150-word limit that `research/scripts/consolidate_log.py` enforces; and one line of the register script's new top-paragraph helper ran to 102 characters, over ruff's 100. The entry was cut to 147 words and the line rewritten; `make thesis`, `make results-register CHECK=1` and `make lint` then passed. Nothing beyond the record.[^3384][^3385][^3386]
+
+**2026-11-28, failure.** `make thesis` on b30cdffd refused to write any draft: 20 entries of `type: measurement` broke the measurement rules, so the drafts under `research/thesis/drafts/` were last committed on 2026-10-22 (27261e6f). Seven were gate or model checks typed as measurements with no results file or config (two of E1.5, E9.9, L8, R5, R6, X20); eleven named the config only inside a command string; two cited `research/results/h2-perf-budget-samples.jsonl`, which is not a MANIFEST row. `make lint-docs` does not check a measurement's results file or config, so no gate caught them. Six were already superseded, but the script held superseded entries to the same rules, so rule 5's only correction could not clear them. The script now skips the measurement rules for a superseded entry (tested in `research/tests/test_consolidate.py`), and fourteen 2026-11-28 entries supersede the other fourteen. A measurement with no bare config path still fails `make thesis`, not `make lint-docs`.[^3387][^3388][^3389]
+
+**2026-11-28, R6, finding, H1, supersedes 2026-11-27-r6-measurement-counts-unchanged.** Card R6's two COUNT=1 comparisons, restated as a finding: a session count from the runner, not a MANIFEST result. Typed as a measurement with no results file under `research/results/`, the entry made `make thesis` fail. As the superseded entry records, each config's `count.json` was byte identical on R6's branch and on `origin/main`: `h1-gatemem` 26,616 sessions, 6,654 per condition (sha256 `aa7fd0b7...faa7`); `h1-mem-inv` 456 sessions, 114 per condition (sha256 `943c8816...4569`), the hashes the PR recorded on 2026-11-26. The pin is part of no count; the test-repro part of R6's acceptance was run at X20's head (`docs/log/2026-11-27-x20-measurement-test-repro-at-head.md`).[^3390][^3391][^3392][^3393]
+
+**2026-11-28, L8, milestone, H3, supersedes 2026-11-27-l8-measurement-gates-and-rows.** Card L8's merge gate of 2026-11-27, restated as a milestone: a gate run, not a number a research script makes from a config. Typed as a measurement with no results file or config, the entry made `make thesis` fail. As the superseded entry records, at 282c3c66: `make lint`, `make lint-docs` and `make test` exited 0 (vitest 6,773 passed, 42 skipped; pytest 564 passed), and the four MANIFEST rows the lint code reaches (h3-lint-floor, h3-near-duplicate, h3-lint-nli, h3-fault-set), rerun alone, matched their committed sha256. Nothing beyond the record: L8 merged as #124.[^3394][^3395][^3396]
+
+**2026-11-28, R5, milestone, supersedes 2026-11-27-r5-measurement-test-repro-complete.** Card R5's completed reproduction of 2026-11-27, restated as a milestone: a gate run over every MANIFEST row, not one result from one config. Typed as a measurement with no results file or config, the entry made `make thesis` fail. As the superseded entry records: `h4-holm-levels.json` with one worker and `h2-frontier-axes.json` with four workers, each rerun alone, matched; with the 22 rows of 2026-11-26, all 24 rows matched, the two label-audit rows at their new hashes. The 13 test files that failed under load passed, 162 of 162, and `uv run pytest research` passed 561. Nothing beyond the record: R5's acceptance held and it merged as #118.[^3397][^3398][^3399]
+
+**2026-11-28, X20, milestone, H1, supersedes 2026-11-27-x20-measurement-test-repro-at-head.** Card X20's gate and full `make test-repro` at a553b311, restated as a milestone: a gate run over every MANIFEST row, not one result from one config. Typed as a measurement with no results file or config, the entry made `make thesis` fail. As the superseded entry records: `make lint`, `make lint-docs` and `make test` exited 0 (vitest 6,760 passed, 42 skipped; pytest 564 passed); 23 of 24 rows matched in the run, and `h1-redteam.json`, stopped for want of its two pinned payload sets in `.engram/upstream`, matched once they were supplied. All 24 rows match. Nothing beyond the record: X20 and R6 moved no MANIFEST row and merged.[^3400][^3401][^3402]
 
 [^1]: `packages/pi-package/profiles/knowledge.yaml`
 [^2]: `fixtures/profiles/knowledge-writes.json`
@@ -5783,31 +5795,50 @@ Consolidated from docs/log by research/scripts/consolidate_log.py. Edit the entr
 [^3353]: `docs/tasks/X20.md`
 [^3354]: `docs/log/2026-11-26-x20-failure-test-repro-timeout.md`
 [^3355]: `research/results/MANIFEST.md`
-[^3356]: `research/scripts/consolidate_log.py`
-[^3357]: `research/tests/test_consolidate.py`
-[^3358]: `docs/conventions/documentation.md`
-[^3359]: `research/thesis/drafts/results.md`
-[^3360]: `docs/research/results.md`
-[^3361]: `research/scripts/results_register.py`
-[^3362]: `research/tests/test_results_register.py`
-[^3363]: `Makefile`
-[^3364]: `AGENTS.md`
-[^3365]: `docs/README.md`
-[^3366]: `research/configs/results-register.json`
-[^3367]: `make lint`
+[^3356]: `docs/tasks/`
+[^3357]: `docs/log/2026-11-28-roadmap-finding-stale-card-statuses.md`
+[^3358]: `gh pr list --state merged --limit 130 --json number,title,mergedAt`
+[^3359]: `docs/roadmap.md`
+[^3360]: `gh pr list --state merged --limit 130 --json number,title,mergedAt`
+[^3361]: `docs/log/2026-11-28-roadmap-change-card-statuses.md`
+[^3362]: `docs/tasks/E8.16.md`
+[^3363]: `docs/tasks/E2.17.md`
+[^3364]: `docs/tasks/E2.19.md`
+[^3365]: `docs/tasks/E2.15.md`
+[^3366]: `docs/tasks/`
+[^3367]: `gh pr list --state merged --limit 130 --json number,title,mergedAt`
 [^3368]: `research/scripts/consolidate_log.py`
-[^3369]: `make thesis`
-[^3370]: `research/thesis/drafts/results-index.md`
-[^3371]: `research/configs/h1-gatemem.json`
-[^3372]: `research/configs/h1-mem-inv.json`
-[^3373]: `docs/log/2026-11-27-r6-measurement-counts-unchanged.md`
-[^3374]: `make run CONFIG=research/configs/h1-gatemem.json COUNT=1`
-[^3375]: `research/results/MANIFEST.md`
-[^3376]: `docs/log/2026-11-27-l8-measurement-gates-and-rows.md`
-[^3377]: `make test`
-[^3378]: `research/results/MANIFEST.md`
-[^3379]: `docs/log/2026-11-27-r5-measurement-test-repro-complete.md`
-[^3380]: `uv run pytest research`
-[^3381]: `research/results/MANIFEST.md`
-[^3382]: `docs/log/2026-11-27-x20-measurement-test-repro-at-head.md`
-[^3383]: `make test-repro`
+[^3369]: `research/tests/test_consolidate.py`
+[^3370]: `docs/conventions/documentation.md`
+[^3371]: `research/thesis/drafts/results.md`
+[^3372]: `docs/research/results.md`
+[^3373]: `research/scripts/results_register.py`
+[^3374]: `research/tests/test_results_register.py`
+[^3375]: `Makefile`
+[^3376]: `AGENTS.md`
+[^3377]: `docs/README.md`
+[^3378]: `research/configs/results-register.json`
+[^3379]: `research/scripts/results_register.py`
+[^3380]: `docs/research/results.md`
+[^3381]: `docs/log/2026-11-28-rr-milestone-all-rows-reproduce.md`
+[^3382]: `research/configs/results-register.json`
+[^3383]: `make lint`
+[^3384]: `make thesis`
+[^3385]: `make lint`
+[^3386]: `docs/log/2026-11-28-rr-decision-register-staleness.md`
+[^3387]: `research/scripts/consolidate_log.py`
+[^3388]: `make thesis`
+[^3389]: `research/thesis/drafts/results-index.md`
+[^3390]: `research/configs/h1-gatemem.json`
+[^3391]: `research/configs/h1-mem-inv.json`
+[^3392]: `docs/log/2026-11-27-r6-measurement-counts-unchanged.md`
+[^3393]: `make run CONFIG=research/configs/h1-gatemem.json COUNT=1`
+[^3394]: `research/results/MANIFEST.md`
+[^3395]: `docs/log/2026-11-27-l8-measurement-gates-and-rows.md`
+[^3396]: `make test`
+[^3397]: `research/results/MANIFEST.md`
+[^3398]: `docs/log/2026-11-27-r5-measurement-test-repro-complete.md`
+[^3399]: `uv run pytest research`
+[^3400]: `research/results/MANIFEST.md`
+[^3401]: `docs/log/2026-11-27-x20-measurement-test-repro-at-head.md`
+[^3402]: `make test-repro`

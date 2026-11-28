@@ -23,12 +23,8 @@ Consolidated from docs/log by research/scripts/consolidate_log.py. Edit the entr
 | 2026-11-22 | L7 | H3 | research/results/h3-lint-nli.json | research/configs/h3-lint-nli.json | none | docs/log/2026-11-22-l7-measurement-h3-lint-nli-revised.md |
 | 2026-11-28 | none | H1 | research/results/h1-check-runs-cost.json | research/configs/h1-check-runs-cost.json | none | docs/log/2026-11-28-rr-measurement-check-runs-cost.md |
 | 2026-11-28 | none | none | research/results/h2-cost-table.json | research/configs/cost-table.json | none | docs/log/2026-11-28-rr-measurement-cost-table.md |
-| 2026-11-28 | none | none | research/results/h1-crosswalk.json | research/configs/crosswalk.json | none | docs/log/2026-11-28-rr-measurement-crosswalk-redteam-bytes.md |
-| 2026-11-28 | none | none | research/results/h1-redteam.json | research/configs/redteam.json | none | docs/log/2026-11-28-rr-measurement-crosswalk-redteam-bytes.md |
 | 2026-11-28 | none | H2 | research/results/h2-frontier-axes.json | research/configs/frontier-axes.json | none | docs/log/2026-11-28-rr-measurement-frontier-axes.md |
 | 2026-11-28 | none | H1 | research/results/h1-label-audit.json | research/configs/label-audit.json | none | docs/log/2026-11-28-rr-measurement-h1-label-audit.md |
-| 2026-11-28 | none | H2 | research/results/h1-label-audit.json | research/configs/label-audit.json | none | docs/log/2026-11-28-rr-measurement-label-audit-draws.md |
-| 2026-11-28 | none | H2 | research/results/h2-label-audit-longmemeval.json | research/configs/label-audit-longmemeval.json | none | docs/log/2026-11-28-rr-measurement-label-audit-draws.md |
 | 2026-11-28 | none | H2 | research/results/h2-label-audit-longmemeval.json | research/configs/label-audit-longmemeval.json | none | docs/log/2026-11-28-rr-measurement-lme-audit-draw.md |
 | 2026-11-28 | none | H2 | research/results/h2-longmemeval-cost.json | research/configs/h2-longmemeval-cost.json | none | docs/log/2026-11-28-rr-measurement-lme-cost.md |
 | 2026-11-28 | none | none | research/results/h2-perf-budget.json | research/configs/perf-budget.json | none | docs/log/2026-11-28-rr-measurement-perf-budget.md |

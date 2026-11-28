@@ -88,7 +88,8 @@ def test_path_and_value_text() -> None:
     assert value_text(1234567) == "1,234,567"
     assert value_text(-1234.5) == "-1,234.5"
     assert value_text(0.000274) == "0.000274"
-    assert value_text(3.1e-05) == "3.1e-05"
+    assert value_text(3.1e-05) == "0.000031"
+    assert value_text(1e16) == "10,000,000,000,000,000.0"
     assert value_text(660296.0) == "660,296.0"
     assert value_text(True) == "true"
     assert value_text(None) == "null"
@@ -142,6 +143,32 @@ def test_build_reads_the_value_and_names_the_entry(tmp_path: Path) -> None:
     assert "| sessions | 1,500 | `n` |" in text
     assert "docs/log/2026-11-28-x.md" in text
     assert "| support artefact | 1 |" in text
+    assert "**No hypothesis has a result yet.** Every committed file is a support artefact." in text
+
+
+def test_an_entry_other_than_a_measurement_leaves_the_register_current(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    before = build(root, _config())
+    for kind in ("finding", "decision", "change"):
+        (root / "docs" / "log" / f"2026-11-29-{kind}.md").write_text(
+            ENTRY.format(type=kind).replace("2026-11-28", "2026-11-29"),
+            encoding="utf-8",
+            newline="\n",
+        )
+    assert build(root, _config()) == before
+
+
+def test_a_new_measurement_entry_changes_the_register(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    before = build(root, _config())
+    (root / "docs" / "log" / "2026-11-29-y.md").write_text(
+        ENTRY.format(type="measurement").replace("2026-11-28", "2026-11-29"),
+        encoding="utf-8",
+        newline="\n",
+    )
+    after = build(root, _config())
+    assert after != before
+    assert "docs/log/2026-11-29-y.md" in after
 
 
 @pytest.mark.parametrize(

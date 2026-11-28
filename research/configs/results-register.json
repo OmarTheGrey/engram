@@ -2,18 +2,18 @@
   "title": "Results register",
   "intro": [
     "One section per row of `research/results/MANIFEST.md`, grouped by the hypothesis it serves. Every value below is read from the committed results file at the key path beside it, and every file hashes to its MANIFEST sha256, or the register is not written.",
-    "**No hypothesis has a result yet.** Every committed file is a support artefact, a fixture-size measurement, a reach measurement, a cost estimate, a power computation or an engineering check. None is a test of H1 to H5, and none may be quoted as one. H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8 December 2026; `docs/log/2026-11-28-rr-milestone-all-rows-reproduce.md` records that every row reproduces on main's code before them."
+    "H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8 December 2026; `docs/log/2026-11-28-rr-milestone-all-rows-reproduce.md` records that every row reproduces on main's code before them."
   ],
   "groups": [
     {
       "id": "H1",
       "title": "H1. Enforcement beats instruction",
-      "needs": "The `prereg-v1` tag (among the pre-tag conditions, the label audit's agreement written into the Benchmarks section), then the live runs of `research/configs/h1-gatemem.json` and `research/configs/h1-mem-inv.json` on M1, scheduled for 1 to 8 December 2026, then `make h1-table` and `make h1-figure`. No `research/results/h1-table.json` exists yet."
+      "needs": "The `prereg-v1` tag, once the eight pre-tag conditions at the head of the pre-registration hold: among them the label audit's agreement written into the Benchmarks section, the smoke run and B1 passing on M1 (condition 4), the programme-wide spend cap in billed dollars or the operator's credit check (condition 7), and the Zenodo deposit of the tagged commit (condition 8). Then the live runs of `research/configs/h1-gatemem.json` and `research/configs/h1-mem-inv.json` on M1, scheduled for 1 to 8 December 2026, then `make h1-table` and `make h1-figure` (card X4). No `research/results/h1-table.json` exists yet."
     },
     {
       "id": "H2",
       "title": "H2. The governance tax has a knee",
-      "needs": "LongMemEval's live C2 and C5 runs on M1 (`research/configs/h2-longmemeval-c2.json` and `h2-longmemeval-c5-medium.json` at medium, strict and permissive beside them), GateMem's C2 and C5 cells, which H1's run shares at medium, and MERIT's arcs once card B7 counts them. No utility or violation number exists yet."
+      "needs": "The live runs its Stopping rule fixes on M1: C1 (no memory) on GateMem and LongMemEval, C2 at medium, and C5 at strict, medium and permissive (`research/configs/h2-longmemeval-c2.json` and `h2-longmemeval-c5-medium.json` among them). Only GateMem's C2 and C5 at medium are H1's sessions; its C5 at strict and permissive and its C1 are run for H2. MERIT's arcs run once card B7 counts them. No utility or violation number exists yet."
     },
     {
       "id": "H3",
@@ -68,7 +68,7 @@
     {
       "file": "research/results/h1-mem-inv-admission.json",
       "hypothesis": "H1",
-      "status": "support artefact",
+      "status": "reach measurement",
       "prereg": "### H1. Enforcement beats instruction",
       "question": "Which MEM-INV-Bench entries does the plane admit to the operator's action-time read under each preset?",
       "headline": [
@@ -126,7 +126,7 @@
     {
       "file": "research/results/h1-c4-walk.json",
       "hypothesis": "H1",
-      "status": "support artefact",
+      "status": "reach measurement",
       "prereg": "### H1. Enforcement beats instruction",
       "question": "What does C4's walk to C5's allowed items show the model on GateMem, compared with C3's top 20?",
       "headline": [
@@ -697,7 +697,7 @@
           "path": ["tightest", "slack"]
         },
         {
-          "label": "H4's registered size at margin 0.05, level at k = 5",
+          "label": "H4's registered size at margin 0.05, level at k = 5, Holm threshold 0.01",
           "path": [
             "sizes",
             {
@@ -710,7 +710,7 @@
           ]
         },
         {
-          "label": "H4's registered size at margin 0.05, level at k = 4",
+          "label": "H4's registered size at margin 0.05, level at k = 4, Holm threshold 0.0125",
           "path": [
             "sizes",
             {
