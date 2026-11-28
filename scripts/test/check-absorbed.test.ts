@@ -28,7 +28,7 @@ describe("the red register", () => {
       `${RED}:13: licence CC-BY-4.0 is allowed for data only, and the mode is port`,
       `${RED}:14: mode idea is neither copy nor port`,
       `${RED}:15: names no landed path in backticks`,
-      `${RED}:16: has 9 cells, expected 7 (escape a pipe inside a cell as \\|)`,
+      `${RED}:16: has 11 cells, expected 7 (escape a pipe inside a cell as \\|)`,
     ]);
   });
 
@@ -60,7 +60,12 @@ describe("the parsers", () => {
 
   test("a register with no table is itself a problem", () => {
     expect(
-      checkRegister({ registerPath: "r.md", register: "# empty\n", notice: "", exists: () => true }),
+      checkRegister({
+        registerPath: "r.md",
+        register: "# empty\n",
+        notice: "",
+        exists: () => true,
+      }),
     ).toEqual(["r.md: no table with a `source` header row"]);
   });
 });
