@@ -319,7 +319,7 @@ Recorded by [`docs/log/2026-11-22-l7-measurement-h3-lint-nli-revised.md`](../log
 - **Question.** When deletion, temporal-supersession and missing-metadata faults corrupt the memory states of the pinned S split's 500 questions, written as card B5 writes them, at the projection or in the log, how often does the read change, how often does the plane's own enforcement restore it, and do the deterministic lints or the log's hash chain see the fault?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** H3; pre-registration section "U6. The paired fault-injection arm, for H3 (not scheduled)". Card X18's check of proposal U6, which is not registered (the lead registered U7 only): a proof of concept that supports H3 and is not H3's test, measuring state recovery, not H3's utility recovery. Model-free. Every column is fixed by the fault's shape (the result's limits): projection faults recover by replay by construction, and the lints never rewrite. Verification catches an edit that does not re-chain the log; a re-chained log reads UNSIGNED, as the controls do, unless a checkpoint is held outside the database.
-- **Made by.** `research/scripts/h3_fault_injection.py` from `research/configs/h3-fault-injection.json`, MANIFEST commit `a9406939`, sha256 `6bfb6faab7b74f34d5e474654aa25ec9b04fa74249cf05fc37f9b35dd85c9368`.
+- **Made by.** `research/scripts/h3_fault_injection.py` from `research/configs/h3-fault-injection.json`, MANIFEST commit `c209dd6c`, sha256 `6bfb6faab7b74f34d5e474654aa25ec9b04fa74249cf05fc37f9b35dd85c9368`.
 
 | value | reads | key path |
 |---|---|---|
