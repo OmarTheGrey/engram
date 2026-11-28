@@ -18,7 +18,8 @@ import {
 /** The config's properties, refused when one names a preset, action or invariant there is not. */
 export function parseProperties(config: { properties?: unknown }): PropertySpec[] {
   const props = config.properties;
-  if (!Array.isArray(props) || props.length === 0) throw new Error("the config names no properties");
+  if (!Array.isArray(props) || props.length === 0)
+    throw new Error("the config names no properties");
   for (const p of props as PropertySpec[]) {
     for (const name of [...(p.pairs ?? []).flat(), ...(p.presets ?? [])])
       if (!(PRESETS as readonly string[]).includes(name))

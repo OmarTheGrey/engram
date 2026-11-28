@@ -30,8 +30,8 @@ cvc5 is the pinned release: the CVC5 environment variable, else the binary
 the config pins under .engram/upstream (fetched from the release at its
 sha256 when missing, never under ENGRAM_OFFLINE=1), else `cvc5` on the PATH;
 its version must be the pinned one. When cargo or cvc5 is missing the script
-exits 3 and writes nothing, which make verify-policy reports as a skip. No model is called and nothing here
-reads a registered result.
+exits 3 and writes nothing, which make verify-policy reports as a skip. No
+model is called and nothing here reads a registered result.
 """
 
 from __future__ import annotations
@@ -68,13 +68,13 @@ def platform_key() -> str:
 
 
 def pinned_cvc5(config: Mapping[str, Any], *, fetch: bool) -> Path | None:
-    """The pinned cvc5 under .engram/upstream for this platform, fetched when missing and allowed."""
+    """The pinned cvc5 under .engram/upstream for this platform, fetched if missing and allowed."""
     cvc5 = config["tools"]["cvc5"]
     asset = cvc5["assets"].get(platform_key())
     if asset is None:
         return None
-    root = REPO / cvc5["upstream"]
-    exe = root / asset["exe"]
+    root: Path = REPO / str(cvc5["upstream"])
+    exe: Path = root / str(asset["exe"])
     if exe.exists():
         return exe
     if not fetch or os.environ.get("ENGRAM_OFFLINE") == "1":
@@ -127,15 +127,27 @@ def build_symcc(config: Mapping[str, Any]) -> Path:
     cargo = shutil.which("cargo")
     if cargo is None:
         raise ToolMissing("cargo is missing: install Rust (rustup) to build tools/symcc")
-    manifest = REPO / config["tools"]["symcc"]["manifest"]
+    manifest: Path = REPO / str(config["tools"]["symcc"]["manifest"])
     offline = ["--offline"] if os.environ.get("ENGRAM_OFFLINE") == "1" else []
     subprocess.run(
-        [cargo, "build", "--release", "--locked", "--quiet", *offline, "--manifest-path", str(manifest)],
+        [
+            cargo,
+            "build",
+            "--release",
+            "--locked",
+            "--quiet",
+            *offline,
+            "--manifest-path",
+            str(manifest),
+        ],
         cwd=REPO,
         check=True,
     )
-    exe = manifest.parent / "target" / "release" / (
-        "engram-symcc.exe" if sys.platform == "win32" else "engram-symcc"
+    exe = (
+        manifest.parent
+        / "target"
+        / "release"
+        / ("engram-symcc.exe" if sys.platform == "win32" else "engram-symcc")
     )
     if not exe.exists():
         raise FileNotFoundError(f"cargo built no {exe}")
@@ -143,13 +155,14 @@ def build_symcc(config: Mapping[str, Any]) -> Path:
 
 
 def sort_entities(cex: Mapping[str, Any]) -> dict[str, Any]:
-    """A counterexample with its entities and their parents in one order (Cedar keeps them in a hash map)."""
+    """A counterexample with its entities and their parents in one order.
+
+    Cedar keeps entities in a hash map, so the order it writes them in varies.
+    """
     out = dict(cex)
     entities = []
     for e in cex["entities"]:
-        entities.append(
-            {**e, "parents": sorted(e["parents"], key=lambda u: (u["type"], u["id"]))}
-        )
+        entities.append({**e, "parents": sorted(e["parents"], key=lambda u: (u["type"], u["id"]))})
     out["entities"] = sorted(entities, key=lambda e: (e["uid"]["type"], e["uid"]["id"]))
     return out
 
@@ -193,7 +206,10 @@ def assemble(
                     "engram": r["engram"],
                     "decoded_faithfully": r["faithful"],
                     "decode_problems": r["problems"],
-                    "evaluator": {"left_allows": r["left_allows"], "right_allows": r["right_allows"]},
+                    "evaluator": {
+                        "left_allows": r["left_allows"],
+                        "right_allows": r["right_allows"],
+                    },
                     "reproduced": r["reproduced"],
                 }
                 totals["reproduced"] += 1 if r["reproduced"] else 0
@@ -226,7 +242,8 @@ def assemble(
             "cvc5": config["tools"]["cvc5"]["version"],
         },
         "scope": {
-            "grants": "flattened by the export (ADR 0041, decision 5): every proof holds modulo grants",
+            "grants": "flattened by the export (ADR 0041, decision 5): "
+            "every proof holds modulo grants",
             "domain": job["domain"],
         },
         "exports": job["exports"],
@@ -244,7 +261,8 @@ def report(result: Mapping[str, Any]) -> list[str]:
             lines.append(f"{c['verdict']:8} {c['id']} ({mark})")
             if "counterexample" in c:
                 x = c["counterexample"]
-                lines.append(f"  counterexample, as Engram reads it: {json.dumps(x['engram'], sort_keys=True)}")
+                engram = json.dumps(x["engram"], sort_keys=True)
+                lines.append(f"  counterexample, as Engram reads it: {engram}")
                 lines.append(
                     f"  evaluator: {c['left']} allows {x['evaluator']['left_allows']}, "
                     f"{c['right']} allows {x['evaluator']['right_allows']}; "
@@ -265,9 +283,13 @@ def run(config_path: Path) -> dict[str, Any]:
     cvc5 = find_cvc5(config, fetch=True)
     symcc = build_symcc(config)
     with tempfile.TemporaryDirectory() as tmp:
-        job_path, answers_path, replay_path = (Path(tmp) / n for n in ("job.json", "answers.json", "replay.json"))
+        job_path, answers_path, replay_path = (
+            Path(tmp) / n for n in ("job.json", "answers.json", "replay.json")
+        )
         subprocess.run(
-            ["node", CLI, "job", "--config", str(config_path), "--out", str(job_path)], cwd=REPO, check=True
+            ["node", CLI, "job", "--config", str(config_path), "--out", str(job_path)],
+            cwd=REPO,
+            check=True,
         )
         answers = subprocess.run(
             [str(symcc), str(job_path)],
@@ -279,7 +301,17 @@ def run(config_path: Path) -> dict[str, Any]:
         ).stdout
         answers_path.write_text(answers, encoding="utf-8", newline="\n")
         subprocess.run(
-            ["node", CLI, "replay", "--job", str(job_path), "--answers", str(answers_path), "--out", str(replay_path)],
+            [
+                "node",
+                CLI,
+                "replay",
+                "--job",
+                str(job_path),
+                "--answers",
+                str(answers_path),
+                "--out",
+                str(replay_path),
+            ],
             cwd=REPO,
             check=True,
         )

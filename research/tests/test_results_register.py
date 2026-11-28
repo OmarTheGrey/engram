@@ -9,7 +9,15 @@ from typing import Any
 
 import pytest
 
-from scripts.results_register import RegisterError, build, main, path_text, resolve, value_text
+from scripts.results_register import (
+    HYPOTHESIS_RESULTS,
+    RegisterError,
+    build,
+    main,
+    path_text,
+    resolve,
+    value_text,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 CONFIG = REPO / "research" / "configs" / "results-register.json"
@@ -144,6 +152,14 @@ def test_build_reads_the_value_and_names_the_entry(tmp_path: Path) -> None:
     assert "docs/log/2026-11-28-x.md" in text
     assert "| support artefact | 1 |" in text
     assert "**No hypothesis has a result yet.** Every committed file is a support artefact." in text
+
+
+def test_a_proof_of_concept_is_counted_and_is_no_hypothesis_result(tmp_path: Path) -> None:
+    text = build(_repo(tmp_path), _config(status="proof of concept"))
+    assert "- **Status.** proof of concept: the system shown working" in text
+    assert "| proof of concept | 1 |" in text
+    assert "proof of concept" not in HYPOTHESIS_RESULTS
+    assert "**No hypothesis has a result yet.**" in text
 
 
 def test_an_entry_other_than_a_measurement_leaves_the_register_current(tmp_path: Path) -> None:

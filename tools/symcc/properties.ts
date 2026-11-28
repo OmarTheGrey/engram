@@ -35,7 +35,7 @@ import {
   exportCedar,
 } from "../../packages/core/src/policy/cedar.ts";
 import { evaluateRead, evaluateWrite } from "../../packages/core/src/policy/evaluate.ts";
-import { loadPreset, PRESETS, type PresetName } from "../../packages/core/src/policy/load.ts";
+import { loadPreset, type PresetName } from "../../packages/core/src/policy/load.ts";
 import {
   type Grant,
   MemoryItem,
@@ -153,7 +153,11 @@ export function domain(action: Action): string {
       ? [
           instant("context.at"),
           instant("context.valid_at"),
-          optional("context", "grant", optional("context.grant", "expires", instant("context.grant.expires"))),
+          optional(
+            "context",
+            "grant",
+            optional("context.grant", "expires", instant("context.grant.expires")),
+          ),
         ]
       : [
           optional(
@@ -240,7 +244,11 @@ export interface Counterexample {
   action: { type: string; id: string };
   resource: { type: string; id: string };
   context: Obj;
-  entities: { uid: { type: string; id: string }; attrs: Obj; parents: { type: string; id: string }[] }[];
+  entities: {
+    uid: { type: string; id: string };
+    attrs: Obj;
+    parents: { type: string; id: string }[];
+  }[];
   left_decision: string;
   right_decision: string;
 }
@@ -268,20 +276,20 @@ export interface Decoded {
 const ITEM_ID = "01900000-0000-7000-8000-000000000001";
 const ZERO_HASH = `sha256:${"0".repeat(64)}`;
 
-const entityRef = (v: Json): { type: string; id: string } => {
+const entityRef = (v: Json | undefined): { type: string; id: string } => {
   const o = v as Obj;
   const inner = (o.__entity ?? o) as Obj;
   return { type: String(inner.type), id: String(inner.id) };
 };
 const key = (u: { type: string; id: string }) => `${u.type}::${u.id}`;
 
-function toInstant(v: Json): string {
+function toInstant(v: Json | undefined): string {
   const { s, ns } = v as { s: number; ns: number };
   const whole = new Date(s * 1000).toISOString().slice(0, 19);
   return ns === 0 ? `${whole}Z` : `${whole}.${String(ns).padStart(9, "0")}Z`;
 }
 
-function toConfidence(v: Json): number {
+function toConfidence(v: Json | undefined): number {
   const { hi, lo } = v as { hi: number; lo: number };
   const view = new DataView(new ArrayBuffer(8));
   view.setUint32(0, hi);
@@ -334,7 +342,8 @@ export function decode(
   const names = new Names(levelOf);
   const principal = byKey.get(key(cex.principal));
   const resource = byKey.get(key(cex.resource));
-  if (!principal || !resource) throw new Error("the counterexample lacks its principal or resource");
+  if (!principal || !resource)
+    throw new Error("the counterexample lacks its principal or resource");
   const pa = principal.attrs;
   const actor: Actor = {
     id: names.actor(cex.principal),
@@ -420,7 +429,9 @@ export function decode(
     problems.push(`${names.orgScopes.size} org scopes collapse into Engram's one org`);
   for (const it of [item, decoded.existing])
     if (it && !MemoryItem.safeParse(it).success)
-      problems.push(`the decoded item is not a valid MemoryItem: ${MemoryItem.safeParse(it).error}`);
+      problems.push(
+        `the decoded item is not a valid MemoryItem: ${MemoryItem.safeParse(it).error}`,
+      );
   if (problems.length === 0) {
     const again =
       action === "read"
@@ -460,7 +471,10 @@ function normalise(r: CedarRequest, names: Names | null): Json {
       if ("__entity" in v || ("type" in v && "id" in v && Object.keys(v).length === 2)) {
         const u = entityRef(v);
         return u.type.endsWith("::Scope")
-          ? { scope: names ? names.scope(u) : u.id, level: String(byKey.get(key(u))?.attrs.level ?? "") }
+          ? {
+              scope: names ? names.scope(u) : u.id,
+              level: String(byKey.get(key(u))?.attrs.level ?? ""),
+            }
           : { actor: names ? names.actor(u) : u.id };
       }
       return Object.fromEntries(
@@ -498,7 +512,9 @@ export function evaluatorAllows(policy: Policy, d: Decoded): boolean {
   const w = evaluateWrite(policy, d.actor, d.item, d.existing, d.retired, undefined, {
     promotion: d.promotion,
   });
-  return d.action === "write" ? w.decision === "allow" : w.decision === "allow" && w.check === "admit";
+  return d.action === "write"
+    ? w.decision === "allow"
+    : w.decision === "allow" && w.check === "admit";
 }
 
 export interface Replay {

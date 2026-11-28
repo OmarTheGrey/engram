@@ -39,10 +39,7 @@
     {
       "id": "read-monotone",
       "shape": "monotone",
-      "pairs": [
-        ["strict", "medium"],
-        ["medium", "permissive"]
-      ],
+      "pairs": [["strict", "medium"], ["medium", "permissive"]],
       "actions": ["read"],
       "expect": "holds",
       "statement": "strict never allows a read medium denies, nor medium one permissive denies"
@@ -64,10 +61,7 @@
     {
       "id": "read-monotone-reversed",
       "shape": "monotone",
-      "pairs": [
-        ["medium", "strict"],
-        ["permissive", "medium"]
-      ],
+      "pairs": [["medium", "strict"], ["permissive", "medium"]],
       "actions": ["read"],
       "expect": "fails",
       "statement": "the control: the converse of read-monotone, which must be refuted, with a counterexample the evaluator reproduces; it shows the solver is not answering yes to everything and exercises the replay"
