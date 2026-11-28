@@ -1630,10 +1630,10 @@
         {
           "file": "scripts/test/core-determinism-rule.test.ts",
           "describe": ["the core determinism rule"],
-          "it": "the transport's Date.now calls are found at the lines crosswalk claim C44 names, so each file is read to its end"
+          "it": "the transport's Date.now calls are found at lines 34, 41, 54 and 211, 229, so each file is read to its end"
         }
       ],
-      "limits": "The rule (card E0.7) reads the sources of packages/core/src as text: it shows that core calls no clock and no random source outside the Postgres transport's Date.now timeouts, so every time a decision or event carries came from its caller. It does not show that each surface passes the time it was given, and it covers neither code core imports from a dependency nor a call reached through a computed property name.",
+      "limits": "The rule (card E0.7) reads the sources of packages/core/src as text: it shows that core calls no clock and no random source outside the Postgres transport's Date.now timeouts (postgres-worker.ts lines 34, 41, 54; postgres.ts lines 211, 229), so every time a decision or event carries came from its caller. It refuses the direct, computed, destructured and globalThis forms and Date passed as a value, but not an alias of Math, performance, process or crypto through another name, a stored Intl formatter's format(), eval, Function or Reflect, nor code core imports from a dependency. It does not show that each surface passes the time it was given.",
       "obligations": [
         {
           "id": "AIA-12-2",
