@@ -21,8 +21,13 @@ export async function mcpAgent(options: {
   await mcp.connect(clientSide);
   return async (name: string, args: Record<string, unknown>) => {
     const result = (await mcp.callTool({ name, arguments: args })) as {
-      content: { type: string; text: string }[];
+      content: { type: string; text?: string }[];
+      structuredContent?: unknown;
     };
-    return result.content[0]?.text ?? "";
+    // Every content block, and any structured content, so a scan reads all of it.
+    const blocks = result.content.map((c) => c.text ?? JSON.stringify(c));
+    const structured =
+      result.structuredContent === undefined ? [] : [JSON.stringify(result.structuredContent)];
+    return [...blocks, ...structured].join("\n");
   };
 }
