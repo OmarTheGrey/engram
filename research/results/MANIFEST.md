@@ -27,4 +27,4 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h1-redteam.json | research/configs/redteam.json | research/scripts/redteam.py | fe05b8a3 | c1e73f53c9efda9de310e6bf76f8888210ad08da2311ae90d93f6088608610ae | none |
 | research/results/h3-near-duplicate.json | research/configs/near-duplicate.json | research/scripts/near_duplicate.py | 8387b6a6 | f50c8f465a2479c84894d4a6fd0fcfbd55df71bcdcc7d3559515d9b46e9b8b3b | none |
 | research/results/h3-lint-nli.json | research/configs/h3-lint-nli.json | research/scripts/h3_lint_nli.py | 030a7fba | 22e3c1225171941d7fac6d426942dd0d52634499a6290d709f4f8f47888763db | none |
-| research/results/h1-leakage.json | research/configs/leakage.json | research/scripts/leakage.py | 9c57164d | 2b7554d928d1ab07a1d1865241662f1feaa8f8245bebb5ad09c448b9138dca85 | none |
+| research/results/h1-leakage.json | research/configs/leakage.json | research/scripts/leakage.py | 424e271c | bc5c43f6e2ba848c2c0ba371d35b30ab0f7bf37ac93c0937018f578d7f1798fa | none |

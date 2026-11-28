@@ -1043,6 +1043,14 @@
           "path": ["denied_and_missing", "http", "alike"]
         },
         {
+          "label": "of them pinned as telling existence: writes under a held id",
+          "path": ["denied_and_missing", "http", "characterised", "write"]
+        },
+        {
+          "label": "a model's operations through the HTTP API agreeing with MCP",
+          "path": ["parity", "http (model)", "same"]
+        },
+        {
           "label": "the suite passed",
           "path": ["suite_passed"]
         }
