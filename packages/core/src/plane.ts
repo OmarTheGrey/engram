@@ -522,7 +522,8 @@ export function createPlane(deps: PlaneDeps): Plane {
     lint: async (actor, at, scope, options) => lint(deps, actor, at, scope, options),
     changeGrants: async (actor, itemId, change, at) =>
       changeGrants(deps, actor, itemId, change, at),
-    revalidate: (actor, itemId, at, options) => revalidate(deps, actor, itemId, at, options),
+    revalidate: async (actor, itemId, at, options) =>
+      revalidate(deps, actor, itemId, at, options),
     simulate: (workload, policy) => simulate(deps, workload, policy),
     distill: async () => {
       // Card D2 built the induction as a Distiller (distill/induce.ts); this
