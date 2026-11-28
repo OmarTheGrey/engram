@@ -293,7 +293,7 @@ describe("E8.15d parity: this part's commands", () => {
       expect(button, id).toBeDefined();
       await button?.press(h.app);
       expect(h.screen(), id).toBe(kind);
-      expect(h.app.top().title(), id).toBe(title);
+      expect(h.app.top().title(h.app), id).toBe(title);
       h.app.pop();
     }
     await h.quit();

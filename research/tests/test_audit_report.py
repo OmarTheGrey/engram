@@ -15,7 +15,9 @@ import pytest
 from scripts import audit_report
 
 
-def case(name: str, verdict: str, failed: str | None, expected: tuple[str, str | None]) -> dict[str, Any]:
+def case(
+    name: str, verdict: str, failed: str | None, expected: tuple[str, str | None]
+) -> dict[str, Any]:
     return {
         "case": name,
         "expected": {"verdict": expected[0], "failed": expected[1]},

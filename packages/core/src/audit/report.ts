@@ -235,8 +235,7 @@ export function auditPredicate(input: AuditInput): AuditPredicate {
   }
 
   const checkpoint = input.checkpoint;
-  const headSigned =
-    checkpoint?.signed === true && checkpoint.size === input.head.size;
+  const headSigned = checkpoint?.signed === true && checkpoint.size === input.head.size;
   const notes: string[] = [NOTES.content, NOTES.window];
   notes.push(viewer === undefined ? NOTES.oracle : NOTES.viewer);
   if (!headSigned) notes.push(NOTES.unsigned);
@@ -318,7 +317,7 @@ const CHECKPOINT_COLUMNS = "n, size, root, head, at, key, signature";
 
 function eventsTo(db: Db, seq: number): MemoryEvent[] {
   const rows = db.prepare("SELECT seq, body FROM events WHERE seq <= ? ORDER BY seq").all(seq);
-  const { events, bad } = parseEventRows(rows);
+  const { events, bad } = parseEventRows(rows.map((r) => ({ seq: r.seq, body: r.body })));
   if (bad.length > 0)
     throw new Error(
       `audit: ${bad.length} event rows to the head are not events this plane writes (first seq ${bad[0]})`,

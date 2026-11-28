@@ -274,7 +274,10 @@ describe("the statement", () => {
       at: ISSUED,
       policy,
     });
-    const rows = db.prepare("SELECT seq, body FROM events ORDER BY seq").all();
+    const rows = db
+      .prepare("SELECT seq, body FROM events ORDER BY seq")
+      .all()
+      .map((r) => ({ seq: r.seq, body: r.body }));
     const whole = dogfoodReport(parseEventRows(rows).events, policy, []).report;
     expect(s.predicate.oracle?.violations).toEqual(whole.violations);
     expect(s.predicate.events.counted).toBe(whole.events);
@@ -300,7 +303,12 @@ describe("the statement", () => {
     const db = fresh();
     const { text, envelope } = await exported(db);
     const payload = payloadBytes(envelope).toString("utf8");
-    const events = parseEventRows(db.prepare("SELECT seq, body FROM events").all()).events;
+    const events = parseEventRows(
+      db
+        .prepare("SELECT seq, body FROM events")
+        .all()
+        .map((r) => ({ seq: r.seq, body: r.body })),
+    ).events;
     const forbidden = new Set<string>([CANARY, "person:dana", "person:omar", "team:platform"]);
     for (const e of events) {
       forbidden.add(e.id);
