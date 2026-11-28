@@ -17,7 +17,7 @@
 // Apache-2.0; idea only); the leak structure after ClickHouse/loom (see the
 // kit's header and docs/absorbed.md).
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, SessionManager } from "@earendil-works/pi-coding-agent";
@@ -158,7 +158,20 @@ describe("E8.16: the pi extension makes a model's operations as MCP and the HTTP
       return opRecord(op.name, answer, call.events, seen);
     });
     run.session.dispose();
-    parity.push(...out.map((o) => ({ surface: "pi", operation: o.name, same: true })));
+    // Each operation's record against the snapshot as committed, so a mismatch is recorded as one.
+    let snapshot: unknown[] | undefined;
+    try {
+      snapshot = JSON.parse(readFileSync(MODEL_PARITY, "utf8"));
+    } catch {
+      snapshot = undefined;
+    }
+    parity.push(
+      ...out.map((o, i) => ({
+        surface: "pi",
+        operation: o.name,
+        same: snapshot?.[i] !== undefined && JSON.stringify(snapshot[i]) === JSON.stringify(o),
+      })),
+    );
     await expect(`${JSON.stringify(out, null, 2)}\n`).toMatchFileSnapshot(MODEL_PARITY);
   });
 });

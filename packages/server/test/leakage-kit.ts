@@ -496,14 +496,18 @@ const ITEM_FIELDS = [
   "lineage",
   "status",
   "version",
+  "ttl",
 ] as const;
 
 /**
  * One operation as a surface ran it: the text it answered and the events it
- * logged, each event's decided fields and its item's plane fields, every id
- * blind. The provenance ref and hash are each surface's own label (pi's tool
- * call id, MCP's request id) and the store ref is the store's; they are left
- * out, and nothing else is.
+ * logged, every id blind. Of each event: its decided fields (DECIDED); its
+ * id, seq, ts and chain fields are not compared (the ids are blind, the
+ * clock fixed). Of its item: the plane's fields (ITEM_FIELDS) and the
+ * provenance kind and actor, which the plane sets. Left out: the provenance
+ * ref and hash, each surface's own label (pi's tool call id, MCP's request
+ * id, the CLI's `engram-cli`); the store ref, the store's; the item id,
+ * which item_id carries; and schema_version.
  */
 export function opRecord(
   name: string,
@@ -518,6 +522,8 @@ export function opRecord(
     if (item) {
       const kept: Record<string, unknown> = {};
       for (const k of ITEM_FIELDS) kept[k] = item[k];
+      const provenance = item.provenance as { kind?: unknown; actor?: unknown } | undefined;
+      kept.provenance = { kind: provenance?.kind, actor: provenance?.actor };
       out.item = kept;
     }
     return out;

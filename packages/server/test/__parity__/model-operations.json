@@ -23,7 +23,12 @@
           "grants": [],
           "lineage": [],
           "status": "active",
-          "version": 1
+          "version": 1,
+          "ttl": null,
+          "provenance": {
+            "kind": "model",
+            "actor": "person:dana"
+          }
         }
       }
     ]
