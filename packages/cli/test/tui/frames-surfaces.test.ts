@@ -305,6 +305,43 @@ const SCREENS: Record<
       });
     },
   },
+  // Card E8.17: the same screen opened on Codex's hook, after Try it and an install.
+  "hook-codex": {
+    name: "hook codex",
+    given: NO_PATHS,
+    values: { root: ["/src/lantern/memory"], as: "person:dana" },
+    set: (s: SurfaceScreen & { setLaunch(l: Launch): void }) => {
+      s.setLaunch(LAUNCH);
+      Object.assign(s, {
+        tried: {
+          scratch: { replaced: [] },
+          results: [
+            {
+              label: "Bash cat /src/lantern/memory/user_role.md",
+              code: 0,
+              outcome: "blocked",
+              expected: true,
+              detail: "exit 0, blocked: permissionDecision deny",
+              stdout: "",
+            },
+            {
+              label: "Bash cat /src/lantern/README.md",
+              code: 0,
+              outcome: "allowed",
+              expected: true,
+              detail: "exit 0, allowed: the hook printed nothing",
+              stdout: "",
+            },
+          ],
+        },
+        installed: {
+          argv: ["hook", "install", "codex"],
+          code: 0,
+          out: "installed: /src/lantern/.codex/hooks.json created with the engram hook codex entry in hooks.PreToolUse\nCodex runs a hook only once you trust it, at the project or the user level alike, and again after each change to the entry: review it in /hooks.\n",
+        },
+      });
+    },
+  },
   export: {
     name: "export",
     given: USABLE,

@@ -16,9 +16,9 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | cost estimate | 4 | dollars and calls estimated from token counts and prices; no model called |
 | power computation | 2 | a simulation of the registered test that sets or checks a sample size |
 | engineering check | 4 | a check of a component's behaviour or speed that decides no hypothesis |
-| proof of concept | 5 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
+| proof of concept | 6 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
 
-29 results in all, one per MANIFEST row.
+30 results in all, one per MANIFEST row.
 
 ## What each hypothesis still needs
 
@@ -313,6 +313,29 @@ Recorded by [`docs/log/2026-11-21-l5-near-duplicate-result-capped.md`](../log/20
 | decides a hypothesis | false | `decides` |
 
 Recorded by [`docs/log/2026-11-22-l7-measurement-h3-lint-nli-revised.md`](../log/2026-11-22-l7-measurement-h3-lint-nli-revised.md).
+
+### `research/results/h3-fault-injection.json`
+
+- **Question.** When deletion, temporal-supersession and missing-metadata faults corrupt the memory states of the pinned S split's 500 questions, written as card B5 writes them, at the projection or in the log, how often does the read change, how often does the plane's own enforcement restore it, and do the deterministic lints or the log's hash chain see the fault?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** H3; pre-registration section "U6. The paired fault-injection arm, for H3 (not scheduled)". Card X18's check of proposal U6, which is not registered (the lead registered U7 only): a proof of concept that supports H3 and is not H3's test, measuring state recovery, not H3's utility recovery. Model-free. Every column is fixed by the fault's shape (the result's limits): projection faults recover by replay by construction, and the lints never rewrite. Verification catches an edit that does not re-chain the log; a re-chained log reads UNSIGNED, as the controls do, unless a checkpoint is held outside the database.
+- **Made by.** `research/scripts/h3_fault_injection.py` from `research/configs/h3-fault-injection.json`, MANIFEST commit `c209dd6c`, sha256 `6bfb6faab7b74f34d5e474654aa25ec9b04fa74249cf05fc37f9b35dd85c9368`.
+
+| value | reads | key path |
+|---|---|---|
+| pairs faulted | 2,970 | `pairs.targeted` |
+| projection deletion: recovery by replay | 1.0 | `cells.deletion.projection.recovery.rate` |
+| log deletion: change rate | 1.0 | `cells.deletion.log.change.rate` |
+| log deletion: recovery after the deterministic lints | 0.0 | `cells.deletion.log.recovery.rate` |
+| log deletion: lint detection | 0.0 | `cells.deletion.log.lint_detection.rate` |
+| log supersession: change rate | 1.0 | `cells.temporal-supersession.log.change.rate` |
+| log supersession: lint detection | 0.0 | `cells.temporal-supersession.log.lint_detection.rate` |
+| log missing metadata: change rate | 0.0 | `cells.missing-metadata.log.change.rate` |
+| log missing metadata: lint detection | 1.0 | `cells.missing-metadata.log.lint_detection.rate` |
+| log edits `engram log verify` detects (no re-chain) | 1.0 | `by_place.log.verify_detection.rate` |
+| unedited control logs that fail verification | 0 | `control.verify_failed` |
+
+Recorded by [`docs/log/2026-11-28-x18-measurement-fault-injection-review.md`](../log/2026-11-28-x18-measurement-fault-injection-review.md).
 
 ## H4. The plane is store-, model- and harness-agnostic
 

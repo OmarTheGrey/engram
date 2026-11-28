@@ -595,6 +595,66 @@
       ]
     },
     {
+      "file": "research/results/h3-fault-injection.json",
+      "hypothesis": "H3",
+      "status": "proof of concept",
+      "prereg": "#### U6. The paired fault-injection arm, for H3 (not scheduled)",
+      "title": "Paired fault injection over LongMemEval",
+      "question": "When deletion, temporal-supersession and missing-metadata faults corrupt the memory states of the pinned S split's 500 questions, written as card B5 writes them, at the projection or in the log, how often does the read change, how often does the plane's own enforcement restore it, and do the deterministic lints or the log's hash chain see the fault?",
+      "note": "Card X18's check of proposal U6, which is not registered (the lead registered U7 only): a proof of concept that supports H3 and is not H3's test, measuring state recovery, not H3's utility recovery. Model-free. Every column is fixed by the fault's shape (the result's limits): projection faults recover by replay by construction, and the lints never rewrite. Verification catches an edit that does not re-chain the log; a re-chained log reads UNSIGNED, as the controls do, unless a checkpoint is held outside the database.",
+      "meter": {
+        "part": ["by_place", "log", "verify_detection", "successes"],
+        "whole": ["by_place", "log", "verify_detection", "n"],
+        "label": "log edits verification caught (edits that do not re-chain)"
+      },
+      "headline": [
+        {
+          "label": "pairs faulted",
+          "path": ["pairs", "targeted"]
+        },
+        {
+          "label": "projection deletion: recovery by replay",
+          "path": ["cells", "deletion", "projection", "recovery", "rate"]
+        },
+        {
+          "label": "log deletion: change rate",
+          "path": ["cells", "deletion", "log", "change", "rate"]
+        },
+        {
+          "label": "log deletion: recovery after the deterministic lints",
+          "path": ["cells", "deletion", "log", "recovery", "rate"]
+        },
+        {
+          "label": "log deletion: lint detection",
+          "path": ["cells", "deletion", "log", "lint_detection", "rate"]
+        },
+        {
+          "label": "log supersession: change rate",
+          "path": ["cells", "temporal-supersession", "log", "change", "rate"]
+        },
+        {
+          "label": "log supersession: lint detection",
+          "path": ["cells", "temporal-supersession", "log", "lint_detection", "rate"]
+        },
+        {
+          "label": "log missing metadata: change rate",
+          "path": ["cells", "missing-metadata", "log", "change", "rate"]
+        },
+        {
+          "label": "log missing metadata: lint detection",
+          "path": ["cells", "missing-metadata", "log", "lint_detection", "rate"]
+        },
+        {
+          "label": "log edits `engram log verify` detects (no re-chain)",
+          "path": ["by_place", "log", "verify_detection", "rate"]
+        },
+        {
+          "label": "unedited control logs that fail verification",
+          "path": ["control", "verify_failed"]
+        }
+      ]
+    },
+    {
       "file": "research/results/h4-power.json",
       "hypothesis": "H4",
       "status": "power computation",
@@ -996,6 +1056,13 @@
     },
     {
       "file": "research/results/h1-leakage.json",
+      "title": "Leakage across every surface",
+      "meter": {
+        "part": ["totals", "leaks"],
+        "whole": ["totals", "probes"],
+        "label": "probes leaked nothing",
+        "complement": "leaked a canary"
+      },
       "hypothesis": "none",
       "status": "proof of concept",
       "prereg": null,
@@ -1058,6 +1125,12 @@
     },
     {
       "file": "research/results/h1-quint-trace-replay.json",
+      "title": "Trace replay against the Quint model",
+      "meter": {
+        "part": ["totals", "steps_matched"],
+        "whole": ["totals", "steps"],
+        "label": "model steps matched by the code"
+      },
       "hypothesis": "none",
       "status": "proof of concept",
       "prereg": null,
@@ -1092,6 +1165,12 @@
     },
     {
       "file": "research/results/h1-gate-mutation-audit.json",
+      "title": "Mutation audit of the gate",
+      "meter": {
+        "part": ["totals", "killed"],
+        "whole": ["totals", "mutants"],
+        "label": "mutants killed"
+      },
       "hypothesis": "none",
       "status": "proof of concept",
       "prereg": null,
@@ -1126,6 +1205,12 @@
     },
     {
       "file": "research/results/h2-cedar-properties.json",
+      "title": "Cedar proofs of the presets' properties",
+      "meter": {
+        "part": ["summary", "as_expected"],
+        "whole": ["summary", "checks"],
+        "label": "properties proved or refuted as expected"
+      },
       "hypothesis": "none",
       "status": "proof of concept",
       "prereg": null,
@@ -1156,6 +1241,12 @@
     },
     {
       "file": "research/results/h5-procedure-scan.json",
+      "title": "The procedure safety scan at admission",
+      "meter": {
+        "part": ["modes", "hold", "hold", "count"],
+        "whole": ["modes", "hold", "hold", "n"],
+        "label": "unsafe procedures held from admission"
+      },
       "hypothesis": "none",
       "status": "proof of concept",
       "prereg": null,

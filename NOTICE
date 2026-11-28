@@ -252,6 +252,23 @@ Loom (https://github.com/ClickHouse/loom, commit
 Modified here: see the header of leakage-kit.ts.
 
 ------------------------------------------------------------------------
+OpenAI Codex
+
+fixtures/harness/codex/schema/pre-tool-use.command.input.schema.json and
+fixtures/harness/codex/schema/pre-tool-use.command.output.schema.json are
+copied, unmodified, from codex-rs/hooks/schema/generated/ of OpenAI Codex
+(https://github.com/openai/codex, commit
+ebd0765aafa255d63ebf690ebdffe0164dc14a0c), licensed under the Apache License,
+Version 2.0, whose NOTICE reads:
+
+  OpenAI Codex
+  Copyright 2025 OpenAI
+
+  This project includes code derived from [Ratatui](https://github.com/ratatui/ratatui), licensed under the MIT license.
+  Copyright (c) 2016-2022 Florian Dehau
+  Copyright (c) 2023-2025 The Ratatui Developers
+
+------------------------------------------------------------------------
 Caura, Sentinel scan
 
 packages/core/src/lint/procedural.ts (card D5) ports the scan tables of

@@ -21,6 +21,7 @@
     "typebox": "1.3.27"
   },
   "devDependencies": {
-    "@engram/adapters": "workspace:*"
+    "@engram/adapters": "workspace:*",
+    "ajv": "8.20.0"
   }
 }

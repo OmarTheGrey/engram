@@ -1,0 +1,46 @@
+ engram  Codex hook setup                                                in process  log :memory:  person:dana (person)
+ > Store roots     /src/lantern/memory  [                                          ]  written absolute; enter adds
+   Protected files [                                          ]  the log is protected already
+   Block events as [ person:dana                              ]  default agent:claude-code, or agent:codex
+   Harness         ( ) Claude Code, .claude/settings.json   (o) Codex, .codex/hooks.json
+   ~ More flags: 5, set: --db
+
+ [ Copy the entry ]  [ Try it on a scratch log ]  [ Install into .codex/hooks.json ]
+
+ engram is not on your PATH; the snippet uses the full path of this CLI.
+ With "onFailure": "block", a hook that fails blocks the call. Codex runs a hook only once you trust it in /hooks, and
+ again after each change to it; engram hook install codex merges this entry for you.
+ .codex/hooks.json, hooks.PreToolUse:
+   { "matcher": "*", "hooks": [ { "type": "command", "command": "/usr/bin/node /src/engram/packages/cli/src/main.ts
+   hook codex --db :memory: --as person:dana --root /src/lantern/memory", "onFailure": "block" } ] }
+
+ + Bash cat /src/lantern/memory/user_role.md   exit 0, blocked: permissionDecision deny
+ + Bash cat /src/lantern/README.md   exit 0, allowed: the hook printed nothing
+
+ + engram hook install codex   exit 0
+   installed: /src/lantern/.codex/hooks.json created with the engram hook codex entry in hooks.PreToolUse
+   Codex runs a hook only once you trust it, at the project or the user level alike, and again after each change to the
+   entry: review it in /hooks.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram hook codex --db :memory: --as person:dana --root /src/lantern/memory
+ ctrl+g help  tab next  ctrl+s try it  alt+c copy  alt+p commands  esc back
+--- styles
+r0 c0-119 inverse
+r1 c42-42 inverse
+r16 c1-1 fg #00A67A
+r17 c1-1 fg #00A67A
+r19 c1-1 fg #00A67A

@@ -22,15 +22,15 @@
 |   [F] Checkpoint t|   Explain a read              engram explain <readId>                        |                   |
 | 4 Data            |   Lint a scope                engram lint                                    |                   |
 |   [x] Export a bun|   Supersede                   engram supersede <itemId>                      |                   |
-|   [i] Import a bun|   Serve the API and inspector engram serve                                   |                   |
-| 5 Surfaces        |   Import a bundle             engram import <bundle>                         |                   |
-|   [h] Serve the AP|   Scopes you can see          engram scopes                                  |                   |
-|   [m] MCP server  |   Events                      engram events                                  |                   |
-|   [b] Claude Code |   Simulate a policy           engram simulate                                |                   |
-|   [a] Create a key|                                                                              |                   |
-|   [A] List keys   | enter open   tab fill   esc close                                            |                   |
-|   [R] Revoke a key+------------------------------------------------------------------------------+                   |
-| 6 Machine                                                            ||                                              |
+|   [i] Import a bun|   Install a hook              engram hook install <harness>                  |                   |
+| 5 Surfaces        |   Serve the API and inspector engram serve                                   |                   |
+|   [h] Serve the AP|   Import a bundle             engram import <bundle>                         |                   |
+|   [m] MCP server  |   Scopes you can see          engram scopes                                  |                   |
+|   [b] Claude Code |   Events                      engram events                                  |                   |
+|   [a] Create a key|   Simulate a policy           engram simulate                                |                   |
+|   [A] List keys   |                                                                              |                   |
+|   [R] Revoke a key| enter open   tab fill   esc close                                            |                   |
+| 6 Machine         +------------------------------------------------------------------------------+                   |
 |   [d] Doctor                          engram doctor                  ||                                              |
 |   [D] Harness memory                  engram discover        E9.10   ||                                              |
 +----------------------------------------------------------------------++----------------------------------------------+

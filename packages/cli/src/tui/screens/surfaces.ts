@@ -28,6 +28,8 @@ export const SURFACE_SCREENS: Readonly<Record<string, Make>> = {
   serve: (s, c, v, p) => new ServeScreen(s, c, v, p),
   mcp: (s, c, v, p) => new McpScreen(s, c, v, p),
   "hook claude-code": (s, c, v, p) => new HookScreen(s, c, v, p),
+  // Card E8.17: the same screen, setting up Codex's hook.
+  "hook codex": (s, c, v, p) => new HookScreen(s, c, v, p),
   export: (s, c, v, p) => new ExportScreen(s, c, v, p),
   import: (s, c, v, p) => new ImportScreen(s, c, v, p),
   "key list": (s, c, v, p) => new KeysScreen(s, c, v, p),
