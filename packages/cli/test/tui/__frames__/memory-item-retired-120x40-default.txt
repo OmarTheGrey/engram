@@ -1,0 +1,43 @@
+ engram  Item page                                                    in process  log ~/engram.db  person:dana (person)
+ 01940000-0000-7000-8000-000000000003   procedural   person:dana   retired
+ {"body":"Edit the file, then read it back to check the edit.","tools":["edit","read"]}
+ owner person:dana  source model distill:awm:d1-01,d1-02  confidence 0.9  valid from 2026-10-01T00:00:00.000Z, open
+ grants none  stored files:01940000-0000-7000-8000-000000000003.md
+┌─ Provenance ─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ This item  v2  person:dana                                                                                           │
+│ ├─ written by event 1, write ✓ allow, person:dana                                                                    │
+│ ├─ promote by event 2, promote ✓ allow, person:dana                                                                  │
+│ ├─ retire by event 3, retire ✓ allow, person:dana                                                                    │
+│ └─ no earlier version                                                                                                │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌─ Versions  1 of 2 ───────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ this item v1, event 1 (write)  to  this item v2, event 2 (promote)   up down another pair                            │
+│   {                                                                                                                  │
+│     "body": "Edit the file, then read it back to check the edit.",                                                   │
+│     "tools": [                                                                                                       │
+│       "edit",                                                                                                        │
+│       "read"                                                                                                         │
+│     ]                                                                                                                │
+│   }                                                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌─ Event 3  enter goes back to the list ───────────────────────────────────────────────────────────────────────────────┐
+│ event 3  retire  ✓ allow  by person:dana                                                                             │
+│   reason     re-validation on environment-changed: a success rate of 0.533 (8 of 15 trials with the procedure), below│
+│   the success floor 0.700 after at least 10 trials, so the procedure is retired; the retired version stays in the    │
+│   store and the log                                                                                                  │
+│   id         01940000-0000-7000-8000-000000000503                                                                    │
+│   seq        3                                                                                                       │
+│   time       2026-10-25T12:00:00.000Z                                                                                │
+│   op         retire                                                                                                  │
+│   decision   allow                                                                                                   │
+│   actor      person:dana                                                                                             │
+│   item       01940000-0000-7000-8000-000000000003                                                                    │
+│   from scope person:dana                                                                                             │
+│   to scope   person:dana                                                                                             │
+│   policy id  fixture.drift/drift/environment-changed                                                                 │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+$ engram events --owner dana --db engram.db   exit 0
+ ? help  p promote  g grants  w who  S supersede  enter event  tab pane  ; commands  esc back
+--- styles
+r0 c0-119 inverse
+r23 c19-19 fg #00A67A

@@ -287,7 +287,8 @@ describe("the violation report on a realistic two weeks", () => {
     // the plane wrote as it holds it, so none is adopted again (card RV4).
     expect(r.writes).toEqual({ allowed: 4 + 5, denied: 1 });
     // Adoption never raises trust (card RV4): the agent's items stay model.
-    expect(r.watch).toEqual({ narrowed: 0, provenance_raised: 0 });
+    // Every grant the log adds is within the twin profile's cap (card E2.21).
+    expect(r.watch).toEqual({ expiry_cap: 0, narrowed: 0, provenance_raised: 0 });
     expect(r.declared).toEqual({
       level: "person",
       memberships_by_level: { org: 0, person: 1, role: 0, team: 0 },
@@ -326,7 +327,7 @@ describe("the violation report on a realistic two weeks", () => {
       "person",
       true,
       expect.stringMatching(/^[0-9a-f]{64}$/),
-      "engram-dogfood-report/3",
+      "engram-dogfood-report/4",
     ]);
     // Byte-stable: the same log prints the same bytes.
     expect(formatReport(report(t).report)).toBe(text);
@@ -511,6 +512,44 @@ const modelItem = (id: string, over: Partial<MemoryItem> = {}) =>
     ...over,
   });
 const violations = (t: Twin) => report(t).report.violations;
+
+// Card E2.21: the twin profile turns grants.expiry_cap on. A grant past the
+// cap, or a first write's expired grant or grant of another class, is counted
+// under watch.expiry_cap and named in the details, never as a violation: the
+// log does not say whether the plane ran with the option (a member's log from
+// before the card holds such grants lawfully).
+describe("the grant cap is a watch count (card E2.21)", () => {
+  test("a grant change past the cap, and a first write's expired grant, are watched, not violations", async () => {
+    const t = await twoWeeks();
+    const before = report(t).report;
+    // 2028-01-01 is more than 365 days after the change on day 13.
+    ownerGrant(t, NOTE, [sam({ expires: "2028-01-01T00:00:00Z" })]);
+    plant(t, {
+      ...written(newItem(ID(60), "an old note", { grants: [toSam("2026-11-01T00:00:00Z")] })),
+      ts: day(13, 13),
+    });
+    const { report: r, details } = report(t);
+    expect(r.watch.expiry_cap).toBe(2);
+    expect(r.violations).toEqual(before.violations);
+    expect(details.filter((d) => d.startsWith("watch, not a violation"))).toHaveLength(2);
+    expect(details.join("\n")).toContain("more than 365 days");
+    expect(details.join("\n")).toContain("expired at the event");
+  });
+
+  test("under a policy without the option, nothing is watched", async () => {
+    const t = await twoWeeks();
+    ownerGrant(t, NOTE, [sam({ expires: "2028-01-01T00:00:00Z" })]);
+    const { grants: _g, ...uncapped } = t.policy;
+    const r = dogfoodReport(allEvents(t.db), uncapped as Policy, [DANA]).report;
+    expect(r.watch.expiry_cap).toBe(0);
+  });
+
+  test("a grant change within the cap is not watched", async () => {
+    const t = await twoWeeks();
+    ownerGrant(t, NOTE, [sam({ expires: "2027-11-23T11:00:00Z" })]);
+    expect(report(t).report.watch.expiry_cap).toBe(0);
+  });
+});
 
 describe("review fix pass: what a grant change adds (E95-1, E95-3, E95-6)", () => {
   test.each([

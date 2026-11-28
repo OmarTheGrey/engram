@@ -485,9 +485,66 @@ const SCREENS: Record<
             "engram log verify: UNSIGNED",
             "  ok    tables",
             "  ok    links",
+            "  ok    attestations",
             "  ok    checkpoints",
             "log fixture: 2 chain entries, 1 events chained, 0 unchained, 0 erased, 0 manifests, 0 checkpoints",
+            "chain version 2: 1 attestations chained, 0 not covered",
             "note: no checkpoint: nothing signs this log's head",
+            "",
+          ].join("\n"),
+        ),
+      ),
+  },
+  // Card E1.9: an attestation edited after its event was chained.
+  "log-verify-attestation": {
+    name: "log verify",
+    given: USABLE,
+    set: (s: SurfaceScreen) =>
+      s.show(
+        result(
+          ["log", "verify", "--db", "engram.db"],
+          1,
+          [
+            "engram log verify: FAILED",
+            "  ok    tables",
+            "  ok    genesis",
+            "  ok    links",
+            "  ok    anchor",
+            "  ok    commitments",
+            "  fail  attestations: event 0's attestation row does not match the digest chained with it: edited",
+            "first broken link: attestations, chain position 1, event seq 0",
+            "log fixture: 2 chain entries, 1 events chained, 0 unchained, 0 erased, 0 manifests, 0 checkpoints",
+            "chain version 2: 1 attestations chained, 0 not covered",
+            "",
+          ].join("\n"),
+        ),
+      ),
+  },
+  // Card E9.15: the signed audit report checked against the log.
+  "audit-verify": {
+    name: "audit verify",
+    given: USABLE,
+    set: (s: SurfaceScreen) =>
+      s.show(
+        result(
+          ["audit", "verify", "--report", "report.json", "--key", "operator.pub.pem"],
+          0,
+          [
+            "engram audit verify: OK",
+            "  ok    envelope",
+            "  ok    signature",
+            "  ok    statement",
+            "  ok    chain",
+            "  ok    head",
+            "  ok    checkpoint",
+            "  ok    counts",
+            "window 2026-11-01T00:00:00Z to 2026-11-02T00:00:00Z (from <= ts < to), issued 2026-11-03T08:00:00Z",
+            "log fixture: head 9f2c at 8 entries, seq 6",
+            "checkpoint 0 at 8 entries, signed, at the head",
+            "events counted 5: allow 3, deny 2",
+            "  write: allow 2, deny 2",
+            "  rule engram/write/membership: deny 1",
+            "oracle: 0 violations (read 0, grant change 0), 1 actors declared, set sha256 5d1c",
             "",
           ].join("\n"),
         ),

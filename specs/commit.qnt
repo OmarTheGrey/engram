@@ -30,8 +30,8 @@
 // the module `broken` removes it, so a write lands against a stale head, and
 // the checker must refute erasureHolds and noWriteWhileErasing there (and
 // noStaleAppend, which restates the removed check). The module
-// `knownGapThreeOffboardings` pins a leak the code has with a third
-// offboarding (specs/README.md).
+// `threeOffboardings` allows a third offboarding, which card E1.5 found the
+// code leaked erased content with; card E1.7 closed it (specs/README.md).
 module commit {
   const HANDLES: Set[str]
   const ITEMS: Set[str]
@@ -271,8 +271,10 @@ module commit {
 
   // write.ts decideWrite and planeRefusal, then appendRefusal: the head is
   // noted, the projection read; a write into a scope being erased is refused
-  // (engram/offboard/erasing), as is a new item under an erased id
-  // (engram/write/erased). Otherwise the decision is held with its basis.
+  // (engram/offboard/erasing), as is a new item under an id an offboarding
+  // erased or swept (engram/write/erased; card E1.7: a swept id too, which
+  // adoption refuses and purges). Otherwise the decision is held with its
+  // basis.
   action decide(h: str, x: str, k: int): bool = all {
     pc.get(h).tag == "idle",
     nextContent < MAX_CONTENT,
@@ -280,7 +282,7 @@ module commit {
     if (erasureOpen(log)) all {
       log' = log.append(ev(n, ERASING, "deny", x, "none", -1, k)),
       pc' = pc, nextContent' = nextContent,
-    } else if (not(proj.get(x).live) and erasedIn(log, x)) all {
+    } else if (not(proj.get(x).live) and removedIn(log, x)) all {
       log' = log.append(ev(n, WRITE_ERASED, "deny", x, "none", -1, k)),
       pc' = pc, nextContent' = nextContent,
     } else all {
@@ -515,17 +517,20 @@ module commit {
   }
 
   // offboard.ts run, the put-back loop: read the head and the item under
-  // the lock; write it back; check again. When the read finds the item gone
-  // the loop ends and leaves what it last wrote, as the code's `break` does
-  // (the known gap, module knownGapThreeOffboardings). The code stops after
+  // the lock, and what the store should hold, as settle's `wanted` has it
+  // (commit.ts): the projected item unless it is gone or its scope is being
+  // erased, in which case nothing; write it back or delete the record; check
+  // again. Card E1.7: before it, a read that found the item gone ended the
+  // loop and left what the last round wrote, which a third offboarding could
+  // have erased in between (module threeOffboardings). The code stops after
   // four rounds; the model retries without limit and lacks that path.
   action obPutBackRead(h: str): bool = {
     val p = pc.get(h)
     val now = proj.get(p.iid)
+    val keep = now.live and not(erasureOpen(log))
     all {
       p.tag == "obPutBackRead",
-      pc' = pc.set(h, if (now.live) { ...p, tag: "obPutBackWrite", basis: logHead(log), desired: now }
-                      else { ...p, tag: "obSweep", remaining: p.remaining.exclude(Set(p.iid)) }),
+      pc' = pc.set(h, { ...p, tag: "obPutBackWrite", basis: logHead(log), desired: if (keep) now else NONE }),
       log' = log, store' = store, nextContent' = nextContent, keepGhosts,
       lastAction' = act("obPutBackRead", h, p.iid),
     }
@@ -535,7 +540,7 @@ module commit {
     val p = pc.get(h)
     all {
       p.tag == "obPutBackWrite",
-      store' = store.set(p.iid, recOf(p.desired)),
+      store' = store.set(p.iid, if (p.desired.live) recOf(p.desired) else ABSENT),
       pc' = pc.set(h, { ...p, tag: "obPutBackCheck" }),
       log' = log, nextContent' = nextContent, keepGhosts,
       lastAction' = act("obPutBackWrite", h, p.iid),
@@ -748,13 +753,15 @@ module commit {
   // of the log and no projected item holds erased content, no projected item
   // holds an erased id, and the store holds a record under an erased id, or
   // holding erased content, only while a call that will remove it is in
-  // flight (a stale writer settling, an adoption's purge, a sweep's delete),
-  // or when an outside party wrote it there.
+  // flight (a stale writer settling, an adoption's purge, a sweep's delete,
+  // a sweep's put-back, which since card E1.7 deletes what it wrote once the
+  // item is gone), or when an outside party wrote it there.
   def inFlightOn(x: str): bool =
     HANDLES.exists(h => {
       val p = pc.get(h)
       p.iid == x and Set("wrote", "settling", "settleStore", "settleConfirm",
-                          "adoptPurge", "obSweepDel").contains(p.tag)
+                          "adoptPurge", "obSweepDel", "obPutBackRead", "obPutBackWrite",
+                          "obPutBackCheck").contains(p.tag)
     })
 
   val erasureHolds =
@@ -961,13 +968,14 @@ module good {
       .then(adoptList("h2")).then(adoptOne("h2", "a"))
       .expect(lastAction.name == "adoptSkip")
 
-  // A finding, not a property (log entry 2026-11-21-e1-5-finding-purge-
-  // race-on-the-code, which supersedes 2026-11-21-e1-5-finding-purge-after-
-  // swept-id): a write under a swept id is allowed (planeRefusal checks
-  // lastErasure only), adoption refuses that id and deletes its record
-  // outside the lock (purgeOutcome), so a write committed between the two
-  // loses its store record. All four properties still hold; this test pins
-  // the state the code reaches, so a fix shows up as this test failing.
+  // Card E1.5 found a race here (log entry 2026-11-21-e1-5-finding-purge-
+  // race-on-the-code): a write under a swept id was allowed (planeRefusal
+  // checked lastErasure only), adoption refuses that id and deletes its
+  // record after the refusal (purgeOutcome), so a write committed between
+  // the two lost its store record. Card E1.7 refuses a new write under a
+  // swept id as under an erased one, and rechecks under the lock before each
+  // purge: the write is refused, the purge deletes the record dropped in by
+  // hand, and nothing the plane holds loses its record.
   run sweptIdPurgeRaceTest =
     init
       .then(decide("h1", "b", USER))
@@ -978,10 +986,14 @@ module good {
       .then(outsideEdit("b", USER))
       .then(adoptList("h3")).then(adoptOne("h3", "b"))
       .expect(pc.get("h3").tag == "adoptPurge")
-      .then(decide("h2", "b", USER)).then(storeWrite("h2")).then(commit("h2"))
+      .then(decide("h2", "b", USER))
+      .expect(all {
+        log[log.length() - 1].rule == WRITE_ERASED,
+        pc.get("h2").tag == "idle",
+      })
       .then(adoptPurge("h3"))
       .expect(all {
-        proj.get("b").live,
+        not(proj.get("b").live),
         not(store.get("b").present),
         safety,
       })
@@ -1018,17 +1030,17 @@ module broken {
       .expect(all { not(erasureHolds), not(noWriteWhileErasing), not(noStaleAppend) })
 }
 
-// A known gap of the code, pinned (log entry 2026-11-21-e1-5-finding-put-
-// back-leak): with three offboardings of one person, the sweep's put-back
-// (offboard.ts run, the loop after a changed swept record) reads the item,
-// a third offboarding erases it, and the put-back writes it back; on the
-// next round the item is gone and the loop ends without deleting what it
-// wrote. After both reports the store holds erased content. The `good`
-// module bounds offboardings at two, which hides this; this module allows
-// three. The test ends in not(erasureHolds) and so fails once the code (and
-// the model's obPutBackRead) delete the record when the item is gone or its
-// scope is being erased, as settle's `wanted` does.
-module knownGapThreeOffboardings {
+// Three offboardings of one person. Card E1.5 found a leak here (log entry
+// 2026-11-21-e1-5-finding-put-back-leak): the sweep's put-back (offboard.ts
+// run, the loop after a changed swept record) reads the item, a third
+// offboarding erases it, and the put-back writes it back; on the next round
+// the item was gone and the loop ended without deleting what it wrote, so
+// after both reports the store held erased content. The `good` module bounds
+// offboardings at two, which hid it. Card E1.7 made the put-back delete the
+// record when the item is gone or its scope is being erased, as settle's
+// `wanted` does (obPutBackRead): the same interleaving now ends with the
+// record deleted and every property holding.
+module threeOffboardings {
   import commit(
     HANDLES = Set("h1", "h2", "h3"),
     ITEMS = Set("a", "b"),
@@ -1052,16 +1064,21 @@ module knownGapThreeOffboardings {
       .expect(pc.get("h1").tag == "obPutBackRead")
       .then(obPutBackRead("h1"))
       .then(obBegin("h2")).then(obDelete("h2", "b")).then(obErase("h2")).then(obSweepList("h2"))
-      .then(obPutBackWrite("h1")).then(obPutBackCheck("h1")).then(obPutBackRead("h1"))
+      .then(obPutBackWrite("h1"))
+      .expect(all {
+        store.get("b").present,
+        erasedContent.contains(store.get("b").content),
+        safety,
+      })
+      .then(obPutBackCheck("h1")).then(obPutBackRead("h1"))
+      .expect(not(pc.get("h1").desired.live))
+      .then(obPutBackWrite("h1")).then(obPutBackCheck("h1"))
       .then(obReport("h2"))
       .then(obReport("h1"))
       .expect(all {
         erasedIds.contains("b"),
-        store.get("b").present,
-        erasedContent.contains(store.get("b").content),
+        not(store.get("b").present),
         HANDLES.forall(h => pc.get(h).tag == "idle"),
-        noStaleAppend,
-        noWriteWhileErasing,
-        not(erasureHolds),
+        safety,
       })
 }

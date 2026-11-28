@@ -523,9 +523,12 @@ export function evaluatePromotion(
     undefined,
     // An in-place promotion changes only the status and the version, so a
     // reviewer who is not the owner may make it on an item carrying grants
-    // (card RV7: the owner's rule of RV-CORE-1 exempts exactly this).
+    // (card RV7: the owner's rule of RV-CORE-1 exempts exactly this, and
+    // checks the item is exactly that). Neither transition is judged by
+    // grants.expiry_cap's cap or first-write rule (ADR 0034, decision 6; card
+    // E2.21): the new version only keeps grants an earlier write held to them.
     // Consent's windows are judged at the promotion's time (card E9.12).
-    { promotion: transition === "in-place", consentAt: at },
+    { promotion: true, consentAt: at },
   );
   if (write.decision === "deny")
     return deny("write", `as a write into ${target}: ${write.reason}`, write.policy_id);

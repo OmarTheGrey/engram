@@ -55,6 +55,8 @@ Every ADR, 0001 to 0033, is accepted by the lead, and the lead is its decider. A
 | 0047 | A by-id read and a scope list reveal no more than a read: an id out of reach or reached only through a grant that does not admit it answers as an unknown id; framework writes carry source model | accepted by the lead, 2026-11-25 |
 | 0048 | The contradiction lint's local NLI tier is an injected scorer behind its own lint id, its scores cached as cassettes | accepted by the lead, 2026-11-25 |
 | 0049 | In a person scope only, its owner, acting as user, accepts a candidate of that scope; acceptance never raises trust | accepted, 2026-11-25, under the lead's instruction (card E9.9) |
+| 0050 | A changed environment hash re-validates an admitted procedure; drift retires on the success floor after min-trials (partly supersedes 0011) | accepted under the lead's delegation, 2026-11-28 (card D4) |
+| 0051 | Crypto-shredded erasure: a data key per person scope, wrapped under an operator key behind an injected provider; shredding adds to redaction and replaces nothing | accepted under the lead's delegation, 2026-11-29 (card E9.11) |
 
 ---
 

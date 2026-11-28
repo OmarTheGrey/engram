@@ -1,0 +1,9 @@
+{
+  "name": "drift-fixture",
+  "kind": "proof of concept",
+  "hypothesis": "none",
+  "status": "proof of concept",
+  "card": "D4",
+  "wording": "card D3's admitted procedure re-validated through Plane.revalidate on a fixture pool with one held-out task changed, then on D3's pool, every call replayed from committed cassettes with a scripted model; a proof of concept on fixtures, not a hypothesis result: H5 registers admission, not retirement, and drift is off in every registered preset and config",
+  "run_config": "research/configs/d4-drift-fixture.json"
+}

@@ -65,6 +65,15 @@
 // such content live again. They are not read by `writeForbidden`, so
 // invariant 2 is unchanged; the acceptance property
 // (test/property/consent.test.ts) judges the Plane by them.
+//
+// The grant cap (card E2.21, ADR 0034, decisions 3 and 6; a `decision` log
+// entry records the change) adds `expiryCapProblem`: under grants.expiry_cap
+// on, every grant a write or grant change adds (all of a new item's) names the
+// item's class, is live at the event and expires no more than 365 days after
+// it, judged as a count of whole seconds and then the fraction, not by adding
+// the cap as the evaluator does. `writeForbidden` applies it when its caller
+// names the landing (`at`, and the version before); a promotion's new version
+// is never named so, since decision 6 exempts it.
 import type { Actor } from "./actor.ts";
 import { strictContentHash } from "./content-hash.ts";
 import type { Grant, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
@@ -168,13 +177,16 @@ export const effectiveKind = (actor: Actor, item: MemoryItem, policy?: Policy) =
  * that an allowed retire or evict event retired in the same scope (ADR 0025,
  * review finding P4-3); `retiredByEvent` lists those items. A write may not
  * carry one grant twice (card E9.4, review finding M1 of PR #44): two grants
- * are one when every field matches, the expiry as an instant.
+ * are one when every field matches, the expiry as an instant. With `landing`
+ * (the write's time, and the version of its id before it, none for a new
+ * item), the grant cap is judged too (`expiryCapProblem`, card E2.21).
  */
 export function writeForbidden(
   policy: Policy,
   actor: Actor,
   item: MemoryItem,
   retiredByEvent: readonly MemoryItem[] = [],
+  landing?: { at: string; before?: MemoryItem },
 ): boolean {
   if (!actor.memberships.some((m) => m === item.scope)) return true;
   const kind = effectiveKind(actor, item, policy);
@@ -193,6 +205,8 @@ export function writeForbidden(
   if (item.grants.some((g, i) => item.grants.slice(0, i).some((h) => grantsAlike(g, h))))
     return true;
   if (untrusted && level(item.scope) !== "person") return true;
+  if (landing && expiryCapProblem(policy, landing.before, item, landing.at) !== undefined)
+    return true;
   const rule = policy.write.find((r) => r.scope === level(item.scope));
   if (!rule) return false;
   return rule.forbidden_classes.includes(item.class) || !rule.allowed_sources.includes(kind);
@@ -1006,4 +1020,44 @@ export function consentForbids(
       !(o.except_topics ?? []).some((t) => phraseOf(item.content, t)),
   );
   return k === -1 ? undefined : k;
+}
+
+// Card E2.21 (ADR 0034, decisions 3 and 6): the grant cap and the first-write
+// rule, judged apart from policy/evaluate.ts.
+
+/** The cap, in seconds: 365 days of 86,400 seconds, no calendar year, no leap day. */
+const CAP_SECONDS = 365 * 24 * 60 * 60;
+
+/** Is `expires` more than CAP_SECONDS after `at`? Whole seconds first, then the fractions. */
+function pastCap(expires: string, at: string): boolean {
+  const whole = wholeSeconds(expires) - wholeSeconds(at);
+  if (whole !== CAP_SECONDS) return whole > CAP_SECONDS;
+  const fe = fractionOf(expires);
+  const fa = fractionOf(at);
+  const width = Math.max(fe.length, fa.length);
+  return fe.padEnd(width, "0") > fa.padEnd(width, "0");
+}
+
+/**
+ * Under grants.expiry_cap on, why a write or grant change at `at` that turns
+ * `before`'s grants (none for a new item) into `after`'s should be refused,
+ * or undefined: a grant it adds names another class than the item's, has
+ * expired by `at`, or expires more than 365 days after `at`. A grant kept
+ * from `before` is not judged; nor is a promotion's new version, which the
+ * caller does not pass (ADR 0034, decision 6). Off or absent: undefined.
+ */
+export function expiryCapProblem(
+  policy: Policy,
+  before: MemoryItem | undefined,
+  after: MemoryItem,
+  at: string,
+): string | undefined {
+  if (policy.grants?.expiry_cap !== "on") return undefined;
+  for (const g of addedGrants(before?.grants ?? [], after.grants)) {
+    if (!admitsClass(after, g)) return "adds a grant of another class under the grant cap";
+    if (g.expires === undefined) continue;
+    if (compareTimestamps(g.expires, at) <= 0) return "adds a grant expired at the event";
+    if (pastCap(g.expires, at)) return "adds a grant expiring more than 365 days after the event";
+  }
+  return undefined;
 }

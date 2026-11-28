@@ -21,7 +21,8 @@
 // (engram/write/conflict) and the store is put back as the log has it. A
 // write the gate allows is also refused by the plane into a person scope an
 // offboarding is erasing (engram/offboard/erasing), and under an id an
-// offboarding erased (engram/write/erased).
+// offboarding erased or swept out of the store (engram/write/erased; card
+// E1.7).
 //
 // After a landing write, in the transaction that commits it, the budget
 // check of the written scope and class runs (card E2.4, ADR 0025): so no
@@ -32,14 +33,20 @@ import { type Actor, checkCall } from "../actor.ts";
 import type { StoreRef } from "../adapter.ts";
 import { contentHash } from "../content-hash.ts";
 import type { Db } from "../db/db.ts";
-import { appendEvent } from "../events.ts";
+import { appendEvent, erases } from "../events.ts";
 import { itemById, itemsByStoreRef } from "../items.ts";
 import type { PlaneDeps, WriteCheckResult, WriteResult } from "../plane.ts";
-import { evaluateWrite, SCHEMA_ID, STORE_FAILURE_ID, sameGrant } from "../policy/evaluate.ts";
+import {
+  evaluateWrite,
+  SCHEMA_ID,
+  STORE_FAILURE_ID,
+  sameGrant,
+  scopeLevel,
+} from "../policy/evaluate.ts";
 import { leastTrusted } from "../policy/promotion.ts";
 import { ITEM_TTL_ID } from "../policy/retention.ts";
 import { unattestedFloor } from "../policy/trust.ts";
-import { Id, MemoryItem, type Policy, Scope } from "../schema.ts";
+import { Id, type MemoryEvent, MemoryItem, type Policy, Scope } from "../schema.ts";
 import {
   type Basis,
   canonical,
@@ -47,7 +54,6 @@ import {
   erasingReason,
   erasureBegunSince,
   erasureOpen,
-  lastErasure,
   lastRemoval,
   logHead,
   ownBytes,
@@ -321,9 +327,10 @@ type Decided =
  * Why the plane refuses a write the gate allowed, or null (card E2.6): the
  * item, as written or as projected, is in a person scope an offboarding is
  * erasing; or, for a write that is not an adoption, its id belongs to an
- * item an offboarding erased and the projection no longer holds. An erased
- * id is never used again; a new memory takes a new id. The reason names the
- * erased scope only to a member of it (finding N3).
+ * item an offboarding erased, or whose record an offboarding's sweep took
+ * out of the store, and the projection no longer holds. Such an id is never
+ * used again; a new memory takes a new id. The reason names the erased scope
+ * only to a member of it (finding N3).
  */
 function planeRefusal(
   db: Db,
@@ -336,21 +343,57 @@ function planeRefusal(
   const erasing = scopes.find((s) => erasureOpen(db, s));
   if (erasing) return { reason: erasingReason(erasing), policy_id: ERASING_ID };
   if (adopting || existing) return null;
-  // A new item whose lineage names an erased or swept id carries content
-  // traced to erased content (verification pass 3 of PR #50, V3-1).
-  const ancestor = removedAncestor(db, item);
-  const gone = lastErasure(db, item.id) ?? (ancestor ? lastRemoval(db, ancestor) : null);
+  // A new item under an id an offboarding took out of the store, erased or
+  // swept, is refused: adoption refuses and deletes a record under such an id
+  // (adopt.ts erasedRefusal), so a write committed under it would lose its
+  // record to that purge (card E1.7, finding E1.5-8). A new item whose
+  // lineage names such an id carries content traced to erased content
+  // (verification pass 3 of PR #50, V3-1).
+  const own = lastRemoval(db, item.id);
+  const ancestor = own ? null : removedAncestor(db, item);
+  const gone = own ?? (ancestor ? lastRemoval(db, ancestor) : null);
   if (!gone) return null;
+  return { reason: removedReason(actor, item.id, gone, ancestor), policy_id: WRITE_ERASED_ID };
+}
+
+/**
+ * Why a new item under `id`, or naming `ancestor` in its lineage, is refused:
+ * `gone` is the event that took the id out (commit.ts lastRemoval). It names
+ * the scope the id lived in only to a member of it (finding N3), and the
+ * person scope whose offboarding took it out only to a member of that scope:
+ * a sweep of a lineage record lies in the scope the record was in, a team
+ * scope say, not in the offboarded person scope (card E1.7's review).
+ */
+function removedReason(
+  actor: Actor,
+  id: string,
+  gone: MemoryEvent,
+  ancestor: string | null,
+): string {
   const scope = gone.scope_from;
-  return {
-    reason:
-      scope !== null && actor.memberships.includes(scope)
-        ? ancestor && !lastErasure(db, item.id)
-          ? `item ${item.id} names in its lineage item ${ancestor}, which an offboarding of ${scope} took out; content traced to it is not written again`
-          : `item id ${item.id} belonged to an item erased with ${scope} at an offboarding; an erased id is never used again, so a new memory takes a new id`
-        : "the item id is held by an item you cannot access",
-    policy_id: WRITE_ERASED_ID,
-  };
+  if (scope === null || !actor.memberships.includes(scope))
+    return "the item id is held by an item you cannot access";
+  const person = offboardedScope(gone);
+  const who =
+    person !== null && actor.memberships.includes(person)
+      ? `an offboarding of ${person}`
+      : "an offboarding";
+  if (ancestor)
+    return `item ${id} names in its lineage item ${ancestor}, which ${who} took out; content traced to it is not written again`;
+  if (erases(gone))
+    return `item id ${id} belonged to an item erased with ${scope} at an offboarding; an erased id is never used again, so a new memory takes a new id`;
+  return `item id ${id} was swept out of the store of ${scope} by ${who} (${gone.policy_id}); an id taken out of the store is never used again, so a new memory takes a new id`;
+}
+
+/**
+ * The person scope whose offboarding appended `gone`: its own scope when that
+ * is a person scope (an erasure, or a sweep of the person scope), else the
+ * one a lineage sweep's reason names (offboard.ts, "an offboarding of <person>
+ * took out"), or null.
+ */
+function offboardedScope(gone: MemoryEvent): string | null {
+  if (gone.scope_from !== null && scopeLevel(gone.scope_from) === "person") return gone.scope_from;
+  return /an offboarding of (person:\S+?) took out/.exec(gone.reason)?.[1] ?? null;
 }
 
 /**
@@ -555,6 +598,13 @@ async function decideAndWrite(
       if (ancestor)
         return {
           stale: `its lineage names item ${ancestor}, which an offboarding took out after the decision`,
+          policy_id: WRITE_ERASED_ID,
+        };
+      // So is a new item whose own id an offboarding took out after the
+      // decision, by a sweep whose delete failed (no counted change; card E1.7).
+      if (isNew && lastRemoval(db, item.id))
+        return {
+          stale: `its id ${item.id} was taken out of the store by an offboarding after the decision`,
           policy_id: WRITE_ERASED_ID,
         };
       // Another handle may have filled the scope since the decision.

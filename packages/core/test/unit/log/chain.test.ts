@@ -1,7 +1,8 @@
 // The hash chain's parts (card E1.6, ADR 0038): the one canonical form, the
 // RFC 6962 hashes and root, where the chain starts, a handle that keeps no
 // chain, checkpoints signed and not, held checkpoints, and migration 5
-// applied before or after a later migration, on SQLite and on Postgres.
+// applied before or after a later migration (an attestation row added after
+// its event was chained caught, card E1.9), on SQLite and on Postgres.
 import { createHash } from "node:crypto";
 import { describe, expect, test } from "vitest";
 import type { Db } from "../../../src/db/db.ts";
@@ -9,6 +10,7 @@ import { MIGRATIONS, migrate } from "../../../src/db/migrate.ts";
 import { appendEvent, type EventInput } from "../../../src/events.ts";
 import {
   CHAIN_SEED,
+  CHAIN_VERSION,
   chainCanonical,
   chainLink,
   keepChain,
@@ -123,7 +125,7 @@ forEachBackend((backend) => {
     appendEvent(db, event({ op: "read", item: null, item_id: null, item_ids: [] }));
     expect(readHead(db)).toBeUndefined();
     const genesis = keepChain(db, seededKeeper(1));
-    expect(genesis).toMatchObject({ kind: "genesis", version: 1, start: 2 });
+    expect(genesis).toMatchObject({ kind: "genesis", version: CHAIN_VERSION, start: 2 });
     expect(keepChain(db, seededKeeper(2))).toEqual(genesis);
     appendEvent(db, event());
     const report = verifyChain(db);
@@ -219,14 +221,14 @@ forEachBackend((backend) => {
     expect(() => writeCheckpoint(db, "yesterday")).toThrow(/not a UTC timestamp/);
   });
 
-  test("migration 5 applies after card E8.12's 6 already applied, and before it on a fresh log", () => {
+  test("migration 5 applies after card E8.12's 6 (and E9.11's 7) already applied, and before it on a fresh log", () => {
     const later = backend.open();
     expect(
       migrate(
         later,
         MIGRATIONS.filter((m) => m.id !== 5),
       ),
-    ).toEqual([1, 2, 3, 4, 6]);
+    ).toEqual([1, 2, 3, 4, 6, 7]);
     const first = appendEvent(later, event());
     const attest = (seq: number, id: string) =>
       later
@@ -237,16 +239,20 @@ forEachBackend((backend) => {
     attest(first.seq, first.id);
     expect(migrate(later)).toEqual([5]);
     keepChain(later, seededKeeper(6));
-    const second = appendEvent(later, event());
-    attest(second.seq, second.id);
-    expect(verifyChain(later).first_break).toBeNull();
-    expect(verifyChain(later).counts.unchained).toBe(1);
-    // The attestation rows are outside the chain (decision entry
-    // attestations-outside): an edited one is not detected today.
-    later
-      .prepare("UPDATE event_attestations SET actor = 'person:mallory' WHERE seq = ?")
-      .run(second.seq);
-    expect(verifyChain(later).first_break).toBeNull();
+    appendEvent(later, event());
+    const before = verifyChain(later);
+    expect(before.first_break).toBeNull();
+    expect(before.counts.unchained).toBe(1);
+    // The row of the event before the chain began is counted, vouched for by nothing.
+    expect(before.counts).toMatchObject({ attested: 0, attestations_uncovered: 1 });
+    // Since card E1.9 the chain holds each event's attestation: a row added
+    // after its event was chained (here, outside the append) is caught.
+    const third = appendEvent(later, event());
+    attest(third.seq, third.id);
+    expect(verifyChain(later).first_break).toMatchObject({
+      check: "attestations",
+      seq: third.seq,
+    });
 
     const fresh = backend.open();
     expect(migrate(fresh)).toEqual(MIGRATIONS.map((m) => m.id));

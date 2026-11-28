@@ -14,7 +14,14 @@
 // confirmation as its own command. It may be denied; nothing else on these
 // screens can be undone.
 import type { Grant, MemoryItem } from "@engram/sdk";
-import { GRANT_CLASSES, GRANT_MODES, grantFrom, grantLabel, shownGrants } from "@engram/view";
+import {
+  GRANT_CLASSES,
+  GRANT_EXPIRY_HINT,
+  GRANT_MODES,
+  grantFrom,
+  grantLabel,
+  shownGrants,
+} from "@engram/view";
 import type { CommandSpec, Values } from "../../registry.ts";
 import { TextField } from "../fields.ts";
 import { cut, para } from "../layout.ts";
@@ -356,7 +363,7 @@ export class GrantsScreen extends RichScreen {
         `     ${choice("class", "Class", this.klass)}   ${choice("mode", "Mode", this.mode)}   space or left and right choose`,
         width,
       ),
-      this.extraRow(ctx, "expires", "Expires", width, "a UTC date or timestamp; empty for none"),
+      this.extraRow(ctx, "expires", "Expires", width, GRANT_EXPIRY_HINT),
       `   ${this.button(ctx, "apply", "Add to the change")}   ${this.button(ctx, "send", "Apply the change")}   ctrl+s`,
       ...this.advancedLines(ctx, width),
     );

@@ -15,6 +15,7 @@
 //   engram/grant/source             a rewrite changing the grants by an actor neither user- nor import-sourced
 //   engram/grant/expired            a grant added after it expired (ADR 0034)
 //   engram/grant/unchanged          a grant the item already carries, added again
+//   engram/write/grant-expiry-cap   a grant expiring more than 365 days after the write, under grants.expiry_cap (ADR 0034, card E2.21)
 //   engram/write/source-isolation   model and compaction content stays in person scope (ADR 0004, 0007)
 //   engram/write/retired-content    a model, compaction or tool write restates content retired in its scope (ADR 0025)
 //   engram/write/default-deny       no write rule for the item's scope level (D6)
@@ -32,7 +33,7 @@ import type { Actor } from "../actor.ts";
 import { contentHash } from "../content-hash.ts";
 import { canonicalJson } from "../model.ts";
 import type { Grant, MemoryItem, Policy, ScopeLevel } from "../schema.ts";
-import { compareTimestamps } from "../time.ts";
+import { addSeconds, compareTimestamps } from "../time.ts";
 import { CONSENT_ID, consentRefusal } from "./consent.ts";
 import { INJECTION_SCREEN_ID, injectionHold } from "./injection-screen.ts";
 import { itemExpiry } from "./retention.ts";
@@ -55,6 +56,19 @@ export const GRANT_OWNER_ID = "engram/grant/owner";
 export const GRANT_SOURCE_ID = "engram/grant/source";
 export const GRANT_EXPIRED_ID = "engram/grant/expired";
 export const GRANT_UNCHANGED_ID = "engram/grant/unchanged";
+/** A grant expiring past the cap, under grants.expiry_cap (ADR 0034, decision 3; card E2.21). */
+export const GRANT_EXPIRY_CAP_ID = "engram/write/grant-expiry-cap";
+/** The cap: 365 days of 86,400 seconds after the write's event time, no calendar year, no leap day. */
+export const GRANT_EXPIRY_CAP_SECONDS = 31_536_000;
+
+/**
+ * Whether the policy turns ADR 0034's cap and first-write rule on
+ * (`grants.expiry_cap`, card E2.21). Absent or `off`, the gate decides as it
+ * did before the option: no registered preset sets it.
+ */
+export function expiryCapOn(policy: Policy): boolean {
+  return policy.grants?.expiry_cap === "on";
+}
 /** A rewrite that moves an item to another scope by anyone but its owner (card RV7, RV-CORE-2). */
 export const WRITE_MOVE_ID = "engram/write/move";
 
@@ -147,14 +161,17 @@ export function grantText(g: Grant): string {
  * null: the one check both paths that add a grant run (Plane.write and
  * Plane.changeGrants; review finding M1 of PR #44). The write gate's grant
  * rule (grantProblem, decision D4); a class other than the item's, which
- * could never admit a read; with `at`, an expiry at or before it; and a
- * grant `alongside` already holds.
+ * could never admit a read; with `at`, an expiry at or before it; with `at`
+ * and `cap` (grants.expiry_cap on, card E2.21), an expiry more than 365 days
+ * after it, refused and never clamped (ADR 0034, decision 3; exactly 365
+ * days lands); and a grant `alongside` already holds.
  */
 export function grantDefect(
   grant: Grant,
   item: MemoryItem,
   alongside: readonly Grant[],
   at?: string,
+  cap = false,
 ): { problem: string; policy_id: string } | null {
   const problem = grantProblem(grant, item.provenance.kind);
   if (problem) return { problem, policy_id: WRITE_GRANT_ID };
@@ -167,6 +184,12 @@ export function grantDefect(
     return {
       problem: `the ${grantText(grant)} has expired by ${at}; it would never admit a read`,
       policy_id: GRANT_EXPIRED_ID,
+    };
+  const limit = cap && at !== undefined ? addSeconds(at, GRANT_EXPIRY_CAP_SECONDS) : null;
+  if (limit !== null && grant.expires !== undefined && compareTimestamps(grant.expires, limit) > 0)
+    return {
+      problem: `the ${grantText(grant)} expires after ${limit}, the limit of 365 days (31,536,000 seconds) after this change at ${at}; it is refused, not shortened`,
+      policy_id: GRANT_EXPIRY_CAP_ID,
     };
   if (alongside.some((h) => sameGrant(grant, h)))
     return {
@@ -233,7 +256,16 @@ export interface WriteDecision {
  * record adopted); every grant it adds passes grantDefect at `at`, as a
  * grant change's would. Every grant, kept or added, passes the write gate's
  * grant rule (D4), and a first write or a grant change carries each grant
- * once; a first write's grants are judged no further (see the loop).
+ * once; a first write's grants are judged no further (see the loop), unless
+ * grants.expiry_cap is on (card E2.21): then a first write is held to the
+ * whole of grantDefect, and every grant a write adds to the cap of 365 days
+ * after `at` (`engram/write/grant-expiry-cap`).
+ *
+ * `options.promotion` marks a call by the promotion gate (policy/promotion.ts)
+ * for its in-place transition or its new version: the cap and the first-write
+ * rule never judge either (ADR 0034, decision 6), and the owner rule's
+ * exemption below holds only for an in-place transition that changes nothing
+ * but the status and the version.
  *
  * The owner's rules (card RV7, core review findings RV-CORE-1 and 2; the
  * amendments of ADRs 0006 and 0034): a rewrite that moves an item to another
@@ -324,6 +356,9 @@ export function evaluateWrite(
   }
   const kind = item.provenance.kind;
   const prior = existing?.grants ?? [];
+  // The cap and the first-write rule (grants.expiry_cap, card E2.21); never
+  // for the promotion gate's new version or in-place transition (decision 6).
+  const capped = expiryCapOn(policy) && !options.promotion;
   // A grant admits a read only of its own class, so a class change of an item
   // carrying grants switches what they admit: it is a grant change too
   // (verification finding V-4 of PR #44).
@@ -387,11 +422,14 @@ export function evaluateWrite(
         GRANT_UNCHANGED_ID,
       );
     // Only a grant a rewrite adds is judged further: keeping one the item
-    // already carries is no grant change. A first write keeps the write
-    // gate's grant rule alone: an already expired grant is one the twin
-    // profile's fixture writes on purpose (fixtures/profiles/twin-reads.json),
-    // and a grant of another class is one the read filter's tests write and a
-    // promotion's new version may carry from its source (M1 of PR #44).
+    // already carries is no grant change. With grants.expiry_cap absent or
+    // off, a first write keeps the write gate's grant rule alone, as before
+    // the option (M1 of PR #44): the read filter's tests write a grant of
+    // another class or an expired one on a first write under testPolicy().
+    // With it on (ADR 0034, decisions 3 and 6; card E2.21), a first write is
+    // held to the whole of grantDefect, the cap included, and so is every
+    // grant a rewrite adds; a promotion's new version is exempt (decision 6:
+    // it only keeps grants an earlier write held to them).
     // A class change judges every grant it keeps against the new class: one
     // naming another class would never admit a read (V-4).
     const kept = prior.some((h) => sameGrant(grant, h));
@@ -401,8 +439,9 @@ export function evaluateWrite(
         `grants[${i}]: ${grantText(grant)} names class ${grant.class}, but the item becomes ${item.class}: it would never admit a read; remove it first`,
         WRITE_GRANT_ID,
       );
-    if (!changesGrants || kept) continue;
-    const defect = grantDefect(grant, item, earlier, at);
+    const firstWriteRule = capped && existing === undefined;
+    if (!firstWriteRule && (!changesGrants || kept)) continue;
+    const defect = grantDefect(grant, item, earlier, at, capped);
     if (defect) return deny("grant", `grants[${i}]: ${defect.problem}`, defect.policy_id);
   }
   // Trust floors (card E2.11, ADR 0040): off unless the policy's trust block

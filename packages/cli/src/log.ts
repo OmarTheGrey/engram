@@ -1,5 +1,6 @@
 // `engram log verify` and `engram log checkpoint` (card E1.6, ADR 0038): the
-// event log's hash chain, read and anchored on this machine. Neither goes
+// event log's hash chain, read and anchored on this machine; from chain
+// version 2 (card E1.9) it holds each served event's attestation too. Neither goes
 // through the client: the chain is the log's own tables, and a server named
 // by --server is not asked (a verifier trusts no one's answer about the log
 // it checks). The verdicts and exit codes are core's (log/verify.ts): 0 OK,
@@ -64,6 +65,11 @@ function report(r: ChainReport): string {
   const c = r.counts;
   lines.push(
     `log ${r.log ?? "(none)"}: ${c.entries} chain entries, ${c.events} events chained, ${c.unchained} unchained, ${c.erased} erased, ${c.manifests} manifests, ${c.checkpoints} checkpoints`,
+  );
+  // What the chain covers beyond the event bodies (card E1.9): from version 2,
+  // each served event's attestation.
+  lines.push(
+    `chain version ${r.version ?? "(none)"}: ${c.attested} attestations chained, ${c.attestations_uncovered} not covered`,
   );
   if (r.head) lines.push(`head ${r.head.hash} root ${r.head.root} size ${r.head.size}`);
   for (const n of r.notes) lines.push(`note: ${n}`);

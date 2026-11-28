@@ -16,9 +16,9 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | cost estimate | 4 | dollars and calls estimated from token counts and prices; no model called |
 | power computation | 2 | a simulation of the registered test that sets or checks a sample size |
 | engineering check | 4 | a check of a component's behaviour or speed that decides no hypothesis |
-| proof of concept | 7 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
+| proof of concept | 9 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
 
-31 results in all, one per MANIFEST row.
+33 results in all, one per MANIFEST row.
 
 ## What each hypothesis still needs
 
@@ -45,7 +45,7 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | checkpoints where a plain refusal scores as a leak | 41 | `by_preset.medium.all.refusal_leak` |
 | identical across the three presets | true | `identical_across_presets` |
 
-Recorded by [`docs/log/2026-11-02-pr2-r2-measurement-gatemem-reach.md`](../log/2026-11-02-pr2-r2-measurement-gatemem-reach.md).
+Recorded by [`docs/log/2026-11-02-pr2-r2-measurement-gatemem-reach.md`](../log/2026-11-02-pr2-r2-measurement-gatemem-reach.md), [`docs/log/2026-11-28-e2-21-measurement-repro-rows.md`](../log/2026-11-28-e2-21-measurement-repro-rows.md).
 
 ### `research/results/h1-mem-inv-admission.json`
 
@@ -433,17 +433,17 @@ Recorded by [`docs/log/2026-11-21-x14-measurement-redteam.md`](../log/2026-11-21
 - **Question.** Of the plane's governance claims mapped to EU AI Act and GDPR obligations, how many does a test in the repository evidence?
 - **Status.** support artefact: an input a registered analysis uses (a list, a draw, a mapping), not a measurement of any hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. Evidence for `docs/compliance/`, not compliance; filed under `h1-` by `docs/log/2026-11-21-r4-decision-result-under-h1.md`.
-- **Made by.** `research/scripts/crosswalk.py` from `research/configs/crosswalk.json`, MANIFEST commit `686e0ee`, sha256 `b3e535e503dc1e2944302b3f09b0a4a27f367ac87e6e53d465cf7e6189db47dd`.
+- **Made by.** `research/scripts/crosswalk.py` from `research/configs/crosswalk.json`, MANIFEST commit `2c3503b9`, sha256 `8fad8887689f03215a3327475415bcd2cfedfc8f68aa8d184b27af96954434ac`.
 
 | value | reads | key path |
 |---|---|---|
-| claims | 50 | `summary.claims` |
-| claims evidenced by a test | 47 | `summary.evidenced` |
-| tests cited | 107 | `summary.tests` |
-| test files cited | 33 | `summary.test_files` |
+| claims | 51 | `summary.claims` |
+| claims evidenced by a test | 48 | `summary.evidenced` |
+| tests cited | 111 | `summary.tests` |
+| test files cited | 34 | `summary.test_files` |
 | obligations | 27 | `summary.obligations` |
 
-Recorded by [`docs/log/2026-11-28-e0-7-measurement-crosswalk-review.md`](../log/2026-11-28-e0-7-measurement-crosswalk-review.md).
+Recorded by [`docs/log/2026-11-28-d4-measurement-crosswalk-review.md`](../log/2026-11-28-d4-measurement-crosswalk-review.md).
 
 ### `research/results/h2-cost-table.json`
 
@@ -509,26 +509,26 @@ Recorded by [`docs/log/2026-11-28-e8-16-measurement-leak-count-revised.md`](../l
 
 - **Question.** Does the code follow the Quint model of the commit and erasure protocol, step by step, on the model's own traces?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
-- **Serves.** no hypothesis; no pre-registration section. Card E1.8: 200 traces of `specs/replay.qnt` (good under the code's schedule, seed 1) replayed on real Plane handles; a divergence counts only when one of the card's findings explains it. Filed under `h1-` for the results glob only.
-- **Made by.** `research/scripts/quint_trace_replay.py` from `research/configs/quint-trace-replay.json`, MANIFEST commit `5d53e86f`, sha256 `c80cce59149fc69f048e04c14ae36c0815f56cc98008fbc675670ae4bcee4353`.
+- **Serves.** no hypothesis; no pre-registration section. Card E1.8: 200 traces of `specs/replay.qnt` (good under the code's schedule, seed 1) replayed on real Plane handles; a divergence counts only when one of the card's findings explains it. Rerun by card E1.7 after it closed the two erasure gaps and findings E18-F1, E18-F2 and E18-F4 in the code, with the traces regenerated from the changed model. Filed under `h1-` for the results glob only.
+- **Made by.** `research/scripts/quint_trace_replay.py` from `research/configs/quint-trace-replay.json`, MANIFEST commit `13126b4c`, sha256 `07be0d26f101a9f826fe022835f7869a915c37e4e9567f0c0d7bc8bcc0176a7c`.
 
 | value | reads | key path |
 |---|---|---|
 | traces | 200 | `totals.traces` |
-| replayed to their end | 144 | `totals.replayed` |
-| steps matched | 10,183 | `totals.steps_matched` |
+| replayed to their end | 199 | `totals.replayed` |
+| steps matched | 11,951 | `totals.steps_matched` |
 | steps | 12,000 | `totals.steps` |
-| states compared | 7,783 | `totals.states_compared` |
+| states compared | 9,298 | `totals.states_compared` |
 | diverged, unexplained | 0 | `totals.diverged_by_finding.unexplained` |
 
-Recorded by [`docs/log/2026-11-28-e1-8-measurement-trace-replay-status.md`](../log/2026-11-28-e1-8-measurement-trace-replay-status.md).
+Recorded by [`docs/log/2026-11-28-e1-7-measurement-trace-replay.md`](../log/2026-11-28-e1-7-measurement-trace-replay.md).
 
 ### `research/results/h1-gate-mutation-audit.json`
 
 - **Question.** Do the invariants' property tests kill hand-written mutants of the write gate, the read filter, retention, promotion, adoption, offboarding, the trust floors and the log's chain, and which mutants survive?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. A proof of concept on the code's own tests (card X16); the file is under `h1-` for the results glob only.
-- **Made by.** `research/scripts/gate_mutation_audit.py` from `research/configs/gate-mutation-audit.json`, MANIFEST commit `0772cd3b`, sha256 `8e61f235b5dc2d7af647b27ecbe92b13b5db4769448438452f662ec20b873e05`.
+- **Made by.** `research/scripts/gate_mutation_audit.py` from `research/configs/gate-mutation-audit.json`, MANIFEST commit `50e3a293`, sha256 `842da60481d3b9b0cd630179e20ef72b3200fd64a4e7580f794c499477b50107`.
 
 | value | reads | key path |
 |---|---|---|
@@ -539,7 +539,7 @@ Recorded by [`docs/log/2026-11-28-e1-8-measurement-trace-replay-status.md`](../l
 | two-handle offboarding walk, killed | 2 | `per_invariant.I1H.killed` |
 | log chain, killed | 2 | `per_invariant.I9.killed` |
 
-Recorded by [`docs/log/2026-11-28-x16-measurement-audit-after-review.md`](../log/2026-11-28-x16-measurement-audit-after-review.md).
+Recorded by [`docs/log/2026-11-28-e1-7-measurement-mutation-audit.md`](../log/2026-11-28-e1-7-measurement-mutation-audit.md), [`docs/log/2026-11-28-e1-9-measurement-gate-mutation-audit.md`](../log/2026-11-28-e1-9-measurement-gate-mutation-audit.md), [`docs/log/2026-11-28-e2-21-measurement-mutation-audit-merged.md`](../log/2026-11-28-e2-21-measurement-mutation-audit-merged.md).
 
 ### `research/results/h2-cedar-properties.json`
 
@@ -577,20 +577,58 @@ Recorded by [`docs/log/2026-11-28-e2-18-measurement-cedar-properties.md`](../log
 
 Recorded by [`docs/log/2026-11-28-l9-measurement-grounding-after-review.md`](../log/2026-11-28-l9-measurement-grounding-after-review.md).
 
-### `research/results/h1-consent-gate.json`
+### `research/results/h1-drift-fixture.json`
 
-- **Question.** With a person's opt-outs of their own person scope (a topic, a source with a carve-out, an Incognito window with a carve-out), does the write gate refuse exactly the writes they cover, each refusal naming its opt-out and none repeating the refused content, while the same workload under the twin profile without them is allowed as before?
+- **Question.** When one held-out task of an admitted procedure changes under it, does a re-validation replayed from cassettes detect the drift and retire the procedure by a governed event, and does a re-validation on the environment put back restore the retired version?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
-- **Serves.** no hypothesis; no pre-registration section. Card E9.12, by engram simulate on a fixture workload (fixtures/workloads/e9-12-consent.json); consent is absent in every registered preset and in the twin profile. The file is under `h1-` for the results glob only.
-- **Made by.** `research/scripts/consent_gate.py` from `research/configs/consent-gate.json`, MANIFEST commit `5efb38da`, sha256 `3b0a06f43051c2594424e348d503a8764b8ec31d2023e70c6e87b5896d48ec14`.
+- **Serves.** no hypothesis; no pre-registration section. Card D4 on fixtures and a scripted model: card D3's admitted procedure under medium with `procedures.drift` on, which no registered preset or config sets. H5 registers admission, not retirement, so this is an engineering check, not an H5 result. The file is under `h1-` for the results glob only.
+- **Made by.** `research/scripts/drift_fixture.py` from `research/configs/drift-fixture.json`, MANIFEST commit `2c3503b9`, sha256 `579fa43dffc7ca6123e2b9812a6f22886c1581a70dfd59e561f20ee62e6abb71`.
 
 | value | reads | key path |
 |---|---|---|
-| writes | 15 | `candidate.writes` |
-| allowed without opt-outs | 15 | `baseline.writes_allowed` |
-| allowed with opt-outs | 8 | `candidate.writes_allowed` |
-| consent refusals | 7 | `candidate.consent_refusals` |
-| refusals naming their opt-out | 7 | `candidate.consent_refusals_naming_their_opt_out` |
-| refusals repeating the content | 0 | `candidate.consent_refusals_repeating_content` |
+| re-validations | 2 | `counts.revalidations` |
+| retired | 1 | `counts.retired` |
+| restored | 1 | `counts.restored` |
+| the held-out task changed | `synthetic/remove-dead-code-15` | `changed_tasks[0]` |
+| success rate after the change | 0.533333 | `revalidations[0].rate` |
+| success floor (medium) | 0.7 | `floor` |
+| model calls from cassettes | 508 | `calls.cached` |
+| new model calls | 0 | `calls.new` |
 
-Recorded by [`docs/log/2026-11-28-e9-12-measurement-consent-gate-limits.md`](../log/2026-11-28-e9-12-measurement-consent-gate-limits.md).
+Recorded by [`docs/log/2026-11-28-d4-measurement-drift-fixture.md`](../log/2026-11-28-d4-measurement-drift-fixture.md).
+
+### `research/results/h5-procedure-scan.json`
+
+- **Question.** On card D5's hand-labelled corpus of procedural candidates, each presented to Plane.promote with a replay that would admit it, what share of the unsafe ones does `procedures.safety_scan: hold` keep from admission, and what share of the safe controls does it wrongly hold; do off and report change no decision?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. Card D5: a proof of concept on a corpus the card's author wrote; the hard negatives (benign text quoting a dangerous command or phrase) are its known false holds. Filed under `h5-` as the nearest hypothesis (Distill); it decides none.
+- **Made by.** `research/scripts/procedure_scan.py` from `research/configs/procedure-scan.json`, MANIFEST commit `b297e5b6`, sha256 `0ac5428238ea46f52fbd3d152f649f370935ebef2bee4a7ba95fb03e296cc39f`.
+
+| value | reads | key path |
+|---|---|---|
+| unsafe cases held, hold | 39 | `modes.hold.hold.count` |
+| unsafe cases | 39 | `modes.hold.hold.n` |
+| hold rate, hold | 1.0 | `modes.hold.hold.rate` |
+| safe controls held, hold | 3 | `modes.hold.false_hold.count` |
+| false-hold rate, hold | 0.066667 | `modes.hold.false_hold.rate` |
+| near-misses held, hold | 0 | `modes.hold.false_hold_by_group.near-miss.count` |
+| cases held, report | 0 | `modes.report.hold.count` |
+
+Recorded by [`docs/log/2026-11-28-d5-measurement-procedure-scan-limits.md`](../log/2026-11-28-d5-measurement-procedure-scan-limits.md).
+
+### `research/results/h1-audit-report.json`
+
+- **Question.** Does a signed, content-free audit report of a window of the log verify against the log as exported and after a later write, and fail, at the check that should catch it, under every tampering of the report or the log a person with database access but not the operator's key can make?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. Card E9.15's core suite on one chained fixture log, SQLite, a fixed key; the file is under `h1-` for the results glob only. The envelope's sha256 is fixed by the log, the clock and the key.
+- **Made by.** `research/scripts/audit_report.py` from `research/configs/audit-report.json`, MANIFEST commit `aeb88f23`, sha256 `d503840658800b3cd4318fe4f660df3fe49ae89c5f3bec16f07a2b4714840c5e`.
+
+| value | reads | key path |
+|---|---|---|
+| cases | 11 | `totals.cases` |
+| cases with the expected verdict and check | 11 | `totals.matched` |
+| tamperings detected | 8 | `totals.tampering_detected` |
+| events counted in the window | 5 | `statement.events_counted` |
+| envelope bytes | 3,351 | `envelope.bytes` |
+
+Recorded by [`docs/log/2026-11-28-e9-15-measurement-audit-report-chain-v2.md`](../log/2026-11-28-e9-15-measurement-audit-report-chain-v2.md).
