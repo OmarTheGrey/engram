@@ -36,6 +36,8 @@ function project(name: string) {
     CLAUDE_PROJECT_DIR: dir,
   };
   delete env.ENGRAM_DB_URL;
+  // Card E8.17: the Codex home is the temporary home's, never the developer's.
+  env.CODEX_HOME = join(home, ".codex");
   delete env.ENGRAM_SERVER_URL;
   return { dir, home, env, log: join(home, ".engram", "engram.db") };
 }
@@ -197,7 +199,7 @@ describe("the codex fixture's PreToolUse hook", () => {
     expect(existsSync(log)).toBe(true);
   });
 
-  it("is what engram hook install codex writes, and a second install changes nothing", () => {
+  it("engram hook install codex replaces it with an entry of the same shape, and a second install changes nothing", () => {
     const { dir, env } = project("codex");
     const install = () =>
       spawnSync(
@@ -213,6 +215,20 @@ describe("the codex fixture's PreToolUse hook", () => {
     expect(JSON.parse(written).hooks.PreToolUse).toHaveLength(1);
     expect(entry.command).toContain("hook codex --root");
     expect(entry.command).toContain("--as person:dana");
+    // The fixture's shape: one group on every tool, one command handler that blocks on failure.
+    const fixture = JSON.parse(
+      readFileSync(join(REPO, "fixtures/harness/codex/.codex/hooks.json"), "utf8"),
+    );
+    expect(Object.keys(JSON.parse(written).hooks)).toEqual(Object.keys(fixture.hooks));
+    expect(JSON.parse(written).hooks.PreToolUse[0].matcher).toBe(
+      fixture.hooks.PreToolUse[0].matcher,
+    );
+    expect(
+      Object.keys(entry)
+        .filter((k) => k !== "commandWindows")
+        .sort(),
+    ).toEqual(Object.keys(fixture.hooks.PreToolUse[0].hooks[0]).sort());
+    expect(entry.onFailure).toBe("block");
     const second = install();
     expect(second.stdout).toContain("unchanged:");
     expect(readFileSync(file, "utf8")).toBe(written);

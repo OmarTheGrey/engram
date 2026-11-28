@@ -402,11 +402,9 @@ export function shellBypass(command: string, check: BypassCheck): Bypass | undef
   // (``mem`ory``, `mem^ory`): also read the command with each removed, as
   // blockedStoreCommand does, whatever the flavour, erring towards blocking
   // (card E8.17's review).
-  for (const escape of ["`", "^"])
-    if (command.includes(escape))
-      words.push(
-        ...pathCheckWords(command.replaceAll(escape, ""), 0, true, check.shell ?? "posix"),
-      );
+  for (const mark of ["`", "^"])
+    if (command.includes(mark))
+      words.push(...pathCheckWords(command.replaceAll(mark, ""), 0, true, check.shell ?? "posix"));
   for (const unc of command.matchAll(UNC_WORD)) {
     const word = asUncPath(unc[0]);
     if (uncDrivePath(word) !== undefined) words.push(word);

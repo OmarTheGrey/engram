@@ -903,7 +903,7 @@ class LineSession {
       );
     this.say(
       harness === "codex"
-        ? 'With "onFailure": "block", a hook that fails blocks the call. Codex runs a project\'s hooks once you trust them in /hooks; engram hook install codex merges this entry for you.'
+        ? 'With "onFailure": "block", a hook that fails blocks the call. Codex runs a hook only once you trust it in /hooks, and again after each change to it; engram hook install codex merges this entry for you.'
         : 'With "onFailure": "block", a hook that fails blocks the call; Claude Code reads it from v2.1.295 on, and before that a failed hook lets the call through.',
     );
     const build = harness === "codex" ? codexHookCommand : hookCommand;

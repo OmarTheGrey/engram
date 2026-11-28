@@ -225,12 +225,25 @@ export function harnessBypass(
   return codexHookBypass(read, scope);
 }
 
+/**
+ * Whether a parsed input calls one of the Engram server's own tools, the
+ * governed path, whatever its `tool_input` holds: Codex sends an MCP
+ * argument that is not JSON as a string (card E8.17's review), and such a
+ * call is skipped, not denied.
+ */
+export const isEngramToolCall = (value: unknown): boolean =>
+  isObject(value) &&
+  typeof value.tool_name === "string" &&
+  value.tool_name.startsWith("mcp__engram__") &&
+  (value.hook_event_name === undefined || value.hook_event_name === "PreToolUse");
+
 /** The decider both hooks share: core's checks, a block recorded through the client. */
 export async function harnessHook(
   harness: HookHarness,
   input: unknown,
   options: HookOptions,
 ): Promise<HookDeny | null> {
+  if (isEngramToolCall(input)) return null;
   if (!isHarnessInput(harness, input))
     return hookDeny("engram: the hook input is not a PreToolUse object");
   const found = harnessBypass(harness, input, options);

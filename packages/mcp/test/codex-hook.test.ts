@@ -157,6 +157,22 @@ describe("codexHook", () => {
     expect(outputErrors(answer)).toEqual([]);
   });
 
+  it.each(["not json, as Codex sends it", 42, ["a"]])(
+    "skips an Engram tool whose tool_input is not an object: %j (card E8.17's review)",
+    async (arg) => {
+      const ws = await testWorkspace();
+      const input = { ...call("mcp__engram__memory_read", {}), tool_input: arg };
+      expect(inputErrors(input)).toEqual([]);
+      expect(await codexHook(input, { ...SCOPE, client: ws.client, actor: CODEX })).toBeNull();
+      // Another tool with the same input is still denied: its shape is not PreToolUse's.
+      const other = { ...input, tool_name: "mcp__fs__read_file" };
+      expect(
+        (await codexHook(other, { ...SCOPE, client: ws.client, actor: CODEX }))?.hookSpecificOutput
+          .permissionDecision,
+      ).toBe("deny");
+    },
+  );
+
   it("reads a null tool_input, which Codex's schema allows, as no arguments", async () => {
     const ws = await testWorkspace();
     const input = { ...call("mcp__other__ping", {}), tool_input: null };

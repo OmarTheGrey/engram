@@ -337,7 +337,7 @@ const SCREENS: Record<
         installed: {
           argv: ["hook", "install", "codex"],
           code: 0,
-          out: "installed: /src/lantern/.codex/hooks.json created with the engram hook codex entry in hooks.PreToolUse\nCodex runs a project's hooks only once you trust them: review it in /hooks.\n",
+          out: "installed: /src/lantern/.codex/hooks.json created with the engram hook codex entry in hooks.PreToolUse\nCodex runs a hook only once you trust it, at the project or the user level alike, and again after each change to the entry: review it in /hooks.\n",
         },
       });
     },

@@ -40,6 +40,7 @@ import {
   harnessBypass,
   harnessHook,
   hookDeny,
+  isEngramToolCall,
   isHarnessInput,
   type PreToolUseInput,
 } from "@engram/mcp";
@@ -108,6 +109,8 @@ export async function hookCommand(args: string[], io: Io): Promise<number> {
   let input: PreToolUseInput;
   try {
     const parsed: unknown = JSON.parse(await readAll(io.stdin));
+    // The Engram server's own tools are the governed path, whatever their arguments hold.
+    if (isEngramToolCall(parsed)) return 0;
     if (!isHarnessInput(harness, parsed)) {
       print(hookDeny("engram: the hook input is not a PreToolUse object"));
       return 0;

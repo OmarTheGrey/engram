@@ -50,9 +50,6 @@ export const LETTERS: Readonly<Record<string, string>> = {
   serve: "h",
   mcp: "m",
   "hook claude-code": "b",
-  // Card E8.17: on the hook setup screen, not rows of their own (CommandSpec.home).
-  "hook codex": "X",
-  "hook install": "I",
   "key create": "a",
   "key list": "A",
   "key revoke": "R",

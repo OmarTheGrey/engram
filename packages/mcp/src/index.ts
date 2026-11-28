@@ -13,6 +13,7 @@ export {
   hookBypass,
   hookDeny,
   isCodexHookInput,
+  isEngramToolCall,
   isHarnessInput,
   isHookInput,
   type PreToolUseInput,

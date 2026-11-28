@@ -55,7 +55,11 @@ describe("the key table", () => {
   });
 
   it("gives every command on Home one letter, none of them a global or list key", () => {
-    const letters = offered().map((s) => LETTERS[s.name]);
+    // Home's rows only: a command Home leaves to another screen has no row and no letter (card E8.17).
+    const rows = offered().filter((s) => s.home !== false);
+    const letters = rows.map((s) => LETTERS[s.name]);
+    for (const s of offered().filter((x) => x.home === false))
+      expect(LETTERS[s.name], s.name).toBeUndefined();
     expect(
       letters.every((l) => l !== undefined && l.length === 1),
       JSON.stringify(letters),
@@ -171,6 +175,20 @@ describe("the frame's keys", () => {
     for (const s of offered().filter((x) => x.home === false))
       expect(["hook codex", "hook install"]).toContain(s.name);
     await wide.quit();
+  });
+
+  it("the palette finds the commands Home leaves to the hook setup screen (card E8.17)", async () => {
+    const h = await usable({ columns: 120, rows: 40 });
+    for (const [typed, title] of [
+      ["hook codex", "Codex hook setup"],
+      ["hook install", "Install a hook"],
+    ] as const) {
+      await h.press(";");
+      await h.type(typed);
+      expect(await h.text(), typed).toContain(title);
+      await h.press(ESC);
+    }
+    await h.quit();
   });
 
   it("the palette finds a command by a flag it takes, and opens a pasted command line filled from its flags", async () => {
