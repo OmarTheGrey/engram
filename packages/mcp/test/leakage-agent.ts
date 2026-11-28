@@ -8,7 +8,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createMcpServer } from "../src/server.ts";
 
-/** A tool caller as `actor` over `client`, every tool listed (memory_supersede included). */
+/** A tool caller as `actor` over `client`, every tool listed (memory_supersede and memory_why_not included). */
 export async function mcpAgent(options: {
   client: EngramClient;
   actor: Actor;
@@ -16,7 +16,7 @@ export async function mcpAgent(options: {
   newId: () => string;
 }) {
   const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
-  await createMcpServer({ ...options, supersede: true }).connect(serverSide);
+  await createMcpServer({ ...options, supersede: true, whyNot: true }).connect(serverSide);
   const mcp = new Client({ name: "leakage", version: "0" });
   await mcp.connect(clientSide);
   return async (name: string, args: Record<string, unknown>) => {

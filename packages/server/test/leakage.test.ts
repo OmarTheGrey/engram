@@ -151,6 +151,11 @@ const PROBES: Record<string, (ctx: Ctx) => Request_[]> = {
   changeGrants: ({ actor }) =>
     byId((id) => ({ body: { actor, item_id: id, add: [grantTo(actor.id)] }, asks: [id] })),
   whoCanReadItem: ({ actor }) => byId((id) => ({ body: { actor, item_id: id }, asks: [id] })),
+  // Card E2.17: why an item is not in a read, with the read's text and without.
+  explainAbsent: ({ actor }) =>
+    byId((id) => ({ body: { actor, item_id: id, text: "canary" }, asks: [id] })).concat(
+      byId((id) => ({ body: { actor, item_id: id }, asks: [id] })),
+    ),
   whoCanRead: ({ actor }) =>
     [...SCOPES, "team:nobody"].map((scope) => ({ body: { actor, scope } })),
   retain: ({ actor }) => [...SCOPES, "team:nobody"].map((scope) => ({ body: { actor, scope } })),
@@ -423,6 +428,11 @@ describe("E8.16: no route of the HTTP API leaks a canary", () => {
       expect.arrayContaining(["dana-team", "fred-team", "lee-team"]),
     );
     controls.push({ surface: "http", found: [...found].sort() });
+    // Card E2.17: a member of team:x is told why a team canary is or is not in a read.
+    const told = (texts.get("explainAbsent") ?? []).map(
+      (t) => JSON.parse(t) as { answered: boolean },
+    );
+    expect(told.filter((a) => a.answered).length).toBeGreaterThan(0);
     const { call } = await served();
     const owner = await call(ROUTE("read"), { body: { actor: DANA, text: "canary" } });
     expect(noncesIn(owner.text)).toContain("dana-person");
@@ -455,6 +465,7 @@ describe("E8.16: no route of the HTTP API leaks a canary", () => {
     const pairs: [string, (actor: Ctx["actor"], id: string) => Request_][] = [
       ["readById", (actor, id) => ({ params: { itemId: id }, body: { actor } })],
       ["whoCanReadItem", (actor, id) => ({ body: { actor, item_id: id } })],
+      ["explainAbsent", (actor, id) => ({ body: { actor, item_id: id, text: "canary" } })],
       ["promote", (actor, id) => ({ body: { actor, item_id: id, to: "team:x" } })],
       ["changeGrants", (actor, id) => ({ body: { actor, item_id: id, add: [grantTo(actor.id)] } })],
       ["supersede", (actor, id) => ({ body: { actor, item_id: id, accept: [] } })],

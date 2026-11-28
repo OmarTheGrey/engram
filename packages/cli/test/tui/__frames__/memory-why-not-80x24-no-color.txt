@@ -1,0 +1,26 @@
+ engram  Why not this item                     in process  person:dana (person)
+   Item         [ 01940000-0000-7000-8000-000000000003   ]  the item left out
+   Query        [ deploy                                 ]  the read's text
+   Validity at  [                                        ]  empty for now
+   ▸ Advanced: id, the test clock and this command's workspace flags
+
+ why not 01940000-0000-7000-8000-000000000003 in a read at 2026-10-25T12:00:0...
+ ✗ absent at status   exit 0
+   absent at the status stage: the read filter admits only active items, and it
+   is not active
+   rule engram/read/status
+
+
+
+
+
+
+
+
+
+
+
+$ engram explain --absent 01940000-...eploy --owner dana --db engram.db   exit 0
+ ? help  J json  enter ask  tab item, query or time  ; commands  esc back
+--- styles
+r0 c0-79 inverse

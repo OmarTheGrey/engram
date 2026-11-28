@@ -29,6 +29,7 @@ export const EVERYWHERE: readonly ScreenKind[] = [
   "policy",
   "who",
   "supersede",
+  "why-not",
   "surface",
 ];
 
@@ -48,6 +49,7 @@ export const RICH: readonly ScreenKind[] = [
   "policy",
   "who",
   "supersede",
+  "why-not",
 ];
 
 /** The rich screens that show a command's result, with its plain and JSON views. */
@@ -249,7 +251,18 @@ export const KEYS: readonly KeyAction[] = [
     keys: ["r"],
     label: "r",
     description: "run again with the same flags",
-    where: ["result", "read", "explain", "events", "policy", "who", "item", "supersede", "surface"],
+    where: [
+      "result",
+      "read",
+      "explain",
+      "events",
+      "policy",
+      "who",
+      "item",
+      "supersede",
+      "why-not",
+      "surface",
+    ],
   },
   // The memory and audit screens (card E8.15c).
   { action: "next", keys: ["tab"], label: "tab", description: "next field or pane", where: RICH },
@@ -379,6 +392,14 @@ export const KEYS: readonly KeyAction[] = [
     keys: ["shift+s"],
     label: "S",
     description: "supersede: the selected item's chain",
+    where: ["read", "item"],
+  },
+  {
+    // Card E2.17.
+    action: "why-not",
+    keys: ["n"],
+    label: "n",
+    description: "why not: the stage that keeps an item out of a read",
     where: ["read", "item"],
   },
   {

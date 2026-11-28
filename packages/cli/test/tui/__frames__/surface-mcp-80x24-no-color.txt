@@ -5,7 +5,7 @@
    Transport              (o) stdio, launched by the harness
                           ( ) HTTP, needs authentication
    Offer memory_supersede [ ] off
-   ▸ More flags: 9, set: --owner --db
+   ▸ More flags: 10, set: --owner --db
 
  [ Copy .mcp.json ]  [ Copy Codex config.toml ]  [ Try it ]
 

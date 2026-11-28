@@ -210,14 +210,26 @@ export class ReadScreen extends RichScreen {
         }
         openOnItem(ctx, ITEM_COMMAND[name] as string, item.id);
         return true;
+      case "why-not": {
+        // Card E2.17: an item the read left out is not in the lanes, so the
+        // screen opens with this read's query and time; the item is typed.
+        const query = String(this.form.get("pos:query"));
+        const at = String(this.form.get("at"));
+        const spec = command("explain --absent");
+        if (spec === undefined) return true;
+        ctx.openCommand(spec, at === "" ? {} : { at }, ["", ...(query === "" ? [] : [query])]);
+        return true;
+      }
     }
     return false;
   }
 
   protected ownHints(): string {
     return this.answer() === undefined
-      ? "enter read  tab next field"
-      : "v plain  J json  enter item page  e explain  p promote  g grants  w who  S supersede";
+      ? // n types into the query field here; it acts on the lanes, and the help overlay lists it.
+        "enter read  tab next field"
+      : // n (why not) is in the help overlay: the hint row is full at 120 columns.
+        "v plain  J json  enter item page  e explain  p promote  g grants  w who  S supersede";
   }
 
   private fieldsLine(_ctx: Ctx, width: number): string {
