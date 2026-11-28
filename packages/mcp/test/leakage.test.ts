@@ -75,6 +75,12 @@ const PROBES: Record<string, (ctx: { actor: Actor; danaReadId: string }) => Call
   memory_explain: ({ danaReadId }) =>
     [danaReadId, MISSING_READ].map((id) => ({ args: { read_id: id }, asks: [id] })),
   memory_simulate: () => [{ args: {} }, { args: { candidate: "permissive" } }],
+  // Card E2.17.
+  memory_why_not: () =>
+    ids.flatMap((id) => [
+      { args: { item_id: id }, asks: [id] },
+      { args: { item_id: id, query: "canary" }, asks: [id] },
+    ]),
   memory_supersede: () =>
     ids.flatMap((id) => [
       { args: { item_id: id }, asks: [id] },
@@ -191,6 +197,7 @@ describe("E8.16: no MCP tool leaks a canary", () => {
     const pairs: [string, (id: string) => Record<string, unknown>][] = [
       ["memory_supersede", (id) => ({ item_id: id })],
       ["memory_supersede", (id) => ({ item_id: id, accept: [id] })],
+      ["memory_why_not", (id) => ({ item_id: id, query: "canary" })],
     ];
     for (const probe of PROBE_ACTORS) {
       const hidden = CANARIES.filter((c) => !probe.allowed.includes(c.label));

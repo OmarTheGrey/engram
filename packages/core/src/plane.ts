@@ -11,7 +11,8 @@
 // E8.9, plane/simulate.ts) over all of them, and grant changes (card E9.4,
 // plane/grants.ts) through policy/grants.ts, and the by-id read and the
 // scope list (card E8.14, plane/read.ts and plane/scopes.ts) through the read
-// filter. Methods whose cards have
+// filter, and why an item is not in a read (card E2.17,
+// plane/explain-absent.ts) from the read's own predicates. Methods whose cards have
 // not landed reject with NotImplementedYet, naming the card that implements them.
 import type { Actor } from "./actor.ts";
 import type { Adapter } from "./adapter.ts";
@@ -31,6 +32,7 @@ export {
 } from "./plane/adopt.ts";
 
 import { recordBypass } from "./plane/bypass.ts";
+import { type AbsenceExplanation, explainAbsent } from "./plane/explain-absent.ts";
 import { type ExportResult, exportBundle } from "./plane/export.ts";
 import { changeGrants } from "./plane/grants.ts";
 import { type LintOptions, type LintReport, lint } from "./plane/lint.ts";
@@ -83,6 +85,16 @@ export {
   staleness,
   touchedSince,
 } from "./plane/commit.ts";
+export {
+  ABSENCE_STAGES,
+  ABSENT_MATCH_ID,
+  ABSENT_RANK_CUT_ID,
+  AbsenceExplanation,
+  absenceRefusal,
+  type ReadOutcome,
+  type ReadStage,
+  readOutcomes,
+} from "./plane/explain-absent.ts";
 export {
   LINT_MEMBERSHIP_ID,
   type LintOptions,
@@ -426,6 +438,18 @@ export interface Plane {
    */
   explain(actor: Actor, readId: ReadId): Promise<Explanation[]>;
   /**
+   * Why not this item (card E2.17): the first stage that keeps the item
+   * under `itemId` out of the read `actor` would make now with `query`
+   * (match, status, ttl, validity, the rank cut), from the read's own
+   * predicates in its order, or that the read returns it. Answered only to
+   * an actor who may ask for the item by id (ADR 0047, visible.ts); anyone
+   * else gets, word for word but for the id, the refusal an unknown id
+   * gets. A new response type, never stored; appends no event; Plane.read
+   * is unchanged. An invalid actor, time or id is refused with
+   * InvalidCallError before the log is touched.
+   */
+  explainAbsent(actor: Actor, itemId: string, query: ReadQuery): Promise<AbsenceExplanation>;
+  /**
    * The actor's memory bundle (card E9.8, docs/bundle.md): the rows core's
    * bundleRows picks, and one read event by the actor, naming no item and no
    * scope, that records the export (review finding E9.8-3). Refuses an
@@ -522,6 +546,7 @@ export function createPlane(deps: PlaneDeps): Plane {
     readById: (actor, itemId, query) => readOne(deps, actor, itemId, query),
     listScopes: (actor, at) => listScopes(deps, actor, at),
     explain: async (actor, readId) => storedExplanations(deps, actor, readId),
+    explainAbsent: (actor, itemId, query) => explainAbsent(deps, actor, itemId, query),
     recordBypass: async (actor, bypass, at) => recordBypass(deps, actor, bypass, at),
     retain: async (actor, scope, at) => retain(deps, actor, scope, at),
     promote: async (actor, itemId, toScope, at, options) =>

@@ -5,6 +5,7 @@
 // in COMPONENTS becomes `#/components/schemas/<name>` in sdk/openapi.json; the
 // core contracts keep the names of sdk/schema/*.json.
 import {
+  AbsenceExplanation,
   ActorShape,
   BUNDLE_FORMAT,
   BUNDLE_VERSION,
@@ -183,6 +184,15 @@ export const RetainRequest = z.strictObject({ actor: Actor, scope: z.string() })
 // Who can read this memory (card E2.13): core's answer, under its own name.
 export { ReaderEntry, WhoCanReadAnswer };
 export const WhoCanReadItemRequest = z.strictObject({ actor: Actor, item_id: z.string() });
+
+/** Why not this item (card E2.17): one item, and the read it is asked of. */
+export { AbsenceExplanation };
+export const ExplainAbsentRequest = z.strictObject({
+  actor: Actor,
+  item_id: z.string(),
+  text: z.string().optional().meta({ description: "The read's query text, as for /read." }),
+  at: validAt,
+});
 export const WhoCanReadScopeRequest = z.strictObject({ actor: Actor, scope: z.string() });
 
 export const EventsRequest = z.strictObject({
@@ -342,6 +352,8 @@ export const COMPONENTS = {
   WhoCanReadAnswer,
   WhoCanReadItemRequest,
   WhoCanReadScopeRequest,
+  AbsenceExplanation,
+  ExplainAbsentRequest,
   EventsRequest,
   EventsResponse,
   PolicyResponse,

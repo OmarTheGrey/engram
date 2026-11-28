@@ -560,6 +560,7 @@ const STALE_KEYS = new Set([
   "grants",
   "who",
   "supersede",
+  "why-not",
   "undo",
   "follow",
 ]);

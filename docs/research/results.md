@@ -485,25 +485,25 @@ Recorded by [`docs/log/2026-11-28-rr-measurement-perf-budget.md`](../log/2026-11
 - **Question.** Do canaries written through every write path reach a non-member, an expired grantee, a former member or a partial grantee on any surface (the HTTP API, MCP, the CLI, the TUI, the pi extension)?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. Card E8.16's suites on a fixture workspace; the file is under `h1-` for the results glob only. Answers that tell existence by their shape, not by a canary, are counted apart as characterised oracles.
-- **Made by.** `research/scripts/leakage.py` from `research/configs/leakage.json`, MANIFEST commit `3018f629`, sha256 `bc5c43f6e2ba848c2c0ba371d35b30ab0f7bf37ac93c0937018f578d7f1798fa`.
+- **Made by.** `research/scripts/leakage.py` from `research/configs/leakage.json`, MANIFEST commit `3c0e4280`, sha256 `a23b1a8478d7904e6e694f8986089b1e54501dd7036221e6ce816a0ff16de119`.
 
 | value | reads | key path |
 |---|---|---|
 | canaries written | 13 | `canaries.written` |
-| probes, all surfaces | 2,188 | `totals.probes` |
+| probes, all surfaces | 2,636 | `totals.probes` |
 | leaks, all surfaces | 0 | `totals.leaks` |
-| probes over the HTTP API | 696 | `surfaces.http.probes` |
-| probes over MCP | 288 | `surfaces.mcp.probes` |
-| probes through the CLI | 576 | `surfaces.cli.probes` |
-| probes through the TUI | 580 | `surfaces.tui.probes` |
+| probes over the HTTP API | 808 | `surfaces.http.probes` |
+| probes over MCP | 400 | `surfaces.mcp.probes` |
+| probes through the CLI | 688 | `surfaces.cli.probes` |
+| probes through the TUI | 692 | `surfaces.tui.probes` |
 | probes through the pi extension | 48 | `surfaces.pi.probes` |
-| denied and missing ids compared over the HTTP API | 377 | `denied_and_missing.http.compared` |
-| of them answering alike | 275 | `denied_and_missing.http.alike` |
+| denied and missing ids compared over the HTTP API | 428 | `denied_and_missing.http.compared` |
+| of them answering alike | 326 | `denied_and_missing.http.alike` |
 | of them pinned as telling existence: writes under a held id | 47 | `denied_and_missing.http.characterised.write` |
 | a model's operations through the HTTP API agreeing with MCP | 5 | `parity.http (model).same` |
 | the suite passed | true | `suite_passed` |
 
-Recorded by [`docs/log/2026-11-28-e8-16-measurement-leak-count-revised.md`](../log/2026-11-28-e8-16-measurement-leak-count-revised.md).
+Recorded by [`docs/log/2026-11-28-e2-17-measurement-leakage-row.md`](../log/2026-11-28-e2-17-measurement-leakage-row.md), [`docs/log/2026-11-28-e8-16-measurement-leak-count-revised.md`](../log/2026-11-28-e8-16-measurement-leak-count-revised.md).
 
 ### `research/results/h1-quint-trace-replay.json`
 

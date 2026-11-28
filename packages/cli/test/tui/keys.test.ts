@@ -171,10 +171,17 @@ describe("the frame's keys", () => {
     const text = await wide.text();
     expect(text).not.toContain("more below");
     // Every Home row; the Codex hook and the installer are on the hook setup screen (card E8.17),
-    // the audit report's export and verify on the log verify screen (card E9.15).
+    // the audit report's export and verify on the log verify screen (card E9.15);
+    // why not this item on the item page and the read screen (card E2.17).
     for (const s of offered().filter((x) => x.home !== false)) expect(text).toContain(s.title);
     for (const s of offered().filter((x) => x.home === false))
-      expect(["hook codex", "hook install", "audit export", "audit verify"]).toContain(s.name);
+      expect([
+        "hook codex",
+        "hook install",
+        "audit export",
+        "audit verify",
+        "explain --absent",
+      ]).toContain(s.name);
     await wide.quit();
   });
 
@@ -185,6 +192,8 @@ describe("the frame's keys", () => {
       ["hook install", "Install a hook"],
       ["audit export", "Export an audit report"],
       ["audit verify", "Verify an audit report"],
+      // Card E2.17.
+      ["explain --absent", "Why not this item"],
     ] as const) {
       await h.press(";");
       await h.type(typed);
