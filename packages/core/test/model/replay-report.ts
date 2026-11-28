@@ -9,22 +9,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readTrace } from "./itf.ts";
-import { FINDINGS, type Replayed, replay } from "./replay.ts";
-
-/** What the results file records of one trace. */
-export function outcome(r: Replayed) {
-  const base = { steps: r.steps, compared: r.compared, folded: r.folded };
-  if (!r.mismatch) return { ...base, outcome: "replayed" as const, matched: r.steps };
-  return {
-    ...base,
-    outcome: "diverged" as const,
-    matched: r.mismatch.step - 1,
-    step: r.mismatch.step,
-    action: r.mismatch.action,
-    what: r.mismatch.what,
-    finding: r.finding,
-  };
-}
+import { FINDINGS, outcome, replay } from "./replay.ts";
 
 const arg = (name: string) => {
   const k = process.argv.indexOf(`--${name}`);

@@ -263,6 +263,21 @@ function timeAt(step: number): string {
   return `2026-11-28T${two(10 + Math.floor(m / 60))}:${two(m % 60)}:${two(s)}Z`;
 }
 
+/** What the results file records of one trace. */
+export function outcome(r: Replayed) {
+  const base = { steps: r.steps, compared: r.compared, folded: r.folded };
+  if (!r.mismatch) return { ...base, outcome: "replayed" as const, matched: r.steps };
+  return {
+    ...base,
+    outcome: "diverged" as const,
+    matched: r.mismatch.step - 1,
+    step: r.mismatch.step,
+    action: r.mismatch.action,
+    what: r.mismatch.what,
+    finding: r.finding,
+  };
+}
+
 /** Replays one trace; returns at the first mismatch. */
 export async function replay(trace: Trace): Promise<Replayed> {
   const states = trace.states.map(modelState);
