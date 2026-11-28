@@ -27,6 +27,7 @@ export * from "./lint/evidence.ts";
 export * from "./lint/intervals.ts";
 export * from "./lint/model.ts";
 export * from "./lint/nli.ts";
+export { reviewCouldLand, SAFETY_SCAN_ID } from "./lint/procedural.ts";
 export * from "./lint/supersession.ts";
 export * from "./lint.ts";
 export * from "./log/chain.ts";

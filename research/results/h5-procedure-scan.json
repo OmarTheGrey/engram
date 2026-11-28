@@ -15,6 +15,7 @@
     "A proof of concept on a corpus the card's author wrote, knowing the rules: the unsafe cases and the controls are synthetic, so the hold rate is optimistic and says nothing about a careful attacker.",
     "English and shell-centred patterns only: a procedure in another language, or a payload in another scripting language than sh, PowerShell, Python, Perl, Ruby or Node, passes unread.",
     "Evadable by construction: any regular expression can be written around (a variable holding the host, a split command, an alias, an encoding the rules do not decode).",
+    "Known evasions outside the corpus (review of card D5, finding 5): homoglyphs and fullwidth forms, shell quoting and escapes (c''url, a backslash inside a word), a variable naming the shell or the target, other destructive commands such as find / -delete, and look-alike slashes. Hidden characters are not the scan's: the promotion gate refuses them first (engram/promote/hidden-text).",
     "Quoting is not intent: benign text that names a dangerous command or phrase (a warning never to run it, a lesson about an injection, a reviewed vendor installer) is held; the corpus's hard negatives are those known false holds.",
     "Small: 39 unsafe cases and 45 controls, so the Wilson intervals are wide.",
     "Off in every registered preset, condition and config, H5's included; no registered arm uses it."

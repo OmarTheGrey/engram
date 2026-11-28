@@ -220,7 +220,7 @@ async function decideAndCommit(
 
   // The procedure safety scan (card D5, lint/procedural.ts): off unless the
   // policy sets procedures.safety_scan; under hold a critical finding holds
-  // an allowed admission as a gate event until a user-sourced release.
+  // an allowed admission as a gate event until a release ADRs 0026 and 0049 allow.
   const d = applySafetyScan(
     policy,
     actor,
@@ -247,7 +247,7 @@ async function decideAndCommit(
       },
       retiredContent(db, toScope),
     ),
-    options.release,
+    { release: options.release, target: toScope, authors: () => authorsOf(deps, item) },
   );
   const visible = d.policy_id !== PROMOTE_MEMBERSHIP_ID;
   const common = {

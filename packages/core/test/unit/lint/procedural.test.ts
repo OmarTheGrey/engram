@@ -37,6 +37,7 @@ import { notBuiltOptions } from "../../../src/policy/options.ts";
 import type { PromotionDecision } from "../../../src/policy/promotion.ts";
 import type { MemoryItem, Policy } from "../../../src/schema.ts";
 import { AT, id, item, testPolicy } from "../plane/helpers.ts";
+import { adversarialInputs } from "./adversarial.ts";
 
 const body = (text: string) => ({ body: text, tools: ["bash"] });
 const critical = (text: string, tools: string[] = ["bash"]) =>
@@ -229,18 +230,23 @@ describe("acceptance (card D5): a case per class, with near-miss controls", () =
       expect(isWipeTarget(t), t).toBe(false);
   });
 
-  test("no rule takes quadratic time on a long adversarial line", () => {
-    const long = [
-      `${"curl ".repeat(4000)}`,
-      `${"\n".repeat(20000)}system`,
-      `rm ${"-r ".repeat(5000)}`,
-      `curl -X POST ${"a".repeat(30000)}`,
-      `${"'".repeat(10000)}curl -o x`,
-    ];
-    const t0 = performance.now();
-    for (const text of long) scanProcedure(body(text));
-    expect(performance.now() - t0).toBeLessThan(2000);
-  });
+  // Review of card D5, finding 1: credential-upload's unbounded lazy run was
+  // quadratic (10 s on 100k characters), inside the write queue. Every rule
+  // is timed alone on every adversarial input of about 200,000 characters
+  // (adversarial.ts) under a fixed budget; a quadratic rule takes tens of
+  // seconds there, a linear one well under the budget even on a loaded machine.
+  test("every rule runs in linear time: 200,000 adversarial characters under a fixed budget each", () => {
+    const BUDGET_MS = 1000;
+    const slow: string[] = [];
+    for (const [name, text] of adversarialInputs(200_000))
+      for (const rule of SCAN_RULES) {
+        const t0 = performance.now();
+        rule.match.search(text);
+        const ms = performance.now() - t0;
+        if (ms > BUDGET_MS) slow.push(`${rule.id} on ${name}: ${Math.round(ms)} ms`);
+      }
+    expect(slow).toEqual([]);
+  }, 180_000);
 });
 
 describe("acceptance (card D5): the corpus's hold and false-hold rates", () => {
@@ -328,7 +334,12 @@ const replayOf = (content: Proc): ReplayEvidence => ({
   ),
 });
 
-async function candidate(content: Proc, policy: Policy) {
+async function candidate(
+  content: Proc,
+  policy: Policy,
+  scope = "person:omar",
+  status: MemoryItem["status"] = "candidate",
+) {
   const db = openSqlite(":memory:");
   migrate(db);
   let n = 0;
@@ -342,12 +353,21 @@ async function candidate(content: Proc, policy: Policy) {
   const skill = {
     ...item(1, { kind: "model" }),
     class: "procedural",
-    scope: "person:omar",
-    status: "candidate",
+    scope,
+    status,
     content,
     provenance: { ...item(1).provenance, kind: "model", ref: "distill:awm:s1" },
   } as MemoryItem;
-  expect((await plane.write(distiller, skill, AT)).event.decision).toBe("allow");
+  // A model-sourced write lands only in a person scope (source isolation), so
+  // a shared scope's candidate is written by its owner as user.
+  const writer = scope.startsWith("person:") ? distiller : omar;
+  const kind = writer === distiller ? "model" : "user";
+  const written = await plane.write(
+    writer,
+    { ...skill, provenance: { ...skill.provenance, kind } },
+    AT,
+  );
+  expect(written.event.decision).toBe("allow");
   return { plane, db };
 }
 
@@ -428,7 +448,7 @@ describe("acceptance (card D5): procedures.safety_scan at admission", () => {
     expect(r.event.policy_id).toBe("engram/promote/no-evidence");
     expect(r.event.reason).toContain("critical shell-injection (fetch-pipe-shell)");
     expect(r.event.reason).toMatch(
-      /under hold it is not admitted until a user-sourced actor releases it with a reason$/,
+      /under hold it is not admitted until its owner, acting as user, or a user-sourced member of the scope who neither owns nor wrote it, releases it with a reason$/,
     );
     expect(itemById(db, id(1))?.status).toBe("candidate");
   });
@@ -445,7 +465,94 @@ describe("acceptance (card D5): procedures.safety_scan at admission", () => {
     expect(releaseProblem("x".repeat(500))).toBeNull();
   });
 
-  test("a release by an actor that is not user-sourced is refused under the scan's rule", () => {
+  // ADRs 0026 and 0049 (the coordinator's decision on review finding 2):
+  // the owner may release only in their own person scope; elsewhere only a
+  // distinct user-sourced member of the target who neither owns nor wrote it.
+  const sam: Actor = {
+    id: "person:sam",
+    level: "person",
+    memberships: ["team:platform", "org"],
+    source: "user",
+  };
+  const RELEASE = "reviewed the installer line by line";
+
+  test("in a shared scope the owner's release is a deny event, the item still a candidate", async () => {
+    const { plane, db } = await candidate(UNSAFE, withMode("hold"), "team:platform");
+    const held = await plane.promote(omar, id(1), "team:platform", AT, {
+      replay: replayOf(UNSAFE),
+    });
+    expect(held.event).toMatchObject({ op: "gate", decision: "ask", policy_id: SAFETY_SCAN_ID });
+    expect(held.event.reason).toContain(
+      "until a user-sourced member of team:platform who neither owns nor wrote it presents it again",
+    );
+    const before = plane.events().length;
+    const r = await plane.promote(omar, id(1), "team:platform", AT, {
+      replay: replayOf(UNSAFE),
+      release: RELEASE,
+    });
+    expect(r).toMatchObject({ decision: "deny", item: null });
+    expect(r.event).toMatchObject({ op: "promote", decision: "deny", policy_id: SAFETY_SCAN_ID });
+    expect(r.event.reason).toContain(
+      "the safety scan's hold is not released: person:omar owns item",
+    );
+    expect(plane.events().length).toBe(before + 1);
+    expect(itemById(db, id(1))?.status).toBe("candidate");
+  });
+
+  test("in a shared scope a distinct member of the target releases it", async () => {
+    const { plane, db } = await candidate(UNSAFE, withMode("hold"), "team:platform");
+    const r = await plane.promote(sam, id(1), "team:platform", AT, {
+      replay: replayOf(UNSAFE),
+      release: RELEASE,
+    });
+    expect(r.decision).toBe("allow");
+    expect(r.event.reason).toMatch(
+      /released by person:sam, acting as user: reviewed the installer line by line$/,
+    );
+    expect(itemById(db, id(1))?.status).toBe("active");
+  });
+
+  test("a reviewer widening an active procedure is held, and releases it as a distinct member", async () => {
+    const { plane, db } = await candidate(UNSAFE, withMode("hold"), "team:platform", "active");
+    const held = await plane.promote(sam, id(1), "org", AT, { review: true });
+    expect(held.event).toMatchObject({ op: "gate", decision: "ask", policy_id: SAFETY_SCAN_ID });
+    const r = await plane.promote(sam, id(1), "org", AT, { review: true, release: RELEASE });
+    expect(r.decision).toBe("allow");
+    expect(r.item).toMatchObject({ scope: "org", status: "active" });
+    expect(itemById(db, id(1))?.status).toBe("retired");
+  });
+
+  test("a release by an author who does not own it is refused in a shared scope", () => {
+    const allowed: PromotionDecision = {
+      decision: "allow",
+      check: "validated",
+      reason: "validated",
+      policy_id: "test/promotion/procedural",
+      transition: "in-place",
+      promoted: null,
+      confirmations: 0,
+      confirming: [],
+    };
+    const proc = {
+      ...item(1),
+      class: "procedural",
+      scope: "team:platform",
+      content: UNSAFE,
+    } as MemoryItem;
+    const d = applySafetyScan(withMode("hold"), sam, proc, allowed, {
+      release: RELEASE,
+      target: "team:platform",
+      authors: () => ["person:sam"],
+    });
+    expect(d).toMatchObject({ decision: "deny", policy_id: SAFETY_SCAN_ID });
+    expect(d.reason).toContain("wrote item");
+  });
+
+  test("a release reason with hidden characters is refused before the log is touched", () => {
+    expect(releaseProblem("ok\u200b")).toContain("hidden characters");
+  });
+
+  test("a release by an actor that is not user-sourced is refused under the scan's rule (defence in depth)", () => {
     const allowed: PromotionDecision = {
       decision: "allow",
       check: "reviewed",
@@ -457,11 +564,16 @@ describe("acceptance (card D5): procedures.safety_scan at admission", () => {
       confirming: [],
     };
     const proc = { ...item(1), class: "procedural", content: UNSAFE } as MemoryItem;
-    const d = applySafetyScan(withMode("hold"), distiller, proc, allowed, "trust me");
+    const d = applySafetyScan(withMode("hold"), distiller, proc, allowed, {
+      release: "trust me",
+      target: "person:omar",
+      authors: () => [],
+    });
     expect(d).toMatchObject({ decision: "deny", policy_id: SAFETY_SCAN_ID, promoted: null });
     expect(d.reason).toContain("only a user-sourced actor may release the safety scan's hold");
   });
 
+  const CTX = { target: "person:omar", authors: () => [] };
   test("the opaque membership refusal and non-procedural items are left as they are", () => {
     const opaque: PromotionDecision = {
       decision: "deny",
@@ -474,10 +586,10 @@ describe("acceptance (card D5): procedures.safety_scan at admission", () => {
       confirming: [],
     };
     const proc = { ...item(1), class: "procedural", content: UNSAFE } as MemoryItem;
-    expect(applySafetyScan(withMode("hold"), omar, proc, opaque)).toBe(opaque);
+    expect(applySafetyScan(withMode("hold"), omar, proc, opaque, CTX)).toBe(opaque);
     const semantic = { ...item(1), content: UNSAFE.body } as MemoryItem;
     const denied = { ...opaque, policy_id: "engram/promote/no-evidence", reason: "r" };
-    expect(applySafetyScan(withMode("hold"), omar, semantic, denied)).toBe(denied);
+    expect(applySafetyScan(withMode("hold"), omar, semantic, denied, CTX)).toBe(denied);
   });
 });
 

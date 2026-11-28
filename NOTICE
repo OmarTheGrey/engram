@@ -274,7 +274,7 @@ Caura, Sentinel scan
 packages/core/src/lint/procedural.ts (card D5) ports the scan tables of
 core-api/src/core_api/services/forge/sentinel_scan.py from Caura
 (https://github.com/caura-ai/caura, commit
-8dbb7f40a76cdc75827923f1a82597b4c8393130), whose NOTICE reads:
+8dbb7f40a76cdc75827923f1a82597b4c8393130), whose NOTICE begins:
 
   Caura
   Copyright 2026 Caura (https://caura.ai)

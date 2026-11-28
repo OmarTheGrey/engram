@@ -8,6 +8,15 @@
 // rate (research/results/h5-procedure-scan.json), never a defence. Its
 // patterns are English and shell-centred: a careful author writes around any
 // regular expression, and a procedure in another language passes unread.
+// Known evasions (review of card D5, finding 5): homoglyphs (a Cyrillic letter
+// in `curl` or `ignore`) and fullwidth forms (`｜`, `＜system＞`), shell quoting
+// and escapes (`c''url`, `c\url`, `| s\h`), a variable naming the shell or
+// the target (`| $S`, `D=/; rm -rf $D`), other destructive commands such as
+// `find / -delete`, and look-alike slashes (U+2215). Hidden characters (zero
+// width, tag characters) are not this scan's: the promotion gate refuses them
+// first (engram/promote/hidden-text, ADR 0026 P5-14). Every rule runs in
+// linear time: each lazy or open run is bounded (credential-upload's to 200
+// characters), and a test times every rule on 200,000 adversarial characters.
 //
 // What the option does (plane/promote.ts calls `applySafetyScan` on the
 // promotion gate's decision for a procedural item):
@@ -16,10 +25,17 @@
 //                  the event records; no decision changes
 //   hold           the same, and an allowed promotion with a critical finding
 //                  becomes `ask` under engram/promote/safety-scan: one `gate`
-//                  event, the item stays a candidate. It lands only when a
-//                  user-sourced actor presents it again with a release reason
-//                  (PromoteOptions.release), which the event's reason records.
-//                  A warning annotates and never holds.
+//                  event, the item stays as it is. It lands only when an
+//                  actor ADRs 0026 and 0049 allow (the owner in their own
+//                  person scope; elsewhere a distinct user-sourced member of
+//                  the target who neither owns nor wrote it) presents it again
+//                  with a release reason (PromoteOptions.release), which the
+//                  event's reason records. A warning annotates and never holds.
+// The operator's release path: no surface carries a replay or a release yet
+// (ADR 0046, decision 7), so a held procedure is released in process, by the
+// same Plane.promote call with the same replay (or, for a widening, the same
+// review) and `release: "<reason>"`, as packages/core/scripts/procedural-corpus.ts
+// calls it. Cards E8.8 and E2.19 build the surface.
 // No finding carries an excerpt of the content, only its field and offsets,
 // so a payload is never echoed into the log (as ADR 0039, item 4, for the
 // injection screen).
@@ -45,8 +61,14 @@
 //   as the injection screen found); the webhook POST pattern's two
 //   unbounded runs are bounded to 200 characters; the known sink hosts and
 //   `base64 -d | sh` are critical here (caura warns on them), under
-//   exfiltration and shell injection; a warning overlapping a critical
-//   finding in the same field is dropped. Checks 4 to 8 (support-file paths,
+//   exfiltration and shell injection; `decode-pipe-shell` also takes
+//   `--decode`; `sink-host` is one bare-URL pattern (caura asks for a curl or
+//   wget before its collector hosts and a trailing `/` after its paste hosts)
+//   and adds oast.*, pipedream.net and ngrok, which caura names only in its
+//   webhook POST pattern; the admin lines only warn, as in caura's skill text
+//   (they are critical in its support-file scripts, and `tools` are names, not
+//   scripts); a warning overlapping a critical finding in the same field is
+//   dropped. Checks 4 to 8 (support-file paths,
 //   PII, cited ids, sizes) have no procedural counterpart or are the write
 //   gate's (policy/secrets.ts).
 // - Ideas, no code: devmemory (vasikmansuri/devmemory, commit
@@ -57,8 +79,14 @@
 //   and instructions that hide actions from the user, hence the credential
 //   upload and credential pipe rules.
 import type { Actor } from "../actor.ts";
-import { PROMOTE_MEMBERSHIP_ID, type PromotionDecision } from "../policy/promotion.ts";
-import type { MemoryItem, Policy } from "../schema.ts";
+import { scopeLevel } from "../policy/evaluate.ts";
+import {
+  hiddenCharacters,
+  PROMOTE_MEMBERSHIP_ID,
+  type PromotionDecision,
+  reviewerProblem,
+} from "../policy/promotion.ts";
+import type { MemoryEvent, MemoryItem, Policy } from "../schema.ts";
 
 /** The four classes of finding, in the order a reason lists them. */
 export const SCAN_CLASSES = [
@@ -148,14 +176,17 @@ export function logicalLines(text: string): Span[] {
 
 /** A first pattern and, later on the same command line, a second (caura's _FetchThenTail). */
 function thenOnLine(first: string, then: string): Matcher {
+  // Compiled once; neither is global or sticky, so no lastIndex is shared.
+  const firstRe = new RegExp(first, "i");
+  const thenRe = new RegExp(then, "i");
   return {
     search(text) {
       for (const { start, end } of logicalLines(text)) {
         const line = text.slice(start, end);
-        const a = new RegExp(first, "i").exec(line);
+        const a = firstRe.exec(line);
         if (!a) continue;
         const from = a.index + a[0].length;
-        const b = new RegExp(then, "i").exec(line.slice(from));
+        const b = thenRe.exec(line.slice(from));
         if (b) return { start: start + a.index, end: start + from + b.index + b[0].length };
       }
       return null;
@@ -528,7 +559,7 @@ export const SCAN_RULES: readonly ScanRule[] = [
     source: "idea",
     match: thenOnLine(
       "\\b(?:curl|wget)\\b",
-      `(?:-d|--data(?:-binary|-raw|-urlencode)?|-F|--form|-T|--upload-file|--post-file|--body-file)[ \\t=]*["']?(?:[\\w-]+=)?@?[^\\s"']*?${CREDENTIAL}`,
+      `(?:-d|--data(?:-binary|-raw|-urlencode)?|-F|--form|-T|--upload-file|--post-file|--body-file)[ \\t=]{0,20}["']?(?:[\\w-]{1,64}=)?@?[^\\s"']{0,200}?${CREDENTIAL}`,
     ),
   },
   {
@@ -691,7 +722,55 @@ export function releaseProblem(release: unknown): string | null {
     return "a release of the safety scan's hold needs a reason, a non-empty string";
   if (release.trim().length > RELEASE_MAX)
     return `a release reason is at most ${RELEASE_MAX} characters; this one has ${release.trim().length}`;
+  // A release reason is stored in an event's reason, so it may hold no
+  // character a reader would not see (as content may not, P5-14).
+  if (hiddenCharacters(release) > 0)
+    return "a release reason may hold no hidden characters (default-ignorable, format or tag characters)";
   return null;
+}
+
+/** What `applySafetyScan` needs beyond the decision: the release, the target and the item's authors. */
+export interface ReleaseContext {
+  /** The release reason the caller gave, if any (PromoteOptions.release). */
+  release?: string;
+  /** The promotion's target scope. */
+  target: string;
+  /** Every actor of an allowed write or update of the item or its lineage; asked only for a release. */
+  authors: () => readonly string[];
+}
+
+/**
+ * Is this the owner's own release, ADR 0049's one exception: the item's
+ * owner, at the person level, keeping it in their own person scope? The
+ * actor's source is judged apart.
+ */
+function ownRelease(actor: Actor, item: MemoryItem, target: string): boolean {
+  return (
+    target === item.scope &&
+    scopeLevel(item.scope) === "person" &&
+    item.scope === actor.id &&
+    item.owner === actor.id &&
+    actor.level === "person"
+  );
+}
+
+/** Who may release a hold of `item` into `target`, as the reasons say it. */
+function releaser(item: MemoryItem, target: string): string {
+  return scopeLevel(target) === "person" && target === item.scope && item.scope === item.owner
+    ? "its owner, acting as user, or a user-sourced member of the scope who neither owns nor wrote it,"
+    : `a user-sourced member of ${target} who neither owns nor wrote it`;
+}
+
+/**
+ * Whether a reviewer's approval could land the promotion `event` refused or
+ * held, for a surface choosing whether to offer one (the TUI's handoff): not
+ * for a hold of the safety scan, which a review alone only holds again; its
+ * release needs the replay and a release reason (PromoteOptions), which no
+ * surface carries yet (ADR 0046, decision 7). The decision lives here, not in
+ * the TUI (AGENTS.md rule 1).
+ */
+export function reviewCouldLand(event: Pick<MemoryEvent, "policy_id">): boolean {
+  return event.policy_id !== SAFETY_SCAN_ID;
 }
 
 /**
@@ -700,15 +779,21 @@ export function releaseProblem(release: unknown): string | null {
  * membership refusal (which says nothing of the item): `d` unchanged.
  * Otherwise the scan's findings are appended to the reason; under `hold`, an
  * allowed promotion with a critical finding is held (`ask`, no item, under
- * SAFETY_SCAN_ID) unless a user-sourced actor releases it with a reason,
- * which the reason then records. A release by another source is refused.
+ * SAFETY_SCAN_ID) unless the promoting actor gives a release reason and may
+ * release it, which the reason then records. Who may release applies ADRs
+ * 0026 and 0049, with no new ADR: in the owner's own person scope the owner,
+ * acting as user, may (ADR 0049's exception, which authorises nothing for
+ * anyone else); in any other target, a widening of an active procedure
+ * included, only a distinct reviewer may: user-sourced, a member of the
+ * target, neither the owner nor an author of any version (ADR 0026's
+ * reviewerProblem). Any other release is a deny event under SAFETY_SCAN_ID.
  */
 export function applySafetyScan(
   policy: Policy,
   actor: Actor,
   item: MemoryItem,
   d: PromotionDecision,
-  release?: string,
+  ctx: ReleaseContext,
 ): PromotionDecision {
   const mode = policy.procedures?.safety_scan;
   if (mode === undefined || mode === "off") return d;
@@ -718,27 +803,40 @@ export function applySafetyScan(
   const critical = findings.filter((f) => f.severity === "critical").length;
   const holds = mode === "hold" && critical > 0;
   if (!holds) return { ...d, reason: `${d.reason}; ${note}` };
+  const who = releaser(item, ctx.target);
   if (d.decision !== "allow")
     return {
       ...d,
-      reason: `${d.reason}; ${note}; under hold it is not admitted until a user-sourced actor releases it with a reason`,
+      reason: `${d.reason}; ${note}; under hold it is not admitted until ${who} releases it with a reason`,
     };
   const held = { ...d, transition: null, promoted: null } as const;
+  const { release } = ctx;
   if (release === undefined)
     return {
       ...held,
       decision: "ask",
       check: "review-needed",
       policy_id: SAFETY_SCAN_ID,
-      reason: `held, not admitted: ${note}; item ${item.id} stays a candidate until a user-sourced actor presents it again with a reason to release it; the gate otherwise allowed it (${d.policy_id}): ${d.reason}`,
+      reason: `held, not admitted: ${note}; item ${item.id} stays as it is until ${who} presents it again with a reason to release it; the gate otherwise allowed it (${d.policy_id}): ${d.reason}`,
     };
-  if (actor.source !== "user")
+  // Defence in depth: through Plane.promote a non-user actor never reaches an
+  // allowed procedural promotion (its replay is refused under
+  // engram/promote/validation-source, a widening under widening-source or
+  // reviewer), so this deny is reached only by other callers of this function,
+  // as reviewerProblem's membership line is (card RV7, RV-CORE-9).
+  const problem =
+    actor.source !== "user"
+      ? `${actor.id} acts with source ${actor.source ?? "none"}; only a user-sourced actor may release the safety scan's hold`
+      : ownRelease(actor, item, ctx.target)
+        ? null
+        : reviewerProblem(actor, item, ctx.target, ctx.authors());
+  if (problem)
     return {
       ...held,
       decision: "deny",
       check: "reviewer",
       policy_id: SAFETY_SCAN_ID,
-      reason: `${actor.id} acts with source ${actor.source ?? "none"}; only a user-sourced actor may release the safety scan's hold; ${note}`,
+      reason: `the safety scan's hold is not released: ${problem}; ${who} may release it; ${note}`,
     };
   return {
     ...d,
