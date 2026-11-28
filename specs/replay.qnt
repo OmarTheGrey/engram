@@ -9,9 +9,18 @@
 // Plane handles over one log).
 //
 // 1. Atomic continuations. A model step that the code runs in the same
-//    synchronous stretch as the step before it, with no store call between
-//    (so no other handle can move between them), must follow that step at
-//    once, on the same handle. These are: a stale commit and its settle's
+//    synchronous stretch as the step before it, with no store call between,
+//    must follow that step at once, on the same handle. The stretch is two
+//    or more transactions, each under the log's lock, with the lock released
+//    between them: no other handle of the same process can move between
+//    them (JavaScript runs the stretch to its end), but a handle in another
+//    process can append between two of its transactions. The replay runs
+//    every handle in one process, so it covers the single-process schedules
+//    only; the cross-process interleavings inside a stretch are checked on
+//    the model alone (good's simulation and Apalache), a limit of the replay
+//    (specs/README.md). The same holds for the head and listing the sweep and
+//    adoption take in one model step (obSweepList, adoptList): the code reads
+//    the head, then awaits the store's list. These are: a stale commit and its settle's
 //    first read (write.ts decideAndWrite, commit.ts settle), a settle that
 //    goes round again and its next read, an erasure and the sweep's listing
 //    head (offboard.ts run), each decision of the sweep loop and the next
@@ -253,6 +262,23 @@ module replay {
   // content back. Both settles are still in flight when an adoption refuses
   // that record: the model purges it, the code, holding the content as left
   // in the store, does not.
+  run e18ErasesWithdrawnTest =
+    // E18-F8. As E18-F6's run, a is withdrawn to nothing; then an
+    // offboarding. The model has no item to erase; the code still holds a,
+    // retired, and erases it.
+    init
+      .then(decide("h2", "a", USER)).then(decide("h1", "a", MODEL))
+      .then(storeWrite("h2")).then(storeWrite("h1"))
+      .then(adoptList("h3")).then(adoptOne("h3", "a")).then(adoptDone("h3"))
+      .then(commit("h2")).then(settleRead("h2")).then(settleStore("h2")).then(settleConfirm("h2"))
+      .then(commit("h1")).then(settleRead("h1")).then(settleStore("h1")).then(settleConfirm("h1"))
+      .then(obBegin("h2")).then(obErase("h2")).then(obSweepList("h2")).then(obReport("h2"))
+      .expect(all {
+        erasedIds == Set(),
+        log.select(e => e.rule == ERASE).length() == 0,
+        safety,
+      })
+
   run e18NotFoundNoPurgeTest =
     init
       .then(decide("h1", "a", USER)).then(storeWrite("h1")).then(commit("h1"))

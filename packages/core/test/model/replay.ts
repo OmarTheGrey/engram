@@ -20,16 +20,24 @@
 //
 // What is compared after a step, model against code:
 // - the projection of each item (commit.qnt `projOf`): live, content, kind
-//   and confidence (the model's meta); an item the code keeps as retired by
-//   a withdrawal to nothing is no item, as the model has it (specs/README.md,
-//   "Item status");
+//   and confidence (the model's meta). The model has no item status; a live
+//   model item is a code item that is not retired, and a retired code item,
+//   whatever retired it, is no item (specs/README.md, "Item status");
 // - the store's record of each item: present, content, the kind it claims,
 //   its confidence;
 // - the open offboarding marks (commit.qnt `openMarks`), by position;
-// - the trail of decisions: the model's log against the code's events whose
-//   rules the model has, in log order (the code's own extra events, an
-//   adoption's retractions, are not modelled and are left out);
+// - the trail of decisions: the model's log against every event of the
+//   code's log, in log order, with exactly one rule left out: an adoption's
+//   retraction (engram/adopt/retract), which the model does not have and
+//   whose effect, a retired item, the projection's status comparison sees.
+//   Every other plane event, of any rule, is in the trail, so an event the
+//   model has no counterpart for is a mismatch at the step it is appended;
 // - which handles are inside a call.
+//
+// A divergence is attributed to a finding (FINDINGS) only by a mark of that
+// finding about the item the divergence is about, appended at or before the
+// diverging step, and only for the kinds of difference the finding can
+// cause (KINDS); with no such mark it is "unexplained".
 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -39,8 +47,9 @@ import type { Adapter, StoreRef } from "../../src/adapter.ts";
 import type { Db } from "../../src/db/db.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import { openSqlite } from "../../src/db/sqlite.ts";
-import { allEvents, ERASURE_ID, eventsByItem, NOT_FOUND_CLAUSE } from "../../src/events.ts";
+import { allEvents, currentItems, ERASURE_ID, NOT_FOUND_CLAUSE } from "../../src/events.ts";
 import { itemById } from "../../src/items.ts";
+import { ADOPT_RETRACT_ID } from "../../src/plane/adopt.ts";
 import {
   ADOPT_ERASED_ID,
   ADOPT_WITHDRAWN_ID,
@@ -48,7 +57,6 @@ import {
   ERASING_ID,
   OFFBOARD_BEGIN_ID,
   OFFBOARD_REPORT_ID,
-  OFFBOARD_SWEPT_ID,
   WRITE_CONFLICT_ID,
 } from "../../src/plane/commit.ts";
 import { WRITE_ERASED_ID } from "../../src/plane/write.ts";
@@ -59,7 +67,6 @@ import {
   offboard,
   type PlaneDeps,
 } from "../../src/plane.ts";
-import { STORE_FAILURE_ID } from "../../src/policy/evaluate.ts";
 import type { MemoryItem, Policy } from "../../src/schema.ts";
 import { id, item, testPolicy } from "../unit/plane/helpers.ts";
 import {
@@ -179,9 +186,9 @@ export interface Replayed {
   folded: number;
   mismatch: Mismatch | null;
   /**
-   * Why the replay diverged, when it did: the first finding of card E1.8
-   * whose mark the trace or the code's state carries (FINDINGS), or
-   * "unexplained".
+   * Why the replay diverged, when it did: the finding of card E1.8 whose mark
+   * about the diverging item, at or before the diverging step and of a kind
+   * it can cause, is the latest (FINDINGS, KINDS), or "unexplained".
    */
   finding: Finding | null;
   /** The code's state after the last step. */
@@ -191,7 +198,7 @@ export interface Replayed {
 /**
  * The divergences of the code from the model card E1.8 found, each a
  * `finding` log entry and a pinned test in trace-replay.test.ts. A replay
- * that diverges is explained by the first whose mark it carries.
+ * that diverges is attributed to one only as `attribute` says.
  */
 export const FINDINGS = {
   /**
@@ -247,9 +254,91 @@ export const FINDINGS = {
    * which has no such path, refuses and purges.
    */
   "E18-F7": "an erasure that finds no record makes adoption refuse without a purge",
+  /**
+   * The erasure reads every projected item of the person scope, of any
+   * status (offboard.ts, currentItems), so it erases, with an erase event,
+   * an item a withdrawal to nothing left retired. The model removed that
+   * item and erases nothing. The code is right to erase every status; the
+   * difference is the model's (E18-F6's status), seen at the erasure.
+   */
+  "E18-F8": "the erasure erases an item a withdrawal left retired",
 } as const;
 
 export type Finding = keyof typeof FINDINGS | "unexplained";
+
+/** The kinds of difference a mismatch is: which part of the state differs. */
+export type Kind = "projection" | "store" | "marks" | "trail" | "busy" | "call";
+
+/** The kinds of difference each finding can cause. */
+export const KINDS: Record<keyof typeof FINDINGS, readonly Kind[]> = {
+  "E18-F1": ["projection", "trail", "busy"],
+  "E18-F2": ["projection"],
+  "E18-F3": ["projection", "store", "trail", "busy"],
+  "E18-F4": ["trail", "busy"],
+  "E18-F5": ["projection", "trail", "busy"],
+  "E18-F6": ["projection", "store", "trail", "busy"],
+  "E18-F7": ["store", "trail", "busy"],
+  "E18-F8": ["marks", "trail", "busy"],
+};
+
+/** A finding's mark: what showed it, at which step, about which item. */
+export interface Mark {
+  finding: keyof typeof FINDINGS;
+  step: number;
+  item: string;
+}
+
+/** The kind of a mismatch, from its `what`. */
+export function kindOf(what: string): Kind {
+  if (what.startsWith("the projection")) return "projection";
+  if (what.startsWith("the store record")) return "store";
+  if (what.startsWith("the open offboarding marks")) return "marks";
+  if (what.startsWith("the trail")) return "trail";
+  if (what.startsWith("whether handle")) return "busy";
+  return "call";
+}
+
+/** The items a mismatch is about: named in it, the first differing trail entry's, the step's. */
+export function subjects(
+  m: Mismatch,
+  actionItem: string,
+  handleItems: readonly string[],
+): Set<string> {
+  const out = new Set<string>();
+  // The open marks are the scope's, not an item's: every item.
+  if (kindOf(m.what) === "marks") for (const x of ITEMS) out.add(x);
+  const named = /of ([ab])$/.exec(m.what);
+  if (named) out.add(named[1] as string);
+  if (kindOf(m.what) === "trail") {
+    const a = (m.model ?? []) as string[];
+    const b = (m.code ?? []) as string[];
+    for (let k = 0; k < Math.max(a.length, b.length); k++) {
+      if (a[k] === b[k]) continue;
+      for (const e of [a[k], b[k]]) {
+        const last = e?.split(" ").at(-1);
+        if (last === "a" || last === "b") out.add(last);
+      }
+      break;
+    }
+  }
+  if (kindOf(m.what) === "busy" || kindOf(m.what) === "call") {
+    if (actionItem) out.add(actionItem);
+    for (const x of handleItems) if (x) out.add(x);
+  }
+  return out;
+}
+
+/** The finding a mismatch is attributed to: the latest mark about its items, at or before its step, of a kind it can cause. */
+export function attribute(m: Mismatch, marks: readonly Mark[], items: Set<string>): Finding {
+  const kind = kindOf(m.what);
+  let best: Mark | null = null;
+  for (const mark of marks) {
+    if (mark.step > m.step || !items.has(mark.item) || !KINDS[mark.finding].includes(kind))
+      continue;
+    if (!best || mark.step >= best.step) best = mark;
+  }
+  return best ? best.finding : "unexplained";
+}
 
 export interface CodeState {
   proj: Record<string, Item>;
@@ -305,8 +394,12 @@ export async function replay(trace: Trace): Promise<Replayed> {
   const newId = () => id(1000 + ++ids);
   const handles = new Map<string, Handle>();
   const opened: Db[] = [];
-  /** The findings' marks the code's run showed (FINDINGS). */
-  const marks = new Set<Finding>();
+  /** The findings' marks the code's run showed (FINDINGS), with their steps. */
+  const marks: Mark[] = [];
+  /** The step being driven, for the marks the store's list makes. */
+  let current = 0;
+  /** How many of the code's events the marks have read. */
+  let read = 0;
 
   const open = (name: string): Handle => {
     const raw = openSqlite(file);
@@ -409,7 +502,7 @@ export async function replay(trace: Trace): Promise<Replayed> {
           held.content === r.content &&
           held.confidence === r.confidence
         )
-          marks.add("E18-F5");
+          marks.push({ finding: "E18-F5", step: current, item: NAME.get(r.id) ?? r.id });
       }
       await point("list", "after", "");
       return listed;
@@ -493,13 +586,8 @@ export async function replay(trace: Trace): Promise<Replayed> {
     const recs: CodeState["store"] = {};
     for (const x of ITEMS) {
       const it = itemById(raw, ID[x] as string);
-      const withdrawn =
-        it?.status === "retired" &&
-        eventsByItem(raw, it.id)
-          .filter((e) => e.decision === "allow")
-          .at(-1)?.policy_id === ADOPT_WITHDRAWN_ID;
       proj[x] =
-        it && !withdrawn
+        it && it.status !== "retired"
           ? {
               live: true,
               content: number(it.content),
@@ -587,11 +675,44 @@ export async function replay(trace: Trace): Promise<Replayed> {
     return null;
   };
 
+  /**
+   * The marks the code's events appended since the last call show, at step
+   * i: E18-F1 a retraction, E18-F6 a withdrawal to nothing (a retire),
+   * E18-F7 an erasure that found no record, E18-F8 an offboarding begun
+   * while the scope holds a retired item (it will erase it) or an erasure of
+   * an item whose last allowed event retired it.
+   */
+  const codeMarksAt = (i: number) => {
+    const events = allEvents(opened.at(-1) as Db);
+    for (const e of events.slice(read)) {
+      if (e.policy_id === OFFBOARD_BEGIN_ID && e.decision === "allow")
+        for (const held of currentItems(opened.at(-1) as Db))
+          if (held.scope === PERSON && held.status === "retired")
+            marks.push({ finding: "E18-F8", step: i, item: NAME.get(held.id) ?? held.id });
+      if (e.item_id === null) continue;
+      const x = NAME.get(e.item_id) ?? e.item_id;
+      if (e.policy_id === ADOPT_RETRACT_ID) marks.push({ finding: "E18-F1", step: i, item: x });
+      if (e.policy_id === ADOPT_WITHDRAWN_ID && e.op === "retire")
+        marks.push({ finding: "E18-F6", step: i, item: x });
+      if (e.policy_id === ERASURE_ID) {
+        if (e.reason.includes(NOT_FOUND_CLAUSE))
+          marks.push({ finding: "E18-F7", step: i, item: x });
+        const before = events
+          .filter((o) => o.seq < e.seq && o.item_id === e.item_id && o.decision === "allow")
+          .at(-1);
+        if (before?.op === "retire" && before.policy_id !== ERASURE_ID)
+          marks.push({ finding: "E18-F8", step: i, item: x });
+      }
+    }
+    read = events.length;
+  };
+
   let compared = 0;
   let folded = 0;
   let mismatch: Mismatch | null = null;
   try {
     for (let i = 1; i < states.length && !mismatch; i++) {
+      current = i;
       const prev = states[i - 1] as State;
       const next = states[i] as State;
       const a = next.lastAction;
@@ -692,6 +813,7 @@ export async function replay(trace: Trace): Promise<Replayed> {
           };
           handle.error = undefined;
         }
+      codeMarksAt(i);
       if (mismatch) break;
       if (forced(next) !== "") continue;
       compared++;
@@ -705,17 +827,22 @@ export async function replay(trace: Trace): Promise<Replayed> {
     const final = await snapshot();
     let finding: Finding | null = null;
     if (mismatch) {
-      if (final.events.some((e) => e.includes(" engram/adopt/retract "))) marks.add("E18-F1");
-      if (final.events.some((e) => e.includes(" retire engram/adopt/withdrawn ")))
-        marks.add("E18-F6");
-      if (
-        final.events.some(
-          (e) => e.includes(" engram/offboard/erase ") && e.includes(NOT_FOUND_CLAUSE),
-        )
-      )
-        marks.add("E18-F7");
-      for (const f of modelMarks(states, mismatch.step)) marks.add(f);
-      finding = (Object.keys(FINDINGS) as Finding[]).find((f) => marks.has(f)) ?? "unexplained";
+      const at = states[mismatch.step] as State;
+      // The items the handle a mismatch names (or the step's handle) acted
+      // on in its current call: back to the step that began it.
+      const named = /handle (h\d)/.exec(mismatch.what)?.[1] ?? at.lastAction.handle;
+      const handleItems: string[] = [];
+      for (let j = mismatch.step; j > 0; j--) {
+        const a = (states[j] as State).lastAction;
+        if (a.handle !== named) continue;
+        handleItems.push(a.iid);
+        if (["decide", "obBegin", "adoptList"].includes(a.name)) break;
+      }
+      finding = attribute(
+        mismatch,
+        [...marks, ...modelMarks(states, mismatch.step)],
+        subjects(mismatch, at.lastAction.iid, handleItems),
+      );
     }
     return { steps: states.length - 1, compared, folded, mismatch, finding, final };
   } finally {
@@ -734,19 +861,6 @@ export async function replay(trace: Trace): Promise<Replayed> {
   }
 }
 
-/** The model's rules the trail keeps, as the code names them. */
-const RULES = new Set([
-  WRITE_CONFLICT_ID,
-  WRITE_ERASED_ID,
-  ERASING_ID,
-  OFFBOARD_BEGIN_ID,
-  OFFBOARD_REPORT_ID,
-  ERASURE_ID,
-  OFFBOARD_SWEPT_ID,
-  ADOPT_ERASED_ID,
-  ADOPT_WITHDRAWN_ID,
-]);
-
 /**
  * The findings' marks a model trace carries up to state `upTo`:
  * - E18-F2: an adoption allows a record whose bytes the item's last write
@@ -757,8 +871,8 @@ const RULES = new Set([
  *   write event, an adoption's engram/adopt/erased deny, refused, while the
  *   id is still projected as no item.
  */
-function modelMarks(states: readonly State[], upTo: number): Set<Finding> {
-  const out = new Set<Finding>();
+function modelMarks(states: readonly State[], upTo: number): Mark[] {
+  const out: Mark[] = [];
   const last = new Map<string, { rule: string; adopted: boolean; deny: boolean; bytes: string }>();
   for (let j = 1; j <= upTo && j < states.length; j++) {
     const prev = states[j - 1] as State;
@@ -772,7 +886,8 @@ function modelMarks(states: readonly State[], upTo: number): Set<Finding> {
       was?.rule === ADOPT_ERASED_ID &&
       was.bytes === bytes
     )
-      if (!projOf(ITEMS, prev.log).get(a.iid)?.live) out.add("E18-F4");
+      if (!projOf(ITEMS, prev.log).get(a.iid)?.live)
+        out.push({ finding: "E18-F4", step: j, item: a.iid });
     for (const e of s.log.slice(prev.log.length)) {
       if (!WRITE_OPS.has(e.rule)) continue;
       const eb = e.adopted ? bytes : "";
@@ -784,14 +899,14 @@ function modelMarks(states: readonly State[], upTo: number): Set<Finding> {
         before.adopted &&
         before.bytes === eb
       )
-        out.add("E18-F2");
+        out.push({ finding: "E18-F2", step: j, item: e.iid });
       if (e.adopted && e.decision === "allow" && e.meta !== 0)
         for (const p of prev.pc.values())
           if (
             p.content === e.content &&
             ["decided", "wrote", "settling", "settleStore", "settleConfirm"].includes(p.tag)
           )
-            out.add("E18-F3");
+            out.push({ finding: "E18-F3", step: j, item: e.iid });
       if (
         e.adopted &&
         e.decision === "deny" &&
@@ -854,17 +969,25 @@ function modelTrail(states: readonly State[], upTo: number): string[] {
   return out;
 }
 
-/** The code's events as the model's trail: its rules, every gated write and adoption, every store failure. */
+/**
+ * The code's events as the model's trail: every event of the log but an
+ * adoption's retraction (ADOPT_RETRACT_ID, the one rule left out; the
+ * projection's status comparison sees its effect). A gate's decision on a
+ * write, under the policy's own rule, is `write` or `adopt`, as the model's
+ * `gate/allow`; every other event keeps its rule, so one the model does not
+ * have (a store failure, a version or retired-content refusal, a narrowing,
+ * an eviction) differs from the model's trail at the step it is appended.
+ */
 function codeTrail(events: readonly ReturnType<typeof allEvents>[number][]): string[] {
   const out: string[] = [];
   for (const e of events) {
+    if (e.policy_id === ADOPT_RETRACT_ID) continue;
     const x = e.item_id === null ? "" : (NAME.get(e.item_id) ?? e.item_id);
-    if (RULES.has(e.policy_id)) out.push(`${e.policy_id} ${e.decision} ${x}`.trim());
-    else if (e.policy_id === STORE_FAILURE_ID) out.push(`${e.policy_id} ${e.decision} ${x}`.trim());
-    else if (e.op === "write" && !e.policy_id.startsWith("engram/"))
+    if (e.op === "write" && !e.policy_id.startsWith("engram/"))
       out.push(
         `${e.reason.startsWith("adopted from store ") ? "adopt" : "write"} ${e.decision} ${x}`,
       );
+    else out.push(`${e.policy_id} ${e.decision} ${x}`.trim());
   }
   return out;
 }

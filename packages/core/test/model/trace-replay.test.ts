@@ -33,7 +33,16 @@ import {
   readTrace,
   type Trace,
 } from "./itf.ts";
-import { FINDINGS, outcome, replay } from "./replay.ts";
+import {
+  attribute,
+  FINDINGS,
+  kindOf,
+  type Mark,
+  type Mismatch,
+  outcome,
+  replay,
+  subjects,
+} from "./replay.ts";
 
 const TRACES = fileURLToPath(new URL("../../../../specs/traces/", import.meta.url));
 const RESULT = new URL("../../../../research/results/h1-quint-trace-replay.json", import.meta.url);
@@ -190,8 +199,8 @@ describe("the findings of card E1.8, each pinned where the code leaves the model
     {
       file: "e18RetractionWhileErasingTest",
       finding: "E18-F1",
-      step: 13,
-      what: "the trail of decisions",
+      step: 12,
+      what: "the projection of a",
     },
     {
       file: "e18ErasingRefusalFinalTest",
@@ -214,6 +223,12 @@ describe("the findings of card E1.8, each pinned where the code leaves the model
       step: 23,
       what: "whether handle h3 is inside a call",
     },
+    {
+      file: "e18ErasesWithdrawnTest",
+      finding: "E18-F8",
+      step: 19,
+      what: "the open offboarding marks",
+    },
   ];
 
   test("every finding has its scenario", () => {
@@ -235,6 +250,42 @@ describe("the findings of card E1.8, each pinned where the code leaves the model
     const rules = r.final.events.map((e) => e.split(" ")[2]);
     expect(rules).toEqual(["test/write/person", "engram/offboard/begin", "engram/adopt/retract"]);
     expect(r.final.marks).toEqual([0]);
+  });
+
+  test("E18-F1's status: the retracted item is no item in the code, a live one in the model", async () => {
+    const r = await replay(load("e18RetractionWhileErasingTest.itf.json.gz"));
+    expect(r.mismatch?.model).toMatchObject({ live: true });
+    expect(r.mismatch?.code).toMatchObject({ live: false });
+  });
+
+  test("a divergence is attributed only by a mark about its item, at or before its step, of a kind it can cause", () => {
+    const m: Mismatch = {
+      step: 10,
+      action: "adoptDone(h1)",
+      what: "the projection of a",
+      model: null,
+      code: null,
+    };
+    const items = subjects(m, "", []);
+    expect([...items]).toEqual(["a"]);
+    const mark = (finding: Mark["finding"], step: number, item: string): Mark => ({
+      finding,
+      step,
+      item,
+    });
+    expect(attribute(m, [mark("E18-F1", 9, "a")], items)).toBe("E18-F1");
+    expect(attribute(m, [mark("E18-F1", 11, "a")], items)).toBe("unexplained");
+    expect(attribute(m, [mark("E18-F1", 9, "b")], items)).toBe("unexplained");
+    expect(attribute(m, [mark("E18-F7", 9, "a")], items)).toBe("unexplained");
+    expect(attribute(m, [mark("E18-F1", 3, "a"), mark("E18-F6", 8, "a")], items)).toBe("E18-F6");
+    expect(kindOf("the trail of decisions")).toBe("trail");
+    const t: Mismatch = {
+      ...m,
+      what: "the trail of decisions",
+      model: ["write allow a", "x"],
+      code: ["write allow a", "engram/offboard/erase allow b"],
+    };
+    expect([...subjects(t, "", [])]).toEqual(["b"]);
   });
 });
 

@@ -7,7 +7,8 @@
     "E18-F4": "a repeated purge skips the listing's deferral",
     "E18-F5": "a record that differs from the projection only in its version",
     "E18-F6": "a withdrawal to nothing leaves a retired item the code still holds",
-    "E18-F7": "an erasure that finds no record makes adoption refuse without a purge"
+    "E18-F7": "an erasure that finds no record makes adoption refuse without a purge",
+    "E18-F8": "the erasure erases an item a withdrawal left retired"
   },
   "generation": {
     "count": 200,
@@ -23,6 +24,50 @@
   },
   "hypothesis": "none",
   "scenarios": {
+    "e18ErasesWithdrawnTest.itf.json.gz": {
+      "action": "obReport(h2)",
+      "compared": 14,
+      "final": {
+        "marks": [
+          0
+        ],
+        "proj": {
+          "a": {
+            "content": -1,
+            "kind": 0,
+            "live": false,
+            "meta": 0
+          },
+          "b": {
+            "content": -1,
+            "kind": 0,
+            "live": false,
+            "meta": 0
+          }
+        },
+        "store": {
+          "a": {
+            "content": -1,
+            "kind": 0,
+            "meta": 0,
+            "present": false
+          },
+          "b": {
+            "content": -1,
+            "kind": 0,
+            "meta": 0,
+            "present": false
+          }
+        }
+      },
+      "finding": "E18-F8",
+      "folded": 5,
+      "matched": 18,
+      "outcome": "diverged",
+      "step": 19,
+      "steps": 19,
+      "what": "the open offboarding marks"
+    },
     "e18ErasingRefusalFinalTest.itf.json.gz": {
       "action": "adoptDone(h3)",
       "compared": 7,
@@ -192,17 +237,17 @@
       "what": "whether handle h3 is inside a call"
     },
     "e18RetractionWhileErasingTest.itf.json.gz": {
-      "action": "settleDeny(h3, a)",
-      "compared": 12,
+      "action": "adoptDone(h1)",
+      "compared": 11,
       "final": {
         "marks": [
           0
         ],
         "proj": {
           "a": {
-            "content": 0,
-            "kind": 3,
-            "live": true,
+            "content": -1,
+            "kind": 0,
+            "live": false,
             "meta": 0
           },
           "b": {
@@ -229,11 +274,11 @@
       },
       "finding": "E18-F1",
       "folded": 1,
-      "matched": 12,
+      "matched": 11,
       "outcome": "diverged",
-      "step": 13,
+      "step": 12,
       "steps": 13,
-      "what": "the trail of decisions"
+      "what": "the projection of a"
     },
     "e18VersionOnlyTest.itf.json.gz": {
       "action": "adoptDone(h3)",
@@ -398,22 +443,23 @@
   },
   "status": "proof of concept",
   "totals": {
-    "diverged": 17,
+    "diverged": 56,
     "diverged_by_finding": {
-      "E18-F1": 12,
+      "E18-F1": 51,
       "E18-F2": 3,
       "E18-F3": 0,
       "E18-F4": 0,
       "E18-F5": 0,
       "E18-F6": 1,
       "E18-F7": 1,
+      "E18-F8": 0,
       "unexplained": 0
     },
-    "replayed": 183,
-    "states_compared": 8927,
+    "replayed": 144,
+    "states_compared": 7783,
     "steps": 12000,
-    "steps_folded": 2585,
-    "steps_matched": 11533,
+    "steps_folded": 2420,
+    "steps_matched": 10183,
     "traces": 200
   },
   "traces": {
@@ -432,11 +478,15 @@
       "steps": 60
     },
     "replay-002.itf.json.gz": {
-      "compared": 46,
-      "folded": 14,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h2)",
+      "compared": 23,
+      "finding": "E18-F1",
+      "folded": 7,
+      "matched": 29,
+      "outcome": "diverged",
+      "step": 30,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-003.itf.json.gz": {
       "compared": 38,
@@ -495,11 +545,15 @@
       "steps": 60
     },
     "replay-011.itf.json.gz": {
-      "compared": 58,
+      "action": "adoptDone(h1)",
+      "compared": 24,
+      "finding": "E18-F1",
       "folded": 2,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "matched": 25,
+      "outcome": "diverged",
+      "step": 26,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-012.itf.json.gz": {
       "compared": 44,
@@ -523,11 +577,15 @@
       "steps": 60
     },
     "replay-015.itf.json.gz": {
-      "compared": 57,
-      "folded": 3,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h1)",
+      "compared": 18,
+      "finding": "E18-F1",
+      "folded": 2,
+      "matched": 19,
+      "outcome": "diverged",
+      "step": 20,
+      "steps": 60,
+      "what": "the projection of b"
     },
     "replay-016.itf.json.gz": {
       "compared": 44,
@@ -579,15 +637,15 @@
       "steps": 60
     },
     "replay-023.itf.json.gz": {
-      "action": "settleDeny(h1, b)",
-      "compared": 14,
+      "action": "adoptDone(h3)",
+      "compared": 13,
       "finding": "E18-F1",
       "folded": 2,
-      "matched": 15,
+      "matched": 14,
       "outcome": "diverged",
-      "step": 16,
+      "step": 15,
       "steps": 60,
-      "what": "the trail of decisions"
+      "what": "the projection of b"
     },
     "replay-024.itf.json.gz": {
       "compared": 54,
@@ -597,11 +655,15 @@
       "steps": 60
     },
     "replay-025.itf.json.gz": {
-      "compared": 55,
-      "folded": 5,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h1)",
+      "compared": 18,
+      "finding": "E18-F1",
+      "folded": 3,
+      "matched": 20,
+      "outcome": "diverged",
+      "step": 21,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-026.itf.json.gz": {
       "compared": 44,
@@ -629,15 +691,15 @@
       "what": "the projection of a"
     },
     "replay-029.itf.json.gz": {
-      "action": "settleDeny(h2, a)",
-      "compared": 23,
+      "action": "adoptDone(h3)",
+      "compared": 19,
       "finding": "E18-F1",
       "folded": 2,
-      "matched": 24,
+      "matched": 20,
       "outcome": "diverged",
-      "step": 25,
+      "step": 21,
       "steps": 60,
-      "what": "the trail of decisions"
+      "what": "the projection of a"
     },
     "replay-030.itf.json.gz": {
       "compared": 43,
@@ -654,11 +716,15 @@
       "steps": 60
     },
     "replay-032.itf.json.gz": {
-      "compared": 46,
-      "folded": 14,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h2)",
+      "compared": 30,
+      "finding": "E18-F1",
+      "folded": 8,
+      "matched": 37,
+      "outcome": "diverged",
+      "step": 38,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-033.itf.json.gz": {
       "compared": 42,
@@ -675,18 +741,26 @@
       "steps": 60
     },
     "replay-035.itf.json.gz": {
-      "compared": 55,
-      "folded": 5,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h3)",
+      "compared": 23,
+      "finding": "E18-F1",
+      "folded": 3,
+      "matched": 25,
+      "outcome": "diverged",
+      "step": 26,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-036.itf.json.gz": {
-      "compared": 56,
+      "action": "adoptDone(h2)",
+      "compared": 23,
+      "finding": "E18-F1",
       "folded": 4,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "matched": 26,
+      "outcome": "diverged",
+      "step": 27,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-037.itf.json.gz": {
       "compared": 45,
@@ -703,11 +777,15 @@
       "steps": 60
     },
     "replay-039.itf.json.gz": {
-      "compared": 45,
-      "folded": 15,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h1)",
+      "compared": 12,
+      "finding": "E18-F1",
+      "folded": 1,
+      "matched": 12,
+      "outcome": "diverged",
+      "step": 13,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-040.itf.json.gz": {
       "compared": 38,
@@ -759,11 +837,15 @@
       "steps": 60
     },
     "replay-047.itf.json.gz": {
-      "compared": 47,
-      "folded": 13,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h3)",
+      "compared": 21,
+      "finding": "E18-F1",
+      "folded": 3,
+      "matched": 23,
+      "outcome": "diverged",
+      "step": 24,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-048.itf.json.gz": {
       "compared": 53,
@@ -808,11 +890,15 @@
       "steps": 60
     },
     "replay-054.itf.json.gz": {
-      "compared": 55,
-      "folded": 5,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h3)",
+      "compared": 17,
+      "finding": "E18-F1",
+      "folded": 2,
+      "matched": 18,
+      "outcome": "diverged",
+      "step": 19,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-055.itf.json.gz": {
       "compared": 43,
@@ -836,11 +922,15 @@
       "steps": 60
     },
     "replay-058.itf.json.gz": {
-      "compared": 48,
-      "folded": 11,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h2)",
+      "compared": 23,
+      "finding": "E18-F1",
+      "folded": 3,
+      "matched": 25,
+      "outcome": "diverged",
+      "step": 26,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-059.itf.json.gz": {
       "compared": 54,
@@ -864,18 +954,26 @@
       "steps": 60
     },
     "replay-062.itf.json.gz": {
-      "compared": 43,
-      "folded": 17,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h1)",
+      "compared": 41,
+      "finding": "E18-F1",
+      "folded": 15,
+      "matched": 55,
+      "outcome": "diverged",
+      "step": 56,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-063.itf.json.gz": {
-      "compared": 55,
-      "folded": 5,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h3)",
+      "compared": 18,
+      "finding": "E18-F1",
+      "folded": 4,
+      "matched": 21,
+      "outcome": "diverged",
+      "step": 22,
+      "steps": 60,
+      "what": "the projection of b"
     },
     "replay-064.itf.json.gz": {
       "compared": 55,
@@ -948,15 +1046,15 @@
       "steps": 60
     },
     "replay-074.itf.json.gz": {
-      "action": "obSweepList(h3)",
-      "compared": 24,
+      "action": "adoptDone(h1)",
+      "compared": 21,
       "finding": "E18-F1",
-      "folded": 7,
-      "matched": 30,
+      "folded": 6,
+      "matched": 26,
       "outcome": "diverged",
-      "step": 31,
+      "step": 27,
       "steps": 60,
-      "what": "the trail of decisions"
+      "what": "the projection of a"
     },
     "replay-075.itf.json.gz": {
       "compared": 45,
@@ -987,11 +1085,15 @@
       "steps": 60
     },
     "replay-079.itf.json.gz": {
-      "compared": 51,
-      "folded": 9,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h3)",
+      "compared": 28,
+      "finding": "E18-F1",
+      "folded": 8,
+      "matched": 35,
+      "outcome": "diverged",
+      "step": 36,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-080.itf.json.gz": {
       "compared": 46,
@@ -1015,18 +1117,26 @@
       "steps": 60
     },
     "replay-083.itf.json.gz": {
-      "compared": 54,
+      "action": "adoptDone(h2)",
+      "compared": 25,
+      "finding": "E18-F1",
       "folded": 6,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "matched": 30,
+      "outcome": "diverged",
+      "step": 31,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-084.itf.json.gz": {
-      "compared": 52,
-      "folded": 8,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h1)",
+      "compared": 17,
+      "finding": "E18-F1",
+      "folded": 5,
+      "matched": 21,
+      "outcome": "diverged",
+      "step": 22,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-085.itf.json.gz": {
       "compared": 41,
@@ -1036,11 +1146,15 @@
       "steps": 60
     },
     "replay-086.itf.json.gz": {
-      "compared": 54,
+      "action": "adoptDone(h2)",
+      "compared": 27,
+      "finding": "E18-F1",
       "folded": 6,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "matched": 32,
+      "outcome": "diverged",
+      "step": 33,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-087.itf.json.gz": {
       "compared": 44,
@@ -1071,11 +1185,15 @@
       "steps": 60
     },
     "replay-091.itf.json.gz": {
-      "compared": 48,
-      "folded": 12,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h3)",
+      "compared": 10,
+      "finding": "E18-F1",
+      "folded": 1,
+      "matched": 10,
+      "outcome": "diverged",
+      "step": 11,
+      "steps": 60,
+      "what": "the projection of b"
     },
     "replay-092.itf.json.gz": {
       "compared": 39,
@@ -1085,22 +1203,26 @@
       "steps": 60
     },
     "replay-093.itf.json.gz": {
-      "compared": 45,
-      "folded": 15,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h2)",
+      "compared": 11,
+      "finding": "E18-F1",
+      "folded": 1,
+      "matched": 11,
+      "outcome": "diverged",
+      "step": 12,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-094.itf.json.gz": {
-      "action": "settleDeny(h3, a)",
-      "compared": 23,
+      "action": "adoptDone(h1)",
+      "compared": 17,
       "finding": "E18-F1",
       "folded": 4,
-      "matched": 26,
+      "matched": 20,
       "outcome": "diverged",
-      "step": 27,
+      "step": 21,
       "steps": 60,
-      "what": "the trail of decisions"
+      "what": "the projection of a"
     },
     "replay-095.itf.json.gz": {
       "compared": 45,
@@ -1159,18 +1281,26 @@
       "steps": 60
     },
     "replay-103.itf.json.gz": {
-      "compared": 42,
-      "folded": 18,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h1)",
+      "compared": 41,
+      "finding": "E18-F1",
+      "folded": 17,
+      "matched": 57,
+      "outcome": "diverged",
+      "step": 58,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-104.itf.json.gz": {
-      "compared": 49,
-      "folded": 11,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h3)",
+      "compared": 31,
+      "finding": "E18-F1",
+      "folded": 6,
+      "matched": 36,
+      "outcome": "diverged",
+      "step": 37,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-105.itf.json.gz": {
       "compared": 44,
@@ -1187,15 +1317,15 @@
       "steps": 60
     },
     "replay-107.itf.json.gz": {
-      "action": "settleDeny(h3, b)",
-      "compared": 30,
+      "action": "adoptDone(h2)",
+      "compared": 27,
       "finding": "E18-F1",
-      "folded": 8,
-      "matched": 37,
+      "folded": 7,
+      "matched": 33,
       "outcome": "diverged",
-      "step": 38,
+      "step": 34,
       "steps": 60,
-      "what": "the trail of decisions"
+      "what": "the projection of b"
     },
     "replay-108.itf.json.gz": {
       "compared": 46,
@@ -1223,11 +1353,15 @@
       "steps": 60
     },
     "replay-111.itf.json.gz": {
-      "compared": 49,
-      "folded": 11,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h2)",
+      "compared": 14,
+      "finding": "E18-F1",
+      "folded": 7,
+      "matched": 20,
+      "outcome": "diverged",
+      "step": 21,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-112.itf.json.gz": {
       "compared": 55,
@@ -1251,18 +1385,26 @@
       "steps": 60
     },
     "replay-115.itf.json.gz": {
-      "compared": 53,
-      "folded": 7,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h2)",
+      "compared": 21,
+      "finding": "E18-F1",
+      "folded": 6,
+      "matched": 26,
+      "outcome": "diverged",
+      "step": 27,
+      "steps": 60,
+      "what": "the projection of b"
     },
     "replay-116.itf.json.gz": {
-      "compared": 51,
-      "folded": 9,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h2)",
+      "compared": 24,
+      "finding": "E18-F1",
+      "folded": 6,
+      "matched": 29,
+      "outcome": "diverged",
+      "step": 30,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-117.itf.json.gz": {
       "compared": 38,
@@ -1272,11 +1414,15 @@
       "steps": 60
     },
     "replay-118.itf.json.gz": {
-      "compared": 50,
+      "action": "adoptDone(h2)",
+      "compared": 30,
+      "finding": "E18-F1",
       "folded": 10,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "matched": 39,
+      "outcome": "diverged",
+      "step": 40,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-119.itf.json.gz": {
       "compared": 43,
@@ -1286,11 +1432,15 @@
       "steps": 60
     },
     "replay-120.itf.json.gz": {
-      "compared": 47,
-      "folded": 13,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h1)",
+      "compared": 14,
+      "finding": "E18-F1",
+      "folded": 4,
+      "matched": 17,
+      "outcome": "diverged",
+      "step": 18,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-121.itf.json.gz": {
       "compared": 40,
@@ -1300,18 +1450,26 @@
       "steps": 60
     },
     "replay-122.itf.json.gz": {
-      "compared": 56,
+      "action": "adoptDone(h3)",
+      "compared": 18,
+      "finding": "E18-F1",
       "folded": 4,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "matched": 21,
+      "outcome": "diverged",
+      "step": 22,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-123.itf.json.gz": {
-      "compared": 49,
-      "folded": 11,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h1)",
+      "compared": 25,
+      "finding": "E18-F1",
+      "folded": 5,
+      "matched": 29,
+      "outcome": "diverged",
+      "step": 30,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-124.itf.json.gz": {
       "compared": 44,
@@ -1328,15 +1486,15 @@
       "steps": 60
     },
     "replay-126.itf.json.gz": {
-      "action": "settleDeny(h3, a)",
-      "compared": 28,
+      "action": "adoptDone(h2)",
+      "compared": 18,
       "finding": "E18-F1",
       "folded": 5,
-      "matched": 32,
+      "matched": 22,
       "outcome": "diverged",
-      "step": 33,
+      "step": 23,
       "steps": 60,
-      "what": "the trail of decisions"
+      "what": "the projection of a"
     },
     "replay-127.itf.json.gz": {
       "compared": 45,
@@ -1360,11 +1518,15 @@
       "steps": 60
     },
     "replay-130.itf.json.gz": {
-      "compared": 57,
+      "action": "adoptDone(h1)",
+      "compared": 20,
+      "finding": "E18-F1",
       "folded": 3,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "matched": 22,
+      "outcome": "diverged",
+      "step": 23,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-131.itf.json.gz": {
       "compared": 43,
@@ -1381,26 +1543,26 @@
       "steps": 60
     },
     "replay-133.itf.json.gz": {
-      "action": "settleDeny(h1, a)",
-      "compared": 27,
+      "action": "adoptDone(h2)",
+      "compared": 18,
       "finding": "E18-F1",
-      "folded": 11,
-      "matched": 37,
+      "folded": 7,
+      "matched": 24,
       "outcome": "diverged",
-      "step": 38,
+      "step": 25,
       "steps": 60,
-      "what": "the trail of decisions"
+      "what": "the projection of a"
     },
     "replay-134.itf.json.gz": {
-      "action": "settleDeny(h1, a)",
-      "compared": 40,
+      "action": "adoptDone(h3)",
+      "compared": 36,
       "finding": "E18-F1",
       "folded": 8,
-      "matched": 47,
+      "matched": 43,
       "outcome": "diverged",
-      "step": 48,
+      "step": 44,
       "steps": 60,
-      "what": "the trail of decisions"
+      "what": "the projection of a"
     },
     "replay-135.itf.json.gz": {
       "action": "adoptDone(h1)",
@@ -1460,11 +1622,15 @@
       "what": "whether handle h3 is inside a call"
     },
     "replay-142.itf.json.gz": {
-      "compared": 58,
+      "action": "adoptDone(h3)",
+      "compared": 17,
+      "finding": "E18-F1",
       "folded": 2,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "matched": 18,
+      "outcome": "diverged",
+      "step": 19,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-143.itf.json.gz": {
       "compared": 46,
@@ -1495,11 +1661,15 @@
       "steps": 60
     },
     "replay-147.itf.json.gz": {
-      "compared": 48,
-      "folded": 12,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h3)",
+      "compared": 23,
+      "finding": "E18-F1",
+      "folded": 2,
+      "matched": 24,
+      "outcome": "diverged",
+      "step": 25,
+      "steps": 60,
+      "what": "the projection of b"
     },
     "replay-148.itf.json.gz": {
       "compared": 55,
@@ -1530,11 +1700,15 @@
       "steps": 60
     },
     "replay-152.itf.json.gz": {
-      "compared": 49,
+      "action": "adoptDone(h2)",
+      "compared": 35,
+      "finding": "E18-F1",
       "folded": 11,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "matched": 45,
+      "outcome": "diverged",
+      "step": 46,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-153.itf.json.gz": {
       "compared": 47,
@@ -1558,11 +1732,15 @@
       "steps": 60
     },
     "replay-156.itf.json.gz": {
-      "compared": 52,
-      "folded": 8,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h3)",
+      "compared": 26,
+      "finding": "E18-F1",
+      "folded": 4,
+      "matched": 29,
+      "outcome": "diverged",
+      "step": 30,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-157.itf.json.gz": {
       "action": "adoptDone(h3)",
@@ -1590,22 +1768,26 @@
       "steps": 60
     },
     "replay-160.itf.json.gz": {
-      "action": "settleDeny(h2, a)",
-      "compared": 32,
+      "action": "adoptDone(h3)",
+      "compared": 30,
       "finding": "E18-F1",
       "folded": 4,
-      "matched": 35,
+      "matched": 33,
       "outcome": "diverged",
-      "step": 36,
+      "step": 34,
       "steps": 60,
-      "what": "the trail of decisions"
+      "what": "the projection of a"
     },
     "replay-161.itf.json.gz": {
-      "compared": 46,
-      "folded": 14,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h1)",
+      "compared": 20,
+      "finding": "E18-F1",
+      "folded": 4,
+      "matched": 23,
+      "outcome": "diverged",
+      "step": 24,
+      "steps": 60,
+      "what": "the projection of b"
     },
     "replay-162.itf.json.gz": {
       "compared": 45,
@@ -1664,11 +1846,15 @@
       "steps": 60
     },
     "replay-170.itf.json.gz": {
-      "compared": 58,
+      "action": "adoptDone(h2)",
+      "compared": 18,
+      "finding": "E18-F1",
       "folded": 2,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "matched": 19,
+      "outcome": "diverged",
+      "step": 20,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-171.itf.json.gz": {
       "compared": 46,
@@ -1727,11 +1913,15 @@
       "steps": 60
     },
     "replay-179.itf.json.gz": {
-      "compared": 43,
+      "action": "adoptDone(h2)",
+      "compared": 41,
+      "finding": "E18-F1",
       "folded": 17,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "matched": 57,
+      "outcome": "diverged",
+      "step": 58,
+      "steps": 60,
+      "what": "the projection of b"
     },
     "replay-180.itf.json.gz": {
       "compared": 56,
@@ -1741,15 +1931,15 @@
       "steps": 60
     },
     "replay-181.itf.json.gz": {
-      "action": "settleDeny(h1, b)",
-      "compared": 34,
+      "action": "adoptDone(h2)",
+      "compared": 20,
       "finding": "E18-F1",
       "folded": 4,
-      "matched": 37,
+      "matched": 23,
       "outcome": "diverged",
-      "step": 38,
+      "step": 24,
       "steps": 60,
-      "what": "the trail of decisions"
+      "what": "the projection of b"
     },
     "replay-182.itf.json.gz": {
       "compared": 36,
@@ -1794,11 +1984,15 @@
       "steps": 60
     },
     "replay-188.itf.json.gz": {
-      "compared": 45,
-      "folded": 14,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h1)",
+      "compared": 22,
+      "finding": "E18-F1",
+      "folded": 5,
+      "matched": 26,
+      "outcome": "diverged",
+      "step": 27,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-189.itf.json.gz": {
       "compared": 56,
@@ -1829,11 +2023,15 @@
       "steps": 60
     },
     "replay-193.itf.json.gz": {
-      "compared": 56,
-      "folded": 4,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h3)",
+      "compared": 23,
+      "finding": "E18-F1",
+      "folded": 3,
+      "matched": 25,
+      "outcome": "diverged",
+      "step": 26,
+      "steps": 60,
+      "what": "the projection of a"
     },
     "replay-194.itf.json.gz": {
       "compared": 56,
@@ -1843,26 +2041,26 @@
       "steps": 60
     },
     "replay-195.itf.json.gz": {
-      "action": "settleDeny(h1, a)",
-      "compared": 32,
+      "action": "adoptDone(h3)",
+      "compared": 23,
       "finding": "E18-F1",
-      "folded": 8,
-      "matched": 39,
+      "folded": 6,
+      "matched": 28,
       "outcome": "diverged",
-      "step": 40,
+      "step": 29,
       "steps": 60,
-      "what": "the trail of decisions"
+      "what": "the projection of a"
     },
     "replay-196.itf.json.gz": {
-      "action": "settleDeny(h3, b)",
-      "compared": 16,
+      "action": "adoptDone(h2)",
+      "compared": 14,
       "finding": "E18-F1",
-      "folded": 4,
-      "matched": 19,
+      "folded": 3,
+      "matched": 16,
       "outcome": "diverged",
-      "step": 20,
+      "step": 17,
       "steps": 60,
-      "what": "the trail of decisions"
+      "what": "the projection of b"
     },
     "replay-197.itf.json.gz": {
       "compared": 55,
@@ -1879,13 +2077,17 @@
       "steps": 60
     },
     "replay-199.itf.json.gz": {
-      "compared": 44,
-      "folded": 16,
-      "matched": 60,
-      "outcome": "replayed",
-      "steps": 60
+      "action": "adoptDone(h2)",
+      "compared": 23,
+      "finding": "E18-F1",
+      "folded": 8,
+      "matched": 30,
+      "outcome": "diverged",
+      "step": 31,
+      "steps": 60,
+      "what": "the projection of b"
     }
   },
   "traces_dir": "specs/traces",
-  "traces_sha256": "d46414e02ce16ede10dd5513640acb3b6a3c0b73078fc0220dd2377c5d325027"
+  "traces_sha256": "ad20224275ed27a72672eecf58c8f0cc999fa127382b12a3bbe3e438b8908637"
 }

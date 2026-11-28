@@ -8,6 +8,7 @@
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { gunzipSync } from "node:zlib";
 import { readTrace } from "./itf.ts";
 import { FINDINGS, outcome, replay } from "./replay.ts";
 
@@ -33,7 +34,9 @@ async function main() {
   const scenarios: Record<string, ReturnType<typeof outcome> & { final?: unknown }> = {};
   for (const f of files) {
     const bytes = readFileSync(join(dir, f));
-    digest.update(f).update("\0").update(bytes).update("\0");
+    // Over the decompressed JSON, so a compressor of another zlib version
+    // leaves the digest as it is.
+    digest.update(f).update("\0").update(gunzipSync(bytes)).update("\0");
     const r = await replay(readTrace(join(dir, f)));
     if (f.startsWith(prefix)) traces[f] = outcome(r);
     else
