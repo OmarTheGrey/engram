@@ -42,6 +42,7 @@ import {
   APPROVAL_EXPIRED_ID,
   APPROVAL_REFUSED_ID,
   APPROVAL_ROUTE_ID,
+  APPROVAL_STALE_ID,
   approverNames,
   canReach,
   ownCandidate,
@@ -57,7 +58,7 @@ import { addSeconds, compareTimestamps } from "../time.ts";
 import { authorsOf } from "./promote.ts";
 import { inWriteQueue } from "./queue.ts";
 
-export { APPROVAL_EXPIRED_ID, APPROVAL_REFUSED_ID, APPROVAL_ROUTE_ID };
+export { APPROVAL_EXPIRED_ID, APPROVAL_REFUSED_ID, APPROVAL_ROUTE_ID, APPROVAL_STALE_ID };
 /** A refusal asked for an item version with no pending request. */
 export const APPROVAL_NO_REQUEST_ID = "engram/approval/no-request";
 /** A sweep of a scope's requests by an actor who is not a member of it. */
@@ -394,8 +395,14 @@ export function refuse(
   itemId: string,
   reason: string,
   at: string,
+  options: { reviewedVersion?: number } = {},
 ): Promise<GateResult> {
   checkCall(actor, at, "refuse");
+  const pinned = options.reviewedVersion;
+  if (pinned !== undefined && !(Number.isInteger(pinned) && pinned > 0))
+    throw new InvalidCallError(
+      `Plane.refuse: invalid reviewedVersion ${JSON.stringify(pinned)}; expected a positive integer`,
+    );
   if (!Id.safeParse(itemId).success)
     throw new InvalidCallError(
       `Plane.refuse: invalid item id ${JSON.stringify(itemId)}; expected a UUIDv7`,
@@ -448,6 +455,12 @@ export function refuse(
           `item ${item.id} at version ${item.version} has no pending approval request to refuse`,
         );
       if (r.due) return denied(APPROVAL_EXPIRED_ID, expiryReason(r, at), r.target);
+      if (pinned !== undefined && pinned !== item.version)
+        return denied(
+          APPROVAL_STALE_ID,
+          `${actor.id} reviewed version ${pinned} of item ${item.id}, which is at version ${item.version} now: it changed since it was reviewed, so nothing is refused; review the current version`,
+          r.target,
+        );
       const problem = deciderProblem(deps, actor, item, r.target);
       if (problem) return denied(problem.policy_id, problem.reason, r.target);
       const why = `${actor.id} refused the request for item ${item.id} at version ${item.version} into ${r.target}: ${reason.trim()}`;

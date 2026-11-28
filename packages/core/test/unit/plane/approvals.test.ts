@@ -15,6 +15,7 @@ import {
   APPROVAL_NO_REQUEST_ID,
   APPROVAL_REFUSED_ID,
   APPROVAL_ROUTE_ID,
+  APPROVAL_STALE_ID,
   approvalQueue,
   InvalidCallError,
 } from "../../../src/plane.ts";
@@ -381,6 +382,48 @@ describe("refusal is an event with the approver's reason", () => {
       state: "approved",
       closed_by: r.event.id,
     });
+  });
+});
+
+describe("the stale-base refusal: an approver pins the version they reviewed", () => {
+  test("an approval or refusal of a version rewritten since it was reviewed is refused", async () => {
+    const { plane, db } = fresh(routed(LEADS));
+    await held(plane);
+    const seen = (await plane.approvals(ada, AT))[0]?.version;
+    expect(seen).toBe(1);
+    await plane.write(
+      omar,
+      item(1, { version: 2, content: "fact number 1, changed", status: "candidate" }),
+      later(10),
+    );
+    const stale = await plane.promote(ada, id(1), "team:platform", later(20), {
+      review: true,
+      reviewedVersion: seen,
+    });
+    expect(stale.event).toMatchObject({ decision: "deny", policy_id: APPROVAL_STALE_ID });
+    expect(stale.event.reason).toContain("reviewed version 1");
+    const refused = await plane.refuse(ada, id(1), "no", later(21), { reviewedVersion: 1 });
+    expect(refused.event.policy_id).toBe(APPROVAL_STALE_ID);
+    expect(currentItems(db)[0]).toMatchObject({ version: 2, status: "candidate" });
+    const fresh2 = await plane.promote(ada, id(1), "team:platform", later(22), {
+      review: true,
+      reviewedVersion: 2,
+    });
+    expect(fresh2.decision).toBe("allow");
+  });
+
+  test("a pin that is not a positive integer is refused before the log is touched", async () => {
+    const { plane } = fresh(routed(LEADS));
+    await held(plane);
+    const before = plane.events().length;
+    for (const v of [0, 1.5, -1])
+      await expect(
+        plane.promote(ada, id(1), "team:platform", AT, { review: true, reviewedVersion: v }),
+      ).rejects.toThrow(InvalidCallError);
+    await expect(plane.refuse(ada, id(1), "no", AT, { reviewedVersion: 0 })).rejects.toThrow(
+      InvalidCallError,
+    );
+    expect(plane.events()).toHaveLength(before);
   });
 });
 

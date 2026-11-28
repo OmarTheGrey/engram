@@ -33,6 +33,8 @@
 //                                                unanswered (card E2.19); a new version is a new request
 //   engram/approval/refused                      an approver refused the request for this version
 //                                                (card E2.19, Plane.refuse); a new version is a new request
+//   engram/approval/stale                        the approver reviewed another version than the item's
+//                                                now (card E2.19; obsidian-wiki's stale-base refusal)
 // A promotion the target's write rule refuses is denied under that rule's own
 // id (`<policy id>/write/<level>`, `engram/write/membership`, ...), since a
 // promotion is evaluated as a write into the target scope (ADR 0026, item 5).
@@ -99,6 +101,8 @@ export const APPROVAL_ROUTE_ID = "engram/approval/route";
 export const APPROVAL_EXPIRED_ID = "engram/approval/expired";
 /** An approver's refusal of a request (card E2.19, Plane.refuse). */
 export const APPROVAL_REFUSED_ID = "engram/approval/refused";
+/** An approval or refusal of a version other than the one its approver reviewed (card E2.19). */
+export const APPROVAL_STALE_ID = "engram/approval/stale";
 
 /** One route of the policy's approval block (card E2.19). */
 type ApprovalRoute = NonNullable<Policy["approval"]>["routes"][number];
@@ -261,6 +265,13 @@ export interface PromotionEvidence {
     by: string;
     opened_by: string;
   };
+  /**
+   * The version the approver reviewed, when they pinned it (card E2.19): a
+   * promotion of any other version is refused, not applied (the stale-base
+   * refusal of obsidian-wiki's staging, MIT, Ar9av/obsidian-wiki at
+   * 7da8def05ab4, obsidian_wiki/staging.py, ported).
+   */
+  reviewedVersion?: number;
 }
 
 export type PromotionCheck =
@@ -531,6 +542,12 @@ export function evaluatePromotion(
       "approval",
       `the request for item ${item.id} at version ${item.version}, opened by event ${closed.opened_by}, ${closed.state === "expired" ? `expired at ${closed.at} with no approver's decision` : `was refused at ${closed.at} by event ${closed.by}`}; this version is not promoted, and a new version is a new request`,
       closed.state === "expired" ? APPROVAL_EXPIRED_ID : APPROVAL_REFUSED_ID,
+    );
+  if (evidence.reviewedVersion !== undefined && evidence.reviewedVersion !== item.version)
+    return deny(
+      "approval",
+      `${actor.id} reviewed version ${evidence.reviewedVersion} of item ${item.id}, which is at version ${item.version} now: it changed since it was reviewed, so nothing is promoted; review the current version`,
+      APPROVAL_STALE_ID,
     );
   const hidden = hiddenCharacters(item.content);
   if (hidden > 0)

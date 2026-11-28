@@ -188,6 +188,11 @@ export function promote(
     const problem = replayProblem(options.replay);
     if (problem) throw new InvalidCallError(`Plane.promote: ${problem}`);
   }
+  const pinned = options.reviewedVersion;
+  if (pinned !== undefined && !(Number.isInteger(pinned) && pinned > 0))
+    throw new InvalidCallError(
+      `Plane.promote: invalid reviewedVersion ${JSON.stringify(pinned)}; expected a positive integer`,
+    );
   return inWriteQueue(deps.db, () => decideAndCommit(deps, actor, itemId, toScope, at, options));
 }
 
@@ -244,6 +249,9 @@ async function decideAndCommit(
       // An approval request that expired or was refused closes this version
       // (card E2.19); only gathered when the policy has an approval block.
       ...closedRequestOf(deps, item, at),
+      ...(options.reviewedVersion === undefined
+        ? {}
+        : { reviewedVersion: options.reviewedVersion }),
     },
     retiredContent(db, toScope),
   );

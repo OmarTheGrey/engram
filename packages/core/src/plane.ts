@@ -69,6 +69,7 @@ export {
   APPROVAL_NO_REQUEST_ID,
   APPROVAL_REFUSED_ID,
   APPROVAL_ROUTE_ID,
+  APPROVAL_STALE_ID,
   type ApprovalRequest,
   approvalQueue,
   type ExpiryReport,
@@ -294,6 +295,13 @@ export interface PromoteOptions {
    * InvalidCallError before the log is touched.
    */
   replay?: ReplayEvidence;
+  /**
+   * The version of the item the approver reviewed (card E2.19): when given,
+   * a promotion of any other version is refused (`engram/approval/stale`),
+   * so an approval never lands on content changed since it was reviewed. A
+   * value that is not a positive integer is refused with InvalidCallError.
+   */
+  reviewedVersion?: number;
 }
 
 export interface Plane {
@@ -373,7 +381,13 @@ export interface Plane {
    * it is. Every outcome is one event. Runs in the write queue. An invalid
    * actor, time, id or an empty reason is refused with InvalidCallError.
    */
-  refuse(actor: Actor, itemId: string, reason: string, at: string): Promise<GateResult>;
+  refuse(
+    actor: Actor,
+    itemId: string,
+    reason: string,
+    at: string,
+    options?: { reviewedVersion?: number },
+  ): Promise<GateResult>;
   /**
    * Records each request on an item of `scope` past its route's
    * `expires_after` at `at` as expired, one `promote` deny event each under
@@ -541,7 +555,8 @@ export function createPlane(deps: PlaneDeps): Plane {
     changeGrants: async (actor, itemId, change, at) =>
       changeGrants(deps, actor, itemId, change, at),
     approvals: (actor, at) => queuedRequests(deps, actor, at),
-    refuse: async (actor, itemId, reason, at) => refuse(deps, actor, itemId, reason, at),
+    refuse: async (actor, itemId, reason, at, options) =>
+      refuse(deps, actor, itemId, reason, at, options),
     expireRequests: async (actor, scope, at) => expireRequests(deps, actor, scope, at),
     simulate: (workload, policy) => simulate(deps, workload, policy),
     distill: async () => {
