@@ -38,6 +38,8 @@ Amendment made by card E2.8, 2026-11-21 (branch `e2-8-policy-schema`), accepted 
 - Cost. Code built before the change rejects a policy file that uses the new blocks, since the policy is a strict object. Every reader (core, the generated clients, the Python types) is in this repository and ships in the same PR.
 - Checked by `packages/core/test/unit/policy/presets.test.ts`: each registered preset parses to the sha256 it had before the change.
 
+Use of decision D2 by card E2.14 of the second absorb plan, 2026-11-28 (branch `a2-e2-14`): the policy gains the optional `lints.model` (`evidence`), `procedures` (`safety_scan`, `drift`), `consent`, `erasure` (`mode`), `approval` and `grants` (`expiry_cap`) blocks, each option without a default, so `schema_version` stays 1 and every registered preset parses to the same sha256 (`packages/core/test/unit/policy/load-options.test.ts`). Nothing builds them yet, so the loader refuses every present value, `off` included, naming the card that builds it (L9, D5, D4, E9.12, E9.13, E2.19, E2.21); each card lifts its own refusal.
+
 ## Alternatives considered
 
 (a) Zod 4 as the single source, JSON Schema via `z.toJSONSchema`, Python types generated from the JSON Schema. (b) JSON Schema hand-written, codegen both ways. (c) TypeBox.
