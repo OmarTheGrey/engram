@@ -374,6 +374,66 @@ const PAGE_EVENTS = ran(
   "events\n",
 );
 
+/**
+ * Card D4: the item page of a procedure drift retired. Its read returns
+ * nothing (only active items are read), so its state is the admission's,
+ * retired by the retire event after it, whose rule and reason the detail shows.
+ */
+const PROCEDURE = item(3, {
+  class: "procedural",
+  version: 2,
+  content: { body: "Edit the file, then read it back to check the edit.", tools: ["edit", "read"] },
+  provenance: {
+    kind: "model",
+    ref: "distill:awm:d1-01,d1-02",
+    hash: `sha256:${"2".repeat(64)}`,
+    actor: "person:dana",
+    model: "scripted/d2-induce",
+  } as MemoryItem["provenance"],
+} as Partial<MemoryItem>);
+const RETIRED_READ = ran(
+  ["read", "--item", id(3), "--owner", "dana", "--db", "engram.db", "--root", "mem"],
+  `/api/v1/read/${id(3)}`,
+  {
+    items: [],
+    explanations: [],
+    filtered: 1,
+    event: READ_EVENT,
+    policy: "fixture.policy v1",
+    sync: null,
+  },
+  "read\n",
+);
+const RETIRED_EVENTS = ran(
+  ["events", "--owner", "dana", "--db", "engram.db"],
+  "/api/v1/events",
+  {
+    events: [
+      event(1, {
+        item_id: id(3),
+        item: { ...PROCEDURE, version: 1, status: "candidate" } as MemoryItem,
+      }),
+      event(2, {
+        op: "promote",
+        item_id: id(3),
+        scope_from: "person:dana",
+        policy_id: "fixture.drift/promotion/procedural",
+        reason: "the validation record 4 of 5 held-out tasks pass with the procedure meets 4 of 5",
+        item: PROCEDURE,
+      }),
+      event(3, {
+        op: "retire",
+        item_id: id(3),
+        scope_from: "person:dana",
+        policy_id: "fixture.drift/drift/environment-changed",
+        reason:
+          "re-validation on environment-changed: a success rate of 0.533 (8 of 15 trials with the procedure), below the success floor 0.700 after at least 10 trials, so the procedure is retired; the retired version stays in the store and the log",
+      }),
+    ],
+  },
+  "events\n",
+);
+
 type Build = (h: Harness) => Screen | Promise<Screen>;
 const spec = (name: string) => command(name) as never;
 const set = <T extends object>(s: T, fields: Record<string, unknown>) => Object.assign(s, fields);
@@ -457,6 +517,15 @@ const SCREENS: Record<string, Build> = {
       focus: 1,
     });
   },
+  "item-retired": (h) =>
+    set(new ItemScreen(spec("read --item"), h.app, {}, [id(3)]), {
+      readById: RETIRED_READ,
+      events: RETIRED_EVENTS,
+      result: RETIRED_EVENTS,
+      focus: 3,
+      sel: { provenance: 0, versions: 0, events: 2 },
+      detail: true,
+    }),
 };
 
 function styleRuns(cells: Cell[]): string[] {

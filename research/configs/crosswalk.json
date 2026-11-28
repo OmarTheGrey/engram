@@ -1751,21 +1751,37 @@
     },
     {
       "id": "C48",
-      "claim": "Active procedures carry a smoothed success rate; a drop below threshold or a changed environment hash retires them, and a human rejection narrows the trigger.",
-      "source": "ADR 0011 (decision); AGENTS.md (What this is: Distill, retired on drift)",
+      "claim": "An admitted procedure is re-validated by replay when its environment hash changes or a period passes, and retired by a governed event when its success rate falls below the policy's floor after its minimum trials; the retired version is kept, and restored when its re-validation reaches the floor and the promotion gate admits it again as a candidate. Off unless the policy sets procedures.drift.",
+      "source": "ADR 0011 (decision), ADR XXXX (drift re-validates on an environment change, card D4); AGENTS.md (What this is: Distill, retired on drift)",
       "invariant": null,
-      "tests": [],
-      "gap": "not built: the smoothed success rate is a later schema change (ADR 0011, D4) and drift retirement waits for card D3; no test exists",
+      "limits": "The outcomes and the environment hash are presented by a user-sourced caller and not verified by the plane (ADR 0046), and no surface exposes re-validation yet (ADR 0046, point 7).",
+      "tests": [
+        {
+          "file": "packages/core/test/unit/distill/drift.test.ts",
+          "describe": ["acceptance (card D4): a fixture with a changed task retires the skill"],
+          "it": "the changed environment retires the admitted procedure by one retire event naming the trigger"
+        },
+        {
+          "file": "packages/core/test/unit/distill/drift.test.ts",
+          "describe": ["acceptance (card D4): a fixture with a changed task retires the skill"],
+          "it": "re-validated on the environment put back, the retired version is restored"
+        },
+        {
+          "file": "packages/core/test/unit/distill/drift.test.ts",
+          "describe": ["Plane.revalidate"],
+          "it": "the period retires under replay-drift, counted from the last validation"
+        },
+        {
+          "file": "packages/core/test/unit/distill/drift.test.ts",
+          "describe": ["Plane.revalidate"],
+          "it": "off by default: a policy without procedures.drift refuses, and nothing retires"
+        }
+      ],
       "obligations": [
         {
           "id": "AIA-15-1",
           "relation": "bears on",
-          "why": "retirement on drift would keep an admitted procedure performing consistently"
-        },
-        {
-          "id": "AIA-14-4-d",
-          "relation": "bears on",
-          "why": "a human rejection would override the system's admission"
+          "why": "retirement on drift keeps an admitted procedure performing consistently, or takes it out of use"
         }
       ]
     },
@@ -1812,6 +1828,21 @@
           "id": "GDPR-32-1-d",
           "relation": "bears on",
           "why": "a run on real use would test the measures outside fixtures"
+        }
+      ]
+    },
+    {
+      "id": "C51",
+      "claim": "A human rejection of a procedure narrows its trigger rather than deleting it.",
+      "source": "ADR 0011 (decision)",
+      "invariant": null,
+      "tests": [],
+      "gap": "not built: card D4 built drift retirement (C48) and no card builds a rejection that narrows a trigger; no test exists",
+      "obligations": [
+        {
+          "id": "AIA-14-4-d",
+          "relation": "bears on",
+          "why": "a human rejection would override the system's admission"
         }
       ]
     }

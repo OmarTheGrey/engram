@@ -234,7 +234,6 @@ export function forced(s: State): string {
   const p = s.pc.get(h);
   if (!p) return "";
   if (CONTINUES.has(n)) return h;
-  if (n === "obPutBackRead" && p.tag === "obSweep") return h;
   if (n === "obBegin" && p.remaining.size === 0) return h;
   if (ADOPT_CONTINUES.has(n) && p.tag === "adopt") return h;
   return "";
