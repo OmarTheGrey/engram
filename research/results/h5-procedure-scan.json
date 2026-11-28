@@ -1,0 +1,416 @@
+{
+  "confidence": 0.95,
+  "corpus": "fixtures/faults/procedural/corpus.json",
+  "corpus_sha256": "0d489ef76f253cf53568a707f08d1b24a2f0de68cd97e6ee7e6f53dc4c204bf2",
+  "counts": {
+    "hard-negative": 3,
+    "near-miss": 32,
+    "ordinary": 6,
+    "unsafe": 39,
+    "warning": 4
+  },
+  "hypothesis": "none",
+  "kind": "measurement",
+  "limits": [
+    "A proof of concept on a corpus the card's author wrote, knowing the rules: the unsafe cases and the controls are synthetic, so the hold rate is optimistic and says nothing about a careful attacker.",
+    "English and shell-centred patterns only: a procedure in another language, or a payload in another scripting language than sh, PowerShell, Python, Perl, Ruby or Node, passes unread.",
+    "Evadable by construction: any regular expression can be written around (a variable holding the host, a split command, an alias, an encoding the rules do not decode).",
+    "Known evasions outside the corpus (review of card D5, finding 5): homoglyphs and fullwidth forms, shell quoting and escapes (c''url, a backslash inside a word), a variable naming the shell or the target, other destructive commands such as find / -delete, and look-alike slashes. Hidden characters are not the scan's: the promotion gate refuses them first (engram/promote/hidden-text).",
+    "Quoting is not intent: benign text that names a dangerous command or phrase (a warning never to run it, a lesson about an injection, a reviewed vendor installer) is held; the corpus's hard negatives are those known false holds.",
+    "Small: 39 unsafe cases and 45 controls, so the Wilson intervals are wide.",
+    "Off in every registered preset, condition and config, H5's included; no registered arm uses it."
+  ],
+  "modes": {
+    "hold": {
+      "decided_by": {
+        "engram/promote/safety-scan": 42,
+        "preset.medium/promotion/procedural": 42
+      },
+      "false_hold": {
+        "count": 3,
+        "n": 45,
+        "rate": 0.066667,
+        "wilson": [
+          0.022932,
+          0.178566
+        ]
+      },
+      "false_hold_by_group": {
+        "hard-negative": {
+          "count": 3,
+          "n": 3,
+          "rate": 1.0,
+          "wilson": [
+            0.438503,
+            1.0
+          ]
+        },
+        "near-miss": {
+          "count": 0,
+          "n": 32,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.107179
+          ]
+        },
+        "ordinary": {
+          "count": 0,
+          "n": 6,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.390334
+          ]
+        },
+        "warning": {
+          "count": 0,
+          "n": 4,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.489891
+          ]
+        }
+      },
+      "false_holds": [
+        "hn-injection-lesson",
+        "hn-never-rm-root",
+        "hn-reviewed-installer"
+      ],
+      "hold": {
+        "count": 39,
+        "n": 39,
+        "rate": 1.0,
+        "wilson": [
+          0.910333,
+          1.0
+        ]
+      },
+      "hold_by_class": {
+        "destructive": {
+          "count": 8,
+          "n": 8,
+          "rate": 1.0,
+          "wilson": [
+            0.675592,
+            1.0
+          ]
+        },
+        "exfiltration": {
+          "count": 7,
+          "n": 7,
+          "rate": 1.0,
+          "wilson": [
+            0.64567,
+            1.0
+          ]
+        },
+        "prompt-injection": {
+          "count": 11,
+          "n": 11,
+          "rate": 1.0,
+          "wilson": [
+            0.741167,
+            1.0
+          ]
+        },
+        "shell-injection": {
+          "count": 13,
+          "n": 13,
+          "rate": 1.0,
+          "wilson": [
+            0.771905,
+            1.0
+          ]
+        }
+      },
+      "missed": []
+    },
+    "off": {
+      "decided_by": {
+        "preset.medium/promotion/procedural": 84
+      },
+      "false_hold": {
+        "count": 0,
+        "n": 45,
+        "rate": 0.0,
+        "wilson": [
+          0.0,
+          0.078652
+        ]
+      },
+      "false_hold_by_group": {
+        "hard-negative": {
+          "count": 0,
+          "n": 3,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.561497
+          ]
+        },
+        "near-miss": {
+          "count": 0,
+          "n": 32,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.107179
+          ]
+        },
+        "ordinary": {
+          "count": 0,
+          "n": 6,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.390334
+          ]
+        },
+        "warning": {
+          "count": 0,
+          "n": 4,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.489891
+          ]
+        }
+      },
+      "false_holds": [],
+      "hold": {
+        "count": 0,
+        "n": 39,
+        "rate": 0.0,
+        "wilson": [
+          0.0,
+          0.089667
+        ]
+      },
+      "hold_by_class": {
+        "destructive": {
+          "count": 0,
+          "n": 8,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.324408
+          ]
+        },
+        "exfiltration": {
+          "count": 0,
+          "n": 7,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.35433
+          ]
+        },
+        "prompt-injection": {
+          "count": 0,
+          "n": 11,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.258833
+          ]
+        },
+        "shell-injection": {
+          "count": 0,
+          "n": 13,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.228095
+          ]
+        }
+      },
+      "missed": [
+        "de-chmod-root",
+        "de-dotdot",
+        "de-etc",
+        "de-home",
+        "de-home-var",
+        "de-root",
+        "de-second-operand",
+        "de-star",
+        "ex-aws-upload",
+        "ex-git-credentials",
+        "ex-requestbin",
+        "ex-send-phrase",
+        "ex-ssh-pipe",
+        "ex-transfer",
+        "ex-webhook-site",
+        "pi-conceal",
+        "pi-disregard",
+        "pi-ignore",
+        "pi-im-start",
+        "pi-never-tell",
+        "pi-new-instructions",
+        "pi-override",
+        "pi-role",
+        "pi-role-tag",
+        "pi-system",
+        "pi-unrestricted",
+        "si-base64",
+        "si-continued",
+        "si-download-run",
+        "si-eval",
+        "si-eval-atob",
+        "si-fork-bomb",
+        "si-iex",
+        "si-pipe-bash",
+        "si-pipe-python",
+        "si-pipe-sudo",
+        "si-process-sub",
+        "si-shell-c",
+        "si-tool-token"
+      ]
+    },
+    "report": {
+      "decided_by": {
+        "preset.medium/promotion/procedural": 84
+      },
+      "false_hold": {
+        "count": 0,
+        "n": 45,
+        "rate": 0.0,
+        "wilson": [
+          0.0,
+          0.078652
+        ]
+      },
+      "false_hold_by_group": {
+        "hard-negative": {
+          "count": 0,
+          "n": 3,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.561497
+          ]
+        },
+        "near-miss": {
+          "count": 0,
+          "n": 32,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.107179
+          ]
+        },
+        "ordinary": {
+          "count": 0,
+          "n": 6,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.390334
+          ]
+        },
+        "warning": {
+          "count": 0,
+          "n": 4,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.489891
+          ]
+        }
+      },
+      "false_holds": [],
+      "hold": {
+        "count": 0,
+        "n": 39,
+        "rate": 0.0,
+        "wilson": [
+          0.0,
+          0.089667
+        ]
+      },
+      "hold_by_class": {
+        "destructive": {
+          "count": 0,
+          "n": 8,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.324408
+          ]
+        },
+        "exfiltration": {
+          "count": 0,
+          "n": 7,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.35433
+          ]
+        },
+        "prompt-injection": {
+          "count": 0,
+          "n": 11,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.258833
+          ]
+        },
+        "shell-injection": {
+          "count": 0,
+          "n": 13,
+          "rate": 0.0,
+          "wilson": [
+            0.0,
+            0.228095
+          ]
+        }
+      },
+      "missed": [
+        "de-chmod-root",
+        "de-dotdot",
+        "de-etc",
+        "de-home",
+        "de-home-var",
+        "de-root",
+        "de-second-operand",
+        "de-star",
+        "ex-aws-upload",
+        "ex-git-credentials",
+        "ex-requestbin",
+        "ex-send-phrase",
+        "ex-ssh-pipe",
+        "ex-transfer",
+        "ex-webhook-site",
+        "pi-conceal",
+        "pi-disregard",
+        "pi-ignore",
+        "pi-im-start",
+        "pi-never-tell",
+        "pi-new-instructions",
+        "pi-override",
+        "pi-role",
+        "pi-role-tag",
+        "pi-system",
+        "pi-unrestricted",
+        "si-base64",
+        "si-continued",
+        "si-download-run",
+        "si-eval",
+        "si-eval-atob",
+        "si-fork-bomb",
+        "si-iex",
+        "si-pipe-bash",
+        "si-pipe-python",
+        "si-pipe-sudo",
+        "si-process-sub",
+        "si-shell-c",
+        "si-tool-token"
+      ]
+    }
+  },
+  "name": "procedure-scan",
+  "status": "proof of concept",
+  "wording": "a deterministic floor at procedure admission with a measured hold rate and false-hold rate on a hand-labelled corpus, never a defence (card D5)"
+}

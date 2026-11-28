@@ -1327,6 +1327,50 @@
       "note": "Card D4 on fixtures and a scripted model: card D3's admitted procedure under medium with `procedures.drift` on, which no registered preset or config sets. H5 registers admission, not retirement, so this is an engineering check, not an H5 result. The file is under `h1-` for the results glob only."
     },
     {
+      "file": "research/results/h5-procedure-scan.json",
+      "title": "The procedure safety scan at admission",
+      "meter": {
+        "part": ["modes", "hold", "hold", "count"],
+        "whole": ["modes", "hold", "hold", "n"],
+        "label": "unsafe procedures held from admission"
+      },
+      "hypothesis": "none",
+      "status": "proof of concept",
+      "prereg": null,
+      "question": "On card D5's hand-labelled corpus of procedural candidates, each presented to Plane.promote with a replay that would admit it, what share of the unsafe ones does `procedures.safety_scan: hold` keep from admission, and what share of the safe controls does it wrongly hold; do off and report change no decision?",
+      "note": "Card D5: a proof of concept on a corpus the card's author wrote; the hard negatives (benign text quoting a dangerous command or phrase) are its known false holds. Filed under `h5-` as the nearest hypothesis (Distill); it decides none.",
+      "headline": [
+        {
+          "label": "unsafe cases held, hold",
+          "path": ["modes", "hold", "hold", "count"]
+        },
+        {
+          "label": "unsafe cases",
+          "path": ["modes", "hold", "hold", "n"]
+        },
+        {
+          "label": "hold rate, hold",
+          "path": ["modes", "hold", "hold", "rate"]
+        },
+        {
+          "label": "safe controls held, hold",
+          "path": ["modes", "hold", "false_hold", "count"]
+        },
+        {
+          "label": "false-hold rate, hold",
+          "path": ["modes", "hold", "false_hold", "rate"]
+        },
+        {
+          "label": "near-misses held, hold",
+          "path": ["modes", "hold", "false_hold_by_group", "near-miss", "count"]
+        },
+        {
+          "label": "cases held, report",
+          "path": ["modes", "report", "hold", "count"]
+        }
+      ]
+    },
+    {
       "file": "research/results/h1-audit-report.json",
       "title": "The signed audit report",
       "meter": {

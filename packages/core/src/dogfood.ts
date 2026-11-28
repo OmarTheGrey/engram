@@ -200,6 +200,7 @@ export const ENGRAM_RULES: readonly string[] = [
   "engram/promote/replay-item",
   "engram/promote/replay-split",
   "engram/promote/reviewer",
+  "engram/promote/safety-scan",
   "engram/promote/validation-source",
   "engram/promote/widening-source",
   "engram/read/default-deny",

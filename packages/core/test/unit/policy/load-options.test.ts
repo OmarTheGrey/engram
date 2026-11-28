@@ -145,12 +145,6 @@ describe("absent, every option parses as today", () => {
 // test/unit/lint/evidence.test.ts.
 const NOT_BUILT: [option: string, card: string, key: string, texts: string[]][] = [
   [
-    "procedures.safety_scan",
-    "D5",
-    "  safety_scan:",
-    ["off", "report", "hold"].map((v) => withBlocks(`procedures:\n  safety_scan: "${v}"\n`)),
-  ],
-  [
     "consent",
     "E9.12",
     "consent:",
@@ -260,7 +254,6 @@ describe("readers of an already-parsed policy refuse what the loader refuses", (
   const medium = loadPreset("medium");
   /** One policy per option, each setting it, typed as the schema admits it. */
   const SETTING: [option: string, policy: Policy][] = [
-    ["procedures.safety_scan", { ...medium, procedures: { safety_scan: "hold" } }],
     ["consent", { ...medium, consent: { opt_outs: [] } }],
     ["erasure.mode", { ...medium, erasure: { mode: "redact" } }],
     ["approval", { ...medium, approval: { routes: [] } }],
