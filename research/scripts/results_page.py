@@ -137,12 +137,12 @@ td.num { white-space: nowrap; }
   margin-right: .35rem; vertical-align: -.1rem;
 }
 svg { max-width: 100%; height: auto; }
+td.path code { overflow-wrap: normal; word-break: normal; }
 #manifest-table { min-width: 64rem; }
 #manifest-table td:nth-child(4) code { word-break: break-all; }
 /* An inlined figure paints its own light surface; the panel around it follows the theme. */
 .figure { background: var(--surface); border: 1px solid var(--line); border-radius: .5rem;
   padding: .5rem; overflow-x: auto; }
-td.path code { overflow-wrap: normal; word-break: normal; }
 .bar-track { fill: var(--track); }
 .bar-fill { fill: var(--proof); }
 details summary { cursor: pointer; color: var(--accent); margin: .5rem 0; }
