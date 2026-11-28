@@ -251,13 +251,17 @@ verify-spec: ## card E1.5: typecheck and test specs/commit.qnt, simulate the goo
 	$(QUINT) typecheck specs/replay.qnt
 	$(QUINT) test specs/commit.qnt --main=good
 	$(QUINT) test specs/commit.qnt --main=broken
-	$(QUINT) test specs/commit.qnt --main=knownGapThreeOffboardings
+	$(QUINT) test specs/commit.qnt --main=threeOffboardings
 	@for seed in $(SPEC_SEEDS); do \
 	  echo "simulation of the good model: seed $$seed, $(SPEC_SAMPLES) traces of $(SPEC_STEPS) steps"; \
 	  $(QUINT) run specs/commit.qnt --main=good --invariant=safety --max-samples=$(SPEC_SAMPLES) \
 	    --max-steps=$(SPEC_STEPS) --seed=$$seed --n-threads=4 --verbosity=1 --witnesses $(SPEC_WITNESSES) \
 	    || { echo "verify-spec: the good model violates a property (seed $$seed)"; exit 1; }; \
 	done
+	@echo "simulation of three offboardings (card E1.7): seed 1, $(SPEC_SAMPLES) traces of $(SPEC_STEPS) steps"
+	$(QUINT) run specs/commit.qnt --main=threeOffboardings --invariant=safety --max-samples=$(SPEC_SAMPLES) \
+	  --max-steps=$(SPEC_STEPS) --seed=1 --n-threads=4 --verbosity=1 --witnesses sawPutBack sawSwept \
+	  || { echo "verify-spec: three offboardings violate a property (seed 1)"; exit 1; }
 	@for inv in $(SPEC_BROKEN_SIM); do \
 	  out=$(SPEC_OUT)/broken-simulation-$$inv; rm -f $$out.itf.json $$out.txt; \
 	  echo "simulation of the broken model: the checker must refute $$inv"; \

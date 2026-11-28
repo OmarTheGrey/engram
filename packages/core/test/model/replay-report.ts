@@ -10,7 +10,7 @@ import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { readTrace } from "./itf.ts";
-import { FINDINGS, outcome, replay } from "./replay.ts";
+import { FINDINGS, FIXED, outcome, replay } from "./replay.ts";
 
 const arg = (name: string) => {
   const k = process.argv.indexOf(`--${name}`);
@@ -65,6 +65,7 @@ async function main() {
       diverged_by_finding: byFinding,
     },
     findings: FINDINGS,
+    fixed: FIXED,
     traces,
     scenarios,
   };
