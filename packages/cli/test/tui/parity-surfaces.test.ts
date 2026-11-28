@@ -250,12 +250,14 @@ const NOT_CLIENT = [
   "key list",
   "key revoke",
   "doctor",
+  // Card E9.10.
+  "discover",
   "log verify",
   "log checkpoint",
 ];
 
 /** The hand-made screens' JSON view, by command: every one but those with none (export) or a second effect. */
-const JSON_VIEW = ["retain", "lint", "simulate", "doctor", "key list", "log verify"];
+const JSON_VIEW = ["retain", "lint", "simulate", "doctor", "discover", "key list", "log verify"];
 
 /** This part's commands. */
 const MINE = [...Object.keys(SAMPLES), ...NOT_CLIENT];
@@ -406,6 +408,26 @@ describe("E8.15d parity: the commands that are not one client call", () => {
     await open(h, spec, ["doctor", "--db", "engram.db"]);
     const argv = shownArgv(h);
     expect(argv).toEqual(["doctor", "--db", "engram.db"]);
+    const result = await runOnScreen(h);
+    const p = await plain(h, argv, a);
+    expect([result.code, result.out]).toEqual([p.code, p.out]);
+    await h.press("J");
+    const j = await plain(h, [...argv, "--json"], a);
+    expect((h.app.top() as unknown as { json?: string }).json).toBe(j.out);
+    await h.quit();
+  });
+
+  it("discover: the same command line and the same output, and J is discover --json (card E9.10)", async () => {
+    const a = await twin();
+    // The fake home: twelve harness memory files, two of them in the auto memory root.
+    const home = join(REPO, "fixtures", "harness", "home");
+    const given = ["--home", home, "--project", join(home, "lantern")];
+    const root = join(home, ".claude", "projects", "-src-lantern", "memory");
+    const h = await startHarness({ cwd: a, home: a, given: {} });
+    const spec = command("discover") as CommandSpec;
+    await open(h, spec, ["discover", ...given, "--root", root]);
+    const argv = shownArgv(h);
+    expect(argv).toEqual(["discover", ...given, "--root", root]);
     const result = await runOnScreen(h);
     const p = await plain(h, argv, a);
     expect([result.code, result.out]).toEqual([p.code, p.out]);
