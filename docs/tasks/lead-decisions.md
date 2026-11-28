@@ -420,3 +420,13 @@ The independent review of card R6 (finding 1) found that M1's pinned endpoint, W
 | question | answer | reason |
 |---|---|---|
 | M1's endpoint under the seed-first rule (card R6, review finding 1) | Keep `wafer/us` (mxfp4, about 92 dollars at H1's token mix), as the seed-first rule picks it, and disclose it: the pre-registration's Models sentence names the mxfp4 quantisation, and the thesis reports results as served by the 4-bit build. No pin change | the rule as registered picks it; the next seeded endpoint not quantised to 4 bits costs several times more; disclosure lets a reader or a replication know which build served the results |
+
+## The lead's answers, 2026-11-28
+
+The lead asked on 2026-11-28 for the thirty cards of the second absorb plan (`docs/tasks/absorb-plan-2.md`) to be built and merged, with the terminal interface wired to them, proof-of-concept results added to the results register, and the system tuned before the benchmark runs. The plan scheduled 25 of the 30 after H1's `MERGE=4`, so the timing went to the lead (`docs/log/2026-11-28-ap2run-decision-lead-merge-before-tag.md`).
+
+| question | answer | reason |
+|---|---|---|
+| When the second absorb plan's thirty cards merge | All thirty merge to main before the `prereg-v1` tag, each proven by `make test-repro` to move no registered result; E2.21's part 2, on which E2.15 depends, comes forward with them. H1 then runs on the code as tagged | the lead's choice over building them on an integration branch until `MERGE=4`; the freeze between the tag and `MERGE=4` is unchanged |
+| Tuning before the benchmarks | Allowed for the plane's speed and overhead, for opt-in features, and on data outside H1 to H5's registered evaluation sets; a change to a registered preset or condition is proposed to the lead as an amendment before the tag, never made on evaluation items | tuning registered behaviour on the evaluation items would make the confirmatory tests exploratory (the orchestrating session's rule under the delegation, stated to the lead on 2026-11-28) |
+| New ADRs | The cards may add ADRs as needed; none may contradict another or an accepted ADR, and every new ADR is checked against the set before it merges | the lead's instruction of 2026-11-28 |
