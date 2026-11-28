@@ -28,6 +28,8 @@ commands:
   serve             serve the HTTP API to authenticated callers, or on loopback with --insecure-loopback
   mcp               the MCP server for Claude Code and Codex, as one fixed actor
   hook claude-code  a Claude Code PreToolUse hook that blocks store bypasses
+  hook codex        a Codex PreToolUse hook that blocks store bypasses
+  hook install <harness>  merge the hook into claude-code's or codex's settings, idempotently, with a backup
   key               create, list or revoke the local API keys a server accepts
   doctor            check the log, policy, store, adapters, provider keys, pins and Node
   discover          count harness memory files outside every store root, never their content
@@ -230,6 +232,21 @@ log checkpoint options:
   nothing is signed unless the whole log verifies first, every earlier signature under
   this --key and every --checkpoint given; the key is the operator's to hold, and a
   signature proves only that its holder saw that head
+
+hook codex options (card E8.17): as hook claude-code's, read the way Codex sends them:
+  Bash checked as POSIX and PowerShell, apply_patch by its file headers; --root and a
+  relative --db resolve against the folder Codex starts the hook in; protects the log,
+  .codex/config.toml, .codex/hooks.json and those of $CODEX_HOME (default ~/.codex);
+  --as defaults to agent:codex; a block answers permissionDecision deny with the reason
+
+hook install options (card E8.17): engram hook install claude-code | codex
+  --project <folder>          the project whose .claude/settings.json or .codex/hooks.json
+                              takes the entry (default the current folder)
+  --user                      the user's ~/.claude/settings.json or $CODEX_HOME/hooks.json instead
+  --root, --protect, --as, --server or --db and --policy: written into the entry, paths absolute
+  writes that one file (and its folder), keeping every other entry; an earlier engram hook
+  entry is replaced, never duplicated; a changed file is backed up beside it first; a second
+  run writes nothing; refuses a link or a file that is not JSON, writing nothing
 
 key options:
   create --keys <file> --as <principal> --source <kind> --expires <iso>  [--level] [--member]...
