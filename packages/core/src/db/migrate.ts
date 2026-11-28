@@ -255,6 +255,44 @@ export const MIGRATIONS: readonly Migration[] = [
     `,
     },
   },
+  {
+    // Card E9.11, ADR XXXX (crypto/keys.ts). One row per data key of a person
+    // scope: its version, the id of the operator key that wraps it, the wrap
+    // algorithm, the wrapped bytes (hex) and when it was made. Shredding sets
+    // `wrapped` to NULL and `shredded_at`, keeping the row as a content-free
+    // tombstone. Never the data key itself. A side table, so no event body,
+    // item or explanation changes and schema_version stays (AGENTS.md rule
+    // 5). Not a projection: rebuild() leaves it alone. Independent of every
+    // other migration's tables.
+    id: 7,
+    name: "per-person data keys for crypto-shredded erasure",
+    up: {
+      sqlite: `
+      CREATE TABLE data_keys (
+        scope TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        kek TEXT NOT NULL,
+        alg TEXT NOT NULL,
+        wrapped TEXT,
+        created_at TEXT NOT NULL,
+        shredded_at TEXT,
+        PRIMARY KEY (scope, version)
+      );
+    `,
+      postgres: `
+      CREATE TABLE data_keys (
+        scope TEXT COLLATE "C" NOT NULL,
+        version INTEGER NOT NULL,
+        kek TEXT NOT NULL,
+        alg TEXT NOT NULL,
+        wrapped TEXT,
+        created_at TEXT NOT NULL,
+        shredded_at TEXT,
+        PRIMARY KEY (scope, version)
+      );
+    `,
+    },
+  },
 ];
 
 /**
