@@ -1282,6 +1282,42 @@
           "path": ["calls", "grounded", "new"]
         }
       ]
+    },
+    {
+      "file": "research/results/h1-audit-report.json",
+      "title": "The signed audit report",
+      "meter": {
+        "part": ["totals", "tampering_detected"],
+        "whole": ["totals", "tampering"],
+        "label": "tamperings of the report or the log detected"
+      },
+      "hypothesis": "none",
+      "status": "proof of concept",
+      "prereg": null,
+      "question": "Does a signed, content-free audit report of a window of the log verify against the log as exported and after a later write, and fail, at the check that should catch it, under every tampering of the report or the log a person with database access but not the operator's key can make?",
+      "note": "Card E9.15's core suite on one chained fixture log, SQLite, a fixed key; the file is under `h1-` for the results glob only. The envelope's sha256 is fixed by the log, the clock and the key.",
+      "headline": [
+        {
+          "label": "cases",
+          "path": ["totals", "cases"]
+        },
+        {
+          "label": "cases with the expected verdict and check",
+          "path": ["totals", "matched"]
+        },
+        {
+          "label": "tamperings detected",
+          "path": ["totals", "tampering_detected"]
+        },
+        {
+          "label": "events counted in the window",
+          "path": ["statement", "events_counted"]
+        },
+        {
+          "label": "envelope bytes",
+          "path": ["envelope", "bytes"]
+        }
+      ]
     }
   ]
 }
