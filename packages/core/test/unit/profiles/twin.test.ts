@@ -20,6 +20,8 @@ interface Fixture {
     as: string;
     scope: string;
     content: string;
+    /** The write's own time, when not the fixture's (card E2.21: write 4's grant lands live). */
+    at?: string;
     class?: "episodic" | "semantic";
     confidence?: number;
     grants?: Partial<Grant>[];
@@ -48,7 +50,7 @@ async function written() {
         confidence: w.confidence ?? 0.9,
         grants: (w.grants ?? []) as Grant[],
       }),
-      f.at,
+      w.at ?? f.at,
     );
     expect(result.event.decision, `write ${w.n}`).toBe(w.expect);
     if (w.policy_id) expect(result.event.policy_id, `write ${w.n}`).toBe(w.policy_id);

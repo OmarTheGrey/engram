@@ -509,7 +509,7 @@ export class LogVerifyScreen extends SurfaceScreen {
     lines.push(
       "",
       ...para(
-        "The chain proves no event was changed or removed after it was written. A signed checkpoint also proves who vouched for it.",
+        "The chain proves no event was changed or removed after it was written, and from chain version 2 that no served event's attestation was changed. A signed checkpoint also proves who vouched for it.",
         width,
       ),
     );

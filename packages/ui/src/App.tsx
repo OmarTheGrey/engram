@@ -31,6 +31,7 @@ import {
   type ExplainView,
   formatMemberships,
   GRANT_CLASSES,
+  GRANT_EXPIRY_NOTE,
   GRANT_MODES,
   type GrantDraft,
   type GrantOutcome,
@@ -479,6 +480,9 @@ function GrantForm({ onAdd }: { onAdd: (grant: Grant) => void }) {
             onChange={(e) => set("expires")(e.target.value)}
           />
         </label>
+        <span className="muted" data-testid="grant-cap-note">
+          {GRANT_EXPIRY_NOTE}
+        </span>
         <button type="submit" data-testid="grant-submit">
           Grant
         </button>

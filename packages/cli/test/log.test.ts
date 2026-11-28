@@ -4,7 +4,9 @@
 // it verifies UNSIGNED (exit 3); with a checkpoint signed by an operator key
 // and the public key pinned, OK (exit 0); an edited event body, FAILED
 // (exit 1) with the first broken link named; a history rebuilt over an edited
-// event fails against the checkpoint the operator kept.
+// event fails against the checkpoint the operator kept. Since card E1.9 the
+// report says what the chain covers, and an attestation row added after its
+// event was chained fails at the attestations check.
 import { createHash, createPrivateKey, createPublicKey } from "node:crypto";
 import { copyFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -44,6 +46,29 @@ describe("engram log verify", () => {
     const json = JSON.parse((await cli(["log", "verify", "--db", db, "--json"])).out);
     expect(json.verdict).toBe("UNSIGNED");
     expect(json.counts.events).toBeGreaterThan(4);
+  });
+
+  it("shows what the chain covers, and fails on an attestation added after its event (card E1.9)", async () => {
+    const { db } = await fixtureLog();
+    const r = await cli(["log", "verify", "--db", db]);
+    expect(r.out).toMatch(/ok {4}attestations/);
+    expect(r.out).toMatch(/\nchain version 2: 0 attestations chained, 0 not covered\n/);
+    const handle = openSqlite(db);
+    try {
+      handle
+        .prepare(
+          "INSERT INTO event_attestations (seq, event_id, surface, method, actor, issuer, subject) SELECT seq, id, 'http', 'api_key', actor, NULL, 'forged' FROM events WHERE seq = 0",
+        )
+        .run();
+    } finally {
+      handle.close();
+    }
+    const forged = await cli(["log", "verify", "--db", db]);
+    expect(forged.code).toBe(1);
+    expect(forged.out).toMatch(
+      /fail {2}attestations: event 0 has an attestation row, but was chained without one/,
+    );
+    expect(forged.out).toMatch(/first broken link: attestations, chain position 1, event seq 0/);
   });
 
   it("verifies OK against a signed checkpoint and the pinned key, exit 0", async () => {
