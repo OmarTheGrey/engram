@@ -20,7 +20,7 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h2-label-audit-longmemeval.json | research/configs/label-audit-longmemeval.json | research/scripts/label_audit_draw.py | 6881e46 | 509268baf31ca7c2d8088f42b9c10ea5bac285a3fd3e6e720cba894390a3722e | none |
 | research/results/h2-cost-table.json | research/configs/cost-table.json | research/scripts/cost_table.py | 03d5a76 | 074d4fb068460e78916c215bebcbfe0f2ac637fa65eb0ba670da9d6063fec8c1 | none |
 | research/results/h2-frontier-axes.json | research/configs/frontier-axes.json | research/scripts/frontier_axes.py | 03d5a76 | 5f208b78489b78a2364edf8b2dc1a5d16a4baa8a3a4be5033b5d313debc4180f | none |
-| research/results/h1-crosswalk.json | research/configs/crosswalk.json | research/scripts/crosswalk.py | 686e0ee | b3e535e503dc1e2944302b3f09b0a4a27f367ac87e6e53d465cf7e6189db47dd | none |
+| research/results/h1-crosswalk.json | research/configs/crosswalk.json | research/scripts/crosswalk.py | 4207427 | 8fad8887689f03215a3327475415bcd2cfedfc8f68aa8d184b27af96954434ac | none |
 | research/results/h1-injection-screen.json | research/configs/injection-screen.json | research/scripts/injection_screen.py | 0ed347b4 | 3e35dd39db1ae69b49047678164434c8cf22b0f13c153ffca8e31da5a269b0a4 | none |
 | research/results/h1-secret-guard.json | research/configs/secret-guard.json | research/scripts/secret_guard.py | 322b2ab1 | ea5b75615024cc0045a9bce7d760ce5d84f79ce2b39428a0253270377b4773d9 | none |
 | research/results/h2-perf-budget.json | research/configs/perf-budget.json | research/scripts/perf_budget.py | 0cab0dad | 0ebdd59c0d61bb2126725ba713b9c9c8c929785bef78e3da4b214828f5dbc254 | none |
@@ -33,3 +33,4 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h1-gate-mutation-audit.json | research/configs/gate-mutation-audit.json | research/scripts/gate_mutation_audit.py | 0772cd3b | 8e61f235b5dc2d7af647b27ecbe92b13b5db4769448438452f662ec20b873e05 | none |
 | research/results/h2-cedar-properties.json | research/configs/h2-cedar-properties.json | research/scripts/h2_cedar_properties.py | 4dd709e1 | 9e6d4084b0e19a6e00c7c1605e73ba808dd552fdd44dd5e67663bffff11f5d86 | none |
 | research/results/h3-l9-grounding.json | research/configs/l9-grounding.json | research/scripts/l9_grounding.py | 3786ab25 | c895152f6f361ce8c9962fb25a6b02487d7bc2b4d5eaa8fc724104bc493e9ced | none |
+| research/results/h1-drift-fixture.json | research/configs/drift-fixture.json | research/scripts/drift_fixture.py | e22c4ad | 579fa43dffc7ca6123e2b9812a6f22886c1581a70dfd59e561f20ee62e6abb71 | none |
