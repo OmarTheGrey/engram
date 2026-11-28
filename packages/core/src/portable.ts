@@ -30,7 +30,10 @@
 // row, never more; grants are dropped; the id is new and the version 1.
 import type { Actor } from "./actor.ts";
 import { contentHash } from "./content-hash.ts";
-import { readableScope } from "./policy/evaluate.ts";
+import type { Db } from "./db/db.ts";
+import { currentItems } from "./events.ts";
+import { accessTime } from "./plane/read.ts";
+import { readableScope, scopeLevel } from "./policy/evaluate.ts";
 import { leastTrusted } from "./policy/promotion.ts";
 import {
   type MemoryEvent,
@@ -39,7 +42,7 @@ import {
   type Provenance,
   ProvenanceKind,
 } from "./schema.ts";
-import { eventVisibleTo } from "./visible.ts";
+import { type EventView, eventVisibleTo, idShownTo } from "./visible.ts";
 
 /** The bundle format's name and version (docs/bundle.md); an importer refuses any other. */
 export const BUNDLE_FORMAT = "engram-bundle";
@@ -278,4 +281,193 @@ export function mapLineage(
     return to === undefined ? [] : [to];
   });
   return { lineage: kept, dropped: lineage.length - kept.length };
+}
+
+// The subject access export (card E9.16): a person's own bundle, as above,
+// and a closure report of the items derived from it in other scopes. It
+// gives evidence a controller can use for GDPR Articles 15 and 20; it is not
+// a certification that a request was answered in full (docs/compliance/).
+//
+// Who: the subject is a person principal (`person:<id>`) and the export goes
+// only to that subject, so the exporter's id must be the subject
+// (`subjectRefusal`). Nobody exports another person's bundle through it,
+// an operator included: the bundle holds content (AGENTS.md rule 12).
+//
+// The closure: an item is derived from the bundle when its lineage names a
+// bundle row's id, or names an item already derived, transitively (a
+// promotion's new version in a team or org scope, a supersede's successor
+// there, and whatever was derived from those). A derived item already in the
+// bundle is not repeated. Each derived item is named only when ADR 0047's
+// by-id rule lets the subject ask for it (`idShownTo`, visible.ts, as a
+// lineage pointer is shown); every other one is counted, never named, with
+// no scope, class or time, so the count is the only thing the report says of
+// items out of the subject's reach.
+
+/** The subject access report's format; a reader refuses any other. */
+export const SUBJECT_ACCESS_FORMAT = "engram-subject-access/1";
+
+/**
+ * Why `actor` may not take `subject`'s access export, or undefined when it
+ * may: the subject is a person, and the export goes only to the subject.
+ */
+export function subjectRefusal(actor: Actor, subject: string): string | undefined {
+  if (!/^person:[A-Za-z0-9._\-/]+$/.test(subject))
+    return `a subject is a person principal, person:<id>, not ${JSON.stringify(subject)}`;
+  if (actor.id !== subject)
+    return `a subject access export goes only to the subject: it is exported as ${subject} itself, not as ${actor.id}`;
+  return undefined;
+}
+
+/** One derived item the subject may be shown: its id and the ids it derives from that the subject may see. */
+export interface DerivedShown {
+  id: string;
+  from: string[];
+}
+
+/** The derived items of a bundle: named where the subject may see them, a count otherwise. */
+export interface SubjectClosure {
+  shown: DerivedShown[];
+  withheld: number;
+}
+
+const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+/**
+ * The closure of `bundleIds` over `items` (the projection), as `subject` is
+ * shown it at `view.at` (see the comment above). Shown items are ordered by
+ * id, each with its `from` ids sorted, only those the subject may see.
+ */
+export function subjectClosure(
+  subject: Actor,
+  items: readonly MemoryItem[],
+  bundleIds: readonly string[],
+  view: EventView,
+): SubjectClosure {
+  const inBundle = new Set(bundleIds);
+  const reached = new Set(bundleIds);
+  const derived: MemoryItem[] = [];
+  const rest = items.filter((i) => !inBundle.has(i.id)).sort(byId);
+  // A fixpoint: each pass adds the items whose lineage names one reached.
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const item of rest) {
+      if (reached.has(item.id) || !item.lineage.some((id) => reached.has(id))) continue;
+      reached.add(item.id);
+      derived.push(item);
+      grew = true;
+    }
+  }
+  const visible = new Set<string>(bundleIds);
+  for (const item of derived) if (idShownTo(subject, item.id, view)) visible.add(item.id);
+  const shown: DerivedShown[] = [];
+  let withheld = 0;
+  for (const item of derived.sort(byId)) {
+    if (!visible.has(item.id)) {
+      withheld += 1;
+      continue;
+    }
+    const from = [...new Set(item.lineage.filter((id) => reached.has(id) && visible.has(id)))];
+    shown.push({ id: item.id, from: from.sort() });
+  }
+  return { shown, withheld };
+}
+
+/** What a subject access export tells its subject beside the bundle (card E9.16). */
+export interface SubjectAccessReport {
+  format: typeof SUBJECT_ACCESS_FORMAT;
+  subject: string;
+  at: string;
+  policy: { id: string; version: number };
+  /** The bundle's items, counted by status, class and scope level. */
+  items: {
+    total: number;
+    by_status: Record<string, number>;
+    by_class: Record<string, number>;
+    by_level: Record<string, number>;
+  };
+  /** The decisions on them the bundle carries, counted by operation and decision. */
+  decisions: { total: number; by_op: Record<string, Record<string, number>> };
+  derived: SubjectClosure;
+  notes: string[];
+}
+
+const tally = (keys: readonly string[]): Record<string, number> => {
+  const out: Record<string, number> = {};
+  for (const k of [...keys].sort()) out[k] = (out[k] ?? 0) + 1;
+  return out;
+};
+
+/** The notes every subject access report carries. */
+export const SUBJECT_ACCESS_NOTES = [
+  "evidence for a controller answering GDPR Articles 15 and 20, not a certification that the request was answered in full",
+  "the bundle holds the subject's person scope and the subject's own items in the other scopes it reads, of every status, each with the decisions on it the subject may see",
+  "derived items out of the subject's reach are counted, never named",
+] as const;
+
+/** The report of `subject`'s export of `rows`, with the closure over `items` (see the comments above). */
+export function subjectAccessReport(
+  policy: Policy,
+  subject: Actor,
+  rows: readonly BundleRow[],
+  items: readonly MemoryItem[],
+  view: EventView,
+  at: string = view.at,
+): SubjectAccessReport {
+  const refusal = subjectRefusal(subject, subject.id);
+  if (refusal !== undefined) throw new Error(refusal);
+  const byOp: Record<string, Record<string, number>> = {};
+  let decisions = 0;
+  for (const row of rows)
+    for (const e of row.events) {
+      const op = (byOp[e.op] ??= {});
+      op[e.decision] = (op[e.decision] ?? 0) + 1;
+      decisions += 1;
+    }
+  const sortedOps: Record<string, Record<string, number>> = {};
+  for (const op of Object.keys(byOp).sort()) {
+    const d = byOp[op] as Record<string, number>;
+    sortedOps[op] = Object.fromEntries(Object.keys(d).sort().map((k) => [k, d[k] as number]));
+  }
+  return {
+    format: SUBJECT_ACCESS_FORMAT,
+    subject: subject.id,
+    at,
+    policy: { id: policy.id, version: policy.version },
+    items: {
+      total: rows.length,
+      by_status: tally(rows.map((r) => r.item.status)),
+      by_class: tally(rows.map((r) => r.item.class)),
+      by_level: tally(rows.map((r) => scopeLevel(r.item.scope))),
+    },
+    decisions: { total: decisions, by_op: sortedOps },
+    derived: subjectClosure(
+      subject,
+      items,
+      rows.map((r) => r.item.id),
+      view,
+    ),
+    notes: [...SUBJECT_ACCESS_NOTES],
+  };
+}
+
+/**
+ * The subject access report of an export's `rows`, from the log `db` under
+ * `policy` at `at` (the export's own time): the projection read once, and the
+ * by-id rule judged at the log's access time, as Plane.export judges it.
+ */
+export function subjectAccessOf(
+  db: Db,
+  policy: Policy,
+  subject: Actor,
+  rows: readonly BundleRow[],
+  at: string,
+): SubjectAccessReport {
+  const items = currentItems(db);
+  const projected = new Map(items.map((i) => [i.id, i]));
+  const view: EventView = {
+    policy,
+    at: accessTime(db, at),
+    current: (id) => projected.get(id),
+  };
+  return subjectAccessReport(policy, subject, rows, items, view, at);
 }
