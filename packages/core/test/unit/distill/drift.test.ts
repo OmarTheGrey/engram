@@ -1,5 +1,5 @@
 // Card D4 of the second absorb plan: re-validation and retirement of admitted
-// procedures on drift (ADR 0011 and ADR 0051 (proposed), ADR 0046).
+// procedures on drift (ADR 0011 and ADR 0050 (proposed), ADR 0046).
 //
 // The acceptance (first describe): the runner's drift fixture
 // (research/configs/d4-drift-fixture.json) replays card D3's admitted
