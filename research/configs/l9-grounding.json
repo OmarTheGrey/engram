@@ -1,0 +1,9 @@
+{
+  "name": "l9-grounding",
+  "kind": "measurement",
+  "hypothesis": "none",
+  "status": "proof of concept",
+  "registered": false,
+  "plain_config": "research/configs/l3-lint-fixture.json",
+  "grounded_config": "research/configs/l9-grounding-fixture.json"
+}

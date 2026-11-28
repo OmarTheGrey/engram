@@ -16,9 +16,9 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | cost estimate | 4 | dollars and calls estimated from token counts and prices; no model called |
 | power computation | 2 | a simulation of the registered test that sets or checks a sample size |
 | engineering check | 4 | a check of a component's behaviour or speed that decides no hypothesis |
-| proof of concept | 3 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
+| proof of concept | 6 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
 
-27 results in all, one per MANIFEST row.
+30 results in all, one per MANIFEST row.
 
 ## What each hypothesis still needs
 
@@ -314,6 +314,29 @@ Recorded by [`docs/log/2026-11-21-l5-near-duplicate-result-capped.md`](../log/20
 
 Recorded by [`docs/log/2026-11-22-l7-measurement-h3-lint-nli-revised.md`](../log/2026-11-22-l7-measurement-h3-lint-nli-revised.md).
 
+### `research/results/h3-fault-injection.json`
+
+- **Question.** When deletion, temporal-supersession and missing-metadata faults corrupt the memory states of the pinned S split's 500 questions, written as card B5 writes them, at the projection or in the log, how often does the read change, how often does the plane's own enforcement restore it, and do the deterministic lints or the log's hash chain see the fault?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** H3; pre-registration section "U6. The paired fault-injection arm, for H3 (not scheduled)". Card X18's check of proposal U6, which is not registered (the lead registered U7 only): a proof of concept that supports H3 and is not H3's test, measuring state recovery, not H3's utility recovery. Model-free. Every column is fixed by the fault's shape (the result's limits): projection faults recover by replay by construction, and the lints never rewrite. Verification catches an edit that does not re-chain the log; a re-chained log reads UNSIGNED, as the controls do, unless a checkpoint is held outside the database.
+- **Made by.** `research/scripts/h3_fault_injection.py` from `research/configs/h3-fault-injection.json`, MANIFEST commit `c209dd6c`, sha256 `6bfb6faab7b74f34d5e474654aa25ec9b04fa74249cf05fc37f9b35dd85c9368`.
+
+| value | reads | key path |
+|---|---|---|
+| pairs faulted | 2,970 | `pairs.targeted` |
+| projection deletion: recovery by replay | 1.0 | `cells.deletion.projection.recovery.rate` |
+| log deletion: change rate | 1.0 | `cells.deletion.log.change.rate` |
+| log deletion: recovery after the deterministic lints | 0.0 | `cells.deletion.log.recovery.rate` |
+| log deletion: lint detection | 0.0 | `cells.deletion.log.lint_detection.rate` |
+| log supersession: change rate | 1.0 | `cells.temporal-supersession.log.change.rate` |
+| log supersession: lint detection | 0.0 | `cells.temporal-supersession.log.lint_detection.rate` |
+| log missing metadata: change rate | 0.0 | `cells.missing-metadata.log.change.rate` |
+| log missing metadata: lint detection | 1.0 | `cells.missing-metadata.log.lint_detection.rate` |
+| log edits `engram log verify` detects (no re-chain) | 1.0 | `by_place.log.verify_detection.rate` |
+| unedited control logs that fail verification | 0 | `control.verify_failed` |
+
+Recorded by [`docs/log/2026-11-28-x18-measurement-fault-injection-review.md`](../log/2026-11-28-x18-measurement-fault-injection-review.md).
+
 ## H4. The plane is store-, model- and harness-agnostic
 
 ### `research/results/h4-power.json`
@@ -517,3 +540,39 @@ Recorded by [`docs/log/2026-11-28-e1-7-measurement-trace-replay.md`](../log/2026
 | log chain, killed | 2 | `per_invariant.I9.killed` |
 
 Recorded by [`docs/log/2026-11-28-x16-measurement-audit-after-review.md`](../log/2026-11-28-x16-measurement-audit-after-review.md).
+
+### `research/results/h2-cedar-properties.json`
+
+- **Question.** Does the Cedar export of each registered preset satisfy, for every request in the stated domain (every level, status, class, source kind, version, ttl, confidence and instant from 0000 to 9999 that Engram's schema accepts), that strict allows no read medium denies and medium none permissive denies, that a model-sourced write lands only in a person scope its writer is a member of, and that a person's item is read only by a member or under a live grant; are the converse and the non-vacuity checks refuted, each with a counterexample the evaluator reproduces?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. Card E2.18. Proved by cedar-policy-symcc 0.8.1 and cvc5 1.4.2 of exportCedar's text, modulo grants (ADR 0041, decision 5), not of evaluate.ts itself: the two are tied only by card E2.12's differential test, which samples requests (`scope.evaluator`). `make verify-policy` reruns it; without cargo or cvc5 `make test-repro` reports the row as skipped. The file is under `h2-` for the results glob only.
+- **Made by.** `research/scripts/h2_cedar_properties.py` from `research/configs/h2-cedar-properties.json`, MANIFEST commit `4dd709e1`, sha256 `9e6d4084b0e19a6e00c7c1605e73ba808dd552fdd44dd5e67663bffff11f5d86`.
+
+| value | reads | key path |
+|---|---|---|
+| checks | 31 | `summary.checks` |
+| proved | 11 | `summary.proved` |
+| refuted (the control and the non-vacuity checks, all expected to fail) | 20 | `summary.refuted` |
+| refutations the evaluator reproduces | 20 | `summary.reproduced` |
+| every check as the config expects | true | `summary.all_as_expected` |
+
+Recorded by [`docs/log/2026-11-28-e2-18-measurement-cedar-properties.md`](../log/2026-11-28-e2-18-measurement-cedar-properties.md).
+
+### `research/results/h3-l9-grounding.json`
+
+- **Question.** With `lints.model.evidence` on, does the quote check keep a model flag whose quotes are in its items and downgrade one whose quote is invented, paraphrased or too short, on card L3's model fault fixtures, while the option absent leaves card L3's run as it was?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. Card L9. A scripted model gives card L3's verdicts with four planted quotes, so the counts show the check working, not how often a real model quotes. Whether quote grounding enters H3's model tier is question 2 of `docs/tasks/absorb-plan-2.md`, the lead's, by an amendment before H3's live run. Filed under `h3-` for the results glob only.
+- **Made by.** `research/scripts/l9_grounding.py` from `research/configs/l9-grounding.json`, MANIFEST commit `3786ab25`, sha256 `c895152f6f361ce8c9962fb25a6b02487d7bc2b4d5eaa8fc724104bc493e9ced`.
+
+| value | reads | key path |
+|---|---|---|
+| findings with the option absent (card L3's run) | 14 | `totals.plain_findings` |
+| of them against a pass label | 1 | `totals.plain_false_findings` |
+| findings with quote grounding on | 11 | `totals.grounded_findings` |
+| of them against a pass label | 0 | `totals.grounded_false_findings` |
+| flags downgraded to ungrounded | 3 | `totals.ungrounded` |
+| of them labelled flag (planted: a paraphrase, a short quote) | 2 | `totals.ungrounded_true_flags` |
+| new model calls on replay, grounded run | 0 | `calls.grounded.new` |
+
+Recorded by [`docs/log/2026-11-28-l9-measurement-grounding-after-review.md`](../log/2026-11-28-l9-measurement-grounding-after-review.md).

@@ -549,6 +549,16 @@ const EXEMPT: Record<string, { reason: string; holds?: string[] }> = {
   "hook claude-code": {
     reason: "it answers a hook's JSON with allow or deny and records a block; it reads no memory",
   },
+  // Card E8.17.
+  "hook codex": {
+    reason:
+      "Codex's hook: it answers a hook's JSON with allow or deny and records a block; it reads no memory",
+  },
+  "hook install": {
+    reason:
+      "it merges the hook's entry into a harness's settings file; it reaches no plane and reads no memory",
+    holds: ["hook", "install", "codex", "--project", "."],
+  },
   "key create": { reason: "it writes a key file; it reads no log and no store" },
   "key list": {
     reason: "it reads the key file only, masked",

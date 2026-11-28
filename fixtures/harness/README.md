@@ -4,7 +4,10 @@ How Claude Code and Codex reach Engram, as a project would configure them. `make
 
 - `claude-code/.mcp.json`: the MCP server, launched over stdio as `person:dana` with source `model` (plan decision 6).
 - `claude-code/.claude/settings.json`: the PreToolUse hook `engram hook claude-code` on every tool (matcher `*`), in exec form with `${CLAUDE_PROJECT_DIR}/memory` as the store root and `--as person:dana`, so its block events are dana's to see. It denies a shell command (Bash or PowerShell) naming a store, a file tool on a path inside `memory/`, and any edit of `.mcp.json`, `.claude/settings*.json` or the event log (ADR 0022 amendments).
-- `codex/config.toml`: the same MCP server under `[mcp_servers.engram]`. Codex has no hook, so a store command is not blocked on that path (condition C7).
+- `codex/config.toml`: the same MCP server under `[mcp_servers.engram]`.
+- `codex/.codex/hooks.json` (card E8.17): Codex's PreToolUse hook `engram hook codex` on every tool (matcher `*`), one command line with `--root memory` and `--as person:dana`, and `onFailure` block. Codex starts the hook in the session's folder, so the root resolves there. It denies a store command, a shell or apply_patch reaching `memory/`, and any edit of `.codex/config.toml`, `.codex/hooks.json` or the log. `engram hook install codex` writes this entry (paths absolute).
+- `codex/schema/`: Codex's generated PreToolUse input and output schemas, copied unmodified from openai/codex at `ebd0765aafa255d63ebf690ebdffe0164dc14a0c` (`codex-rs/hooks/schema/generated/`, Apache-2.0; NOTICE). The tests validate every recorded input and every answer against them. The schema moves upstream; these are pinned to the commit.
+- `codex/inputs/`: PreToolUse inputs as Codex sends them (every field its input schema requires; `${PROJECT}` in `cwd` is the project), each with the answer `expected.json` names: `deny` or `nothing`.
 
 Neither names `--db`: the log is the per-user default, `<home>/.engram/engram.db` (decision D9), outside the project the model edits. Each `memory/` folder holds one Claude Code memory file, adopted through the plane on the first read.
 

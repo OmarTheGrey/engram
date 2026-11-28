@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
+import { codexInputs, inputErrors, outputErrors } from "../../packages/mcp/test/codex-schema.ts";
 import { handshake } from "../../packages/mcp/test/handshake.ts";
 
 const REPO = resolve(fileURLToPath(import.meta.url), "../../..");
@@ -35,6 +36,8 @@ function project(name: string) {
     CLAUDE_PROJECT_DIR: dir,
   };
   delete env.ENGRAM_DB_URL;
+  // Card E8.17: the Codex home is the temporary home's, never the developer's.
+  env.CODEX_HOME = join(home, ".codex");
   delete env.ENGRAM_SERVER_URL;
   return { dir, home, env, log: join(home, ".engram", "engram.db") };
 }
@@ -155,5 +158,79 @@ describe("the claude-code fixture's PreToolUse hook", () => {
     });
     expect(free.status).toBe(0);
     expect(free.stdout).toBe("");
+  });
+});
+
+// Card E8.17: Codex's hook, run as Codex runs it: the command line of the
+// fixture's .codex/hooks.json in the session's folder, each recorded input
+// (valid against Codex's copied input schema) on stdin, every answer valid
+// against its output schema; and the installer writing the same entry.
+describe("the codex fixture's PreToolUse hook", () => {
+  it("answers every recorded Codex input as expected, in Codex's output schema, and records each block", () => {
+    const { dir, env, log } = project("codex");
+    const hooks = JSON.parse(readFileSync(join(dir, ".codex/hooks.json"), "utf8"));
+    const group = hooks.hooks.PreToolUse[0];
+    expect(group.matcher).toBe("*");
+    const entry = group.hooks[0];
+    expect(entry).toMatchObject({ type: "command", onFailure: "block" });
+    // A plain line of bare words: what `sh -lc` and `cmd.exe /c` both read as these words.
+    const [first, ...words] = (entry.command as string).split(" ");
+    const [command, args] = launch(first as string, words);
+    let denied = 0;
+    for (const { name, input, expect: want } of codexInputs(dir)) {
+      expect(inputErrors(input), name).toEqual([]);
+      const r = spawnSync(command, args, {
+        cwd: dir,
+        env,
+        input: JSON.stringify(input),
+        encoding: "utf8",
+        timeout: 60_000,
+      });
+      expect(r.status, `${name}: ${r.stderr}`).toBe(0);
+      if (want === "nothing") expect(r.stdout, name).toBe("");
+      else {
+        const out = JSON.parse(r.stdout);
+        expect(outputErrors(out), name).toEqual([]);
+        expect(out.hookSpecificOutput.permissionDecision, name).toBe("deny");
+        denied++;
+      }
+    }
+    expect(denied).toBeGreaterThan(0);
+    expect(existsSync(log)).toBe(true);
+  });
+
+  it("engram hook install codex replaces it with an entry of the same shape, and a second install changes nothing", () => {
+    const { dir, env } = project("codex");
+    const install = () =>
+      spawnSync(
+        process.execPath,
+        [MAIN, "hook", "install", "codex", "--root", "memory", "--as", "person:dana"],
+        { cwd: dir, env, encoding: "utf8", timeout: 60_000 },
+      );
+    const first = install();
+    expect(first.status, first.stderr).toBe(0);
+    const file = join(dir, ".codex/hooks.json");
+    const written = readFileSync(file, "utf8");
+    const entry = JSON.parse(written).hooks.PreToolUse[0].hooks[0];
+    expect(JSON.parse(written).hooks.PreToolUse).toHaveLength(1);
+    expect(entry.command).toContain("hook codex --root");
+    expect(entry.command).toContain("--as person:dana");
+    // The fixture's shape: one group on every tool, one command handler that blocks on failure.
+    const fixture = JSON.parse(
+      readFileSync(join(REPO, "fixtures/harness/codex/.codex/hooks.json"), "utf8"),
+    );
+    expect(Object.keys(JSON.parse(written).hooks)).toEqual(Object.keys(fixture.hooks));
+    expect(JSON.parse(written).hooks.PreToolUse[0].matcher).toBe(
+      fixture.hooks.PreToolUse[0].matcher,
+    );
+    expect(
+      Object.keys(entry)
+        .filter((k) => k !== "commandWindows")
+        .sort(),
+    ).toEqual(Object.keys(fixture.hooks.PreToolUse[0].hooks[0]).sort());
+    expect(entry.onFailure).toBe("block");
+    const second = install();
+    expect(second.stdout).toContain("unchanged:");
+    expect(readFileSync(file, "utf8")).toBe(written);
   });
 });

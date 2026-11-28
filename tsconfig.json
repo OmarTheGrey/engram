@@ -6,6 +6,7 @@
     "packages/*/scripts",
     "packages/*/bench",
     "scripts",
+    "tools",
     "test",
     "*.config.ts"
   ],

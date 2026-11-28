@@ -46,6 +46,10 @@
 //     encoder's, so agreement there holds modulo grants;
 //   - content guards and trust options: exportCedar refuses a policy that
 //     turns any on, rather than export a gate that disagrees with it;
+//   - the lints (`lints`, `lints.model.evidence` of card L9 included): a
+//     lint decides no read or write, so the export is the same with or
+//     without them, and a policy turning quote grounding on is exported as
+//     faithfully as one leaving it out;
 //   - instants finer than a nanosecond: an instant is two Longs, epoch seconds
 //     and nanoseconds, and the encoder refuses a finer one.
 //
@@ -78,6 +82,7 @@ import {
   WRITE_MOVE_ID,
   WRITE_VERSION_ID,
 } from "./evaluate.ts";
+import { notBuiltOptions } from "./options.ts";
 
 /** The Cedar namespace every exported type and action lives in. */
 export const CEDAR_NAMESPACE = "Engram";
@@ -264,6 +269,11 @@ function refuseUntranslatable(policy: Policy): void {
     throw new CedarExportError(
       `policy ${policy.id} sets ${on.join(", ")}; the Cedar export does not translate content guards or trust options, and refuses rather than export a gate that disagrees with the evaluator`,
     );
+  // Card E2.14: an option nothing builds yet is refused as the loader refuses
+  // it; the card that builds one decides whether the export translates it.
+  const unbuilt = notBuiltOptions(policy);
+  if (unbuilt.length > 0)
+    throw new CedarExportError(`policy ${policy.id}: ${unbuilt.map((o) => o.message).join("; ")}`);
 }
 
 /**

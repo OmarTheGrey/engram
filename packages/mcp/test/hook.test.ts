@@ -57,6 +57,10 @@ const BLOCKED: [string, Record<string, unknown>, string, string | undefined][] =
   ["Bash", { command: 'bash -c "cd memory && cat a.md"' }, "files", "path"],
   ["PowerShell", { command: 'pwsh -Command "Get-Content memory/a.md"' }, "files", "path"],
   ["Bash", { command: "cat mem?ry/a.md" }, "files", "path"],
+  // Card E8.17's review: a PowerShell backtick or cmd caret escaping a letter of a path.
+  ["PowerShell", { command: "Get-Content mem`ory\\a.md" }, "files", "path"],
+  ["PowerShell", { command: "Remove-Item .cl`aude\\settings.json" }, "engram", "path"],
+  ["Bash", { command: "cmd /c type mem^ory\\a.md" }, "files", "path"],
   // R3-2: the session's own governing files.
   [
     "Edit",

@@ -22,6 +22,7 @@ import type { z } from "zod";
 import { NLI_LINT_ID, nliThresholdProblems } from "../lint/nli.ts";
 import { LIFECYCLE_TRIGGERS, LINT_IDS, LINT_THRESHOLD_KEYS } from "../lint.ts";
 import { Policy, ScopeLevel } from "../schema.ts";
+import { notBuiltOptions } from "./options.ts";
 
 export type PolicyPath = (string | number)[];
 
@@ -133,7 +134,7 @@ function schemaProblems(issue: z.core.$ZodIssue, js: unknown): Located[] {
     (node, seg) => (node !== null && typeof node === "object" ? (node as never)[seg] : undefined),
     js,
   );
-  if (OPTION_BLOCKS.includes(String(path[0])) && typeof value === "boolean")
+  if (inOptionBlock(path) && typeof value === "boolean")
     return [
       {
         path,
@@ -159,7 +160,25 @@ const NOT_ENFORCED_YET = {
   content_guards: {},
   trust: {},
 } as const;
-const OPTION_BLOCKS: readonly string[] = Object.keys(NOT_ENFORCED_YET);
+
+// The options card E2.14 of the second absorb plan added, which nothing
+// builds yet, are refused by `notBuiltOptions` (policy/options.ts), the check
+// Plane.simulate and exportCedar share with this loader. Built so far:
+// `lints.model.evidence`, quote grounding of the model lints (card L9,
+// lint/evidence.ts), loaded as written, "off" and absent alike.
+
+/** The blocks whose options are words, where YAML 1.1 may read a bare on or off as a boolean. */
+const OPTION_BLOCKS: readonly (readonly string[])[] = [
+  ...Object.keys(NOT_ENFORCED_YET).map((block) => [block]),
+  ["lints", "model"],
+  ["procedures"],
+  ["consent"],
+  ["erasure"],
+  ["approval"],
+  ["grants"],
+];
+const inOptionBlock = (path: PolicyPath) =>
+  OPTION_BLOCKS.some((block) => block.every((seg, i) => path[i] === seg));
 
 /**
  * Checks the schema cannot express. The evaluator looks a rule up by scope
@@ -274,6 +293,7 @@ function semanticProblems(policy: Policy): Located[] {
       });
     }
   }
+  for (const { path, message } of notBuiltOptions(policy)) out.push({ path, atKey: true, message });
   const { replay_k, replay_n } = policy.promotion.procedural;
   if (replay_k > replay_n)
     out.push({

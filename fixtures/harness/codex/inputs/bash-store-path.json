@@ -1,0 +1,14 @@
+{
+  "session_id": "019400000000700080000000000000a1",
+  "turn_id": "turn-1",
+  "transcript_path": null,
+  "cwd": "${PROJECT}",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-5.5-codex",
+  "permission_mode": "default",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "cat memory/user_role.md"
+  },
+  "tool_use_id": "call_2"
+}

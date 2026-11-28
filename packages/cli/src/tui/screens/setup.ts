@@ -5,16 +5,21 @@
 // (../snippets.ts), copies it, and Try it spawns exactly the copied command
 // as a child process on a scratch :memory: log that reaches no server,
 // listing each replacement. MCP over HTTP is a server the screen runs until
-// stopped, with Serve's three answers to "Who may call it?".
+// stopped, with Serve's three answers to "Who may call it?". The hook screen
+// sets up Claude Code's hook or, for `hook codex` (card E8.17), Codex's, whose
+// entry is one command line in .codex/hooks.json and whose Try it sends
+// Codex's Bash tool.
 import { isAbsolute, resolve } from "node:path";
-import type { CommandSpec, Values } from "../../registry.ts";
+import { type CommandSpec, command, type Values } from "../../registry.ts";
 import { redactSecrets } from "../../setup.ts";
 import { clean, para, wrap } from "../layout.ts";
 import type { Ctx } from "../screen.ts";
 import {
   absolutePaths,
   type Children,
+  codexHookCommand,
   codexToml,
+  HARNESS_NAME,
   hookCommand,
   hookSamples,
   type Launch,
@@ -23,6 +28,7 @@ import {
   resolveLaunch,
   type SampleResult,
   type Scratch,
+  type SetupHarness,
   scratchLaunch,
   thisHost,
   tryHook,
@@ -44,8 +50,17 @@ function drawn(text: string, args: readonly string[]): string {
 
 /** A snippet the screen builds: the hook's entry or `.mcp.json`, never an answer of the plane. */
 type Snippet =
-  | { matcher: string; hooks: ReturnType<typeof hookCommand>[] }
+  | {
+      matcher: string;
+      hooks: (ReturnType<typeof hookCommand> | ReturnType<typeof codexHookCommand>)[];
+    }
   | ReturnType<typeof mcpJson>;
+
+/** The settings file and key each harness takes the hook's entry in. */
+const HOOK_FILE: Readonly<Record<SetupHarness, string>> = {
+  "claude-code": ".claude/settings.json",
+  codex: ".codex/hooks.json",
+};
 
 /** Wrapped JSON of a snippet, compact, for the screen; the copy is the pretty one. */
 const snippetLines = (value: Snippet, width: number, args: readonly string[]) =>
@@ -111,8 +126,16 @@ export class HookScreen extends SurfaceScreen {
           : undefined;
   }
 
+  /** The harness this screen sets up: `hook codex` opens on Codex's; the Harness row switches it. */
+  harness: SetupHarness = this.spec_.name === "hook codex" ? "codex" : "claude-code";
+
   override title(): string {
-    return "Claude Code hook setup";
+    return `${HARNESS_NAME[this.harness]} hook setup`;
+  }
+
+  /** The project the hook resolves paths against: Codex's is the folder it starts the hook in. */
+  private projectFor(ctx: Ctx): string {
+    return this.harness === "codex" ? resolve(ctx.io.cwd) : projectOf(ctx);
   }
 
   /** For tests and frames: the command the snippet names, in place of the PATH's. */
@@ -127,11 +150,13 @@ export class HookScreen extends SurfaceScreen {
   /** The engram arguments of the snippet: the form's, every path absolute against the project. */
   snippetArgs(ctx: Ctx = this.ctx): string[] {
     let argv = withServer(this.form.argv(ctx.ws), ctx);
+    // The form is the entry's it opened from; the Harness row names the other hook.
+    if (argv[0] === "hook") argv = ["hook", this.harness, ...argv.slice(2)];
     // The hook's --root is its own, not the workspace's store folder: a server does not drop it.
     const roots = this.form.get("root") as readonly string[];
     if (!argv.includes("--root") && roots.length > 0)
       argv = [...argv, ...roots.flatMap((r) => ["--root", r])];
-    return absolutePaths(argv, projectOf(ctx));
+    return absolutePaths(argv, this.projectFor(ctx));
   }
   override argv(ctx: Ctx): string[] {
     return this.snippetArgs(ctx);
@@ -148,6 +173,21 @@ export class HookScreen extends SurfaceScreen {
         hint: server ? "the server's log: see below" : "the log is protected already",
       },
       { kind: "field", id: "as", label: "Block events as" },
+      {
+        kind: "choice",
+        id: "harness",
+        label: "Harness",
+        options: [
+          { value: "claude-code", label: "Claude Code, .claude/settings.json" },
+          { value: "codex", label: "Codex, .codex/hooks.json" },
+        ],
+        value: () => this.harness,
+        set: (v) => {
+          this.harness = v as SetupHarness;
+          this.tried = undefined;
+          this.installed = undefined;
+        },
+      },
     ];
   }
 
@@ -155,6 +195,11 @@ export class HookScreen extends SurfaceScreen {
     return [
       { id: "button:copy", label: "Copy the entry", press: (c) => this.copyEntry(c) },
       { id: "button:try", label: "Try it on a scratch log", press: (c) => this.tryIt(c) },
+      {
+        id: "button:install",
+        label: `Install into ${HOOK_FILE[this.harness]}`,
+        press: (c) => this.install(c),
+      },
     ];
   }
   protected override submitLabel(): string {
@@ -166,7 +211,34 @@ export class HookScreen extends SurfaceScreen {
   }
 
   private entry(ctx: Ctx) {
-    return { matcher: "*", hooks: [hookCommand(this.launchOf(ctx), this.snippetArgs(ctx))] };
+    const build = this.harness === "codex" ? codexHookCommand : hookCommand;
+    return { matcher: "*", hooks: [build(this.launchOf(ctx), this.snippetArgs(ctx))] };
+  }
+
+  /** The last Install: what `engram hook install` printed, and its exit code. */
+  installed: { argv: string[]; code: number; out: string } | undefined;
+
+  /** The install command line: the snippet's hook flags, the project named (card E8.17). */
+  installArgv(ctx: Ctx = this.ctx): string[] {
+    const [, harness, ...flags] = this.snippetArgs(ctx);
+    return ["hook", "install", harness as string, ...flags, "--project", this.projectFor(ctx)];
+  }
+
+  /** Runs `engram hook install` through the router, which asks first, naming the file. */
+  async install(ctx: Ctx): Promise<void> {
+    const errors = this.form.validate(ctx.ws, ctx.io);
+    this.error = errors[0];
+    if (this.error !== undefined) {
+      if (this.error.field !== undefined) this.focusField(this.error.field);
+      return;
+    }
+    const spec = command("hook install") as CommandSpec;
+    const argv = this.installArgv(ctx);
+    const result = await ctx.act(spec, argv, {});
+    if (result === undefined) return;
+    this.used = true;
+    this.installed = { argv, code: result.code, out: `${result.out}${result.err}` };
+    this.toEnd = true;
   }
 
   copyEntry(ctx: Ctx): void {
@@ -181,7 +253,7 @@ export class HookScreen extends SurfaceScreen {
       if (this.error.field !== undefined) this.focusField(this.error.field);
       return;
     }
-    const project = projectOf(ctx);
+    const project = this.projectFor(ctx);
     const args = this.snippetArgs(ctx);
     const scratch = scratchLaunch(this.launchOf(ctx), args, ctx.io.env, project);
     this.used = true;
@@ -193,7 +265,13 @@ export class HookScreen extends SurfaceScreen {
     );
     this.tried = {
       scratch,
-      results: await tryHook(scratch, hookSamples(project, roots), undefined, children(ctx)),
+      results: await tryHook(
+        scratch,
+        hookSamples(project, roots, this.harness),
+        undefined,
+        children(ctx),
+        this.harness,
+      ),
     };
     this.toEnd = true;
   }
@@ -224,10 +302,12 @@ export class HookScreen extends SurfaceScreen {
     if (launch.note !== undefined) lines.push(...para(launch.note, width));
     lines.push(
       ...para(
-        'With "onFailure": "block", a hook that fails blocks the call; Claude Code reads it from v2.1.295 on, and before that a failed hook lets the call through.',
+        this.harness === "codex"
+          ? 'With "onFailure": "block", a hook that fails blocks the call. Codex runs a hook only once you trust it in /hooks, and again after each change to it; engram hook install codex merges this entry for you.'
+          : 'With "onFailure": "block", a hook that fails blocks the call; Claude Code reads it from v2.1.295 on, and before that a failed hook lets the call through.',
         width,
       ),
-      " .claude/settings.json, hooks.PreToolUse:",
+      ` ${HOOK_FILE[this.harness]}, hooks.PreToolUse:`,
     );
     lines.push(...snippetLines(this.entry(ctx), width, this.snippetArgs(ctx)));
     if (this.tried !== undefined) {
@@ -244,6 +324,18 @@ export class HookScreen extends SurfaceScreen {
           );
         }
       for (const said of this.tried.scratch.replaced) lines.push(...para(said, width));
+    }
+    if (this.installed !== undefined) {
+      lines.push("");
+      const ok = this.installed.code === 0;
+      lines.push(
+        ...para(
+          `${t.status(ok ? "ok" : "fail", `engram hook install ${this.harness}`)}   exit ${this.installed.code}`,
+          width,
+        ),
+      );
+      for (const l of this.installed.out.trimEnd().split("\n"))
+        if (l !== "") lines.push(...para(clean(l), width, "   "));
     }
     return [{ kind: "text", lines }];
   }
