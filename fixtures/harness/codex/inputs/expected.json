@@ -1,0 +1,10 @@
+{
+  "apply-patch-free": "nothing",
+  "apply-patch-hook-config": "deny",
+  "apply-patch-store": "deny",
+  "bash-free": "nothing",
+  "bash-powershell-path": "deny",
+  "bash-store-command": "deny",
+  "bash-store-path": "deny",
+  "mcp-engram-read": "nothing"
+}
