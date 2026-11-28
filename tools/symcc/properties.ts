@@ -4,8 +4,9 @@
 // cedar-policy-symcc 0.8.1 with cvc5) decides each check; this file only
 // writes the checks and reads the answers back.
 //
-//   node tools/symcc/properties.ts job --config <config> --out <job.json>
-//   node tools/symcc/properties.ts replay --job <job.json> --answers <answers.json> --out <replay.json>
+// Its command line is tools/symcc/cli.ts:
+//   node tools/symcc/cli.ts job --config <config> --out <job.json>
+//   node tools/symcc/cli.ts replay --job <job.json> --answers <answers.json> --out <replay.json>
 //
 // Every check is an implication between two Cedar policy sets over one
 // action: every request the left set allows, the right set allows. A check is
@@ -13,11 +14,15 @@
 //   monotone   left is preset A's export, right is preset B's: B allows every
 //              read A allows (strict before medium, medium before permissive);
 //   invariant  left is a preset's export, right is one permit stating the
-//              property: whatever the preset allows satisfies it.
-// The left set also carries one forbid, the domain: a request outside what
-// Engram can express (a level, status, source kind or class it does not
-// have, an instant before 1970 or past 9999, a nanosecond out of range, a
-// confidence outside [0, 1], a version below 1) is not one the property is
+//              property: whatever the preset allows satisfies it. An
+//              invariant expected to fail shows a proof is not vacuous: the
+//              left set allows some request, or the property's premise is
+//              reachable.
+// The left set also carries one forbid, the domain: a request the export
+// cannot encode from a valid Engram request (a level, status, source kind or
+// class Engram does not have, an instant outside the years 0000 to 9999 its
+// timestamps write, a nanosecond out of range, a confidence outside [0, 1], a
+// version or ttl outside the safe integers from 1) is not one the property is
 // about, and the solver is not let to answer with one. Grants are flattened
 // by the export (ADR 0041, decision 5), so every result holds modulo grants.
 //
@@ -34,7 +39,11 @@ import {
   cedarWriteRequest,
   exportCedar,
 } from "../../packages/core/src/policy/cedar.ts";
-import { evaluateRead, evaluateWrite } from "../../packages/core/src/policy/evaluate.ts";
+import {
+  evaluateRead,
+  evaluateWrite,
+  grantMatches,
+} from "../../packages/core/src/policy/evaluate.ts";
 import { loadPreset, type PresetName } from "../../packages/core/src/policy/load.ts";
 import {
   type Grant,
@@ -54,7 +63,8 @@ const LEVELS: readonly ScopeLevel[] = ["person", "role", "team", "org"];
 const STATUSES = ["candidate", "active", "retired"] as const;
 const CLASSES = ["episodic", "semantic", "procedural"] as const;
 const KINDS = ProvenanceKind.options;
-/** 1970-01-01 to 9999-12-31T23:59:59: the instants a four-digit year writes from the epoch on. */
+/** 0000-01-01T00:00:00 to 9999-12-31T23:59:59: the instants a timestamp's four-digit year writes. */
+const MIN_SECOND = -62167219200;
 const MAX_SECOND = 253402300799;
 const MAX_SAFE = Number.MAX_SAFE_INTEGER;
 
@@ -74,14 +84,42 @@ when { resource.kind != "model" || (resource.scope.level == "person" && principa
     actions: ["read"],
     cedar: `permit (principal, action, resource)
 when { resource.scope.level != "person" || principal in resource.scope || (context has grant && (if context.grant has expires then (context.at.s < context.grant.expires.s || (context.at.s == context.grant.expires.s && context.at.ns < context.grant.expires.ns)) else true)) };`,
+    // A grant counts when it names the reader (exactly or by prefix), names the
+    // item's class or none, and has not expired at the read: as liveGrants.
     holds: (r: Decoded) =>
       !r.item.scope.startsWith("person:") ||
       r.actor.memberships.includes(r.item.scope) ||
       r.item.grants.some(
-        (g) => g.expires === undefined || compareTimestamps(r.at as string, g.expires) < 0,
+        (g) =>
+          grantMatches(g.to, r.actor.id) &&
+          (g.class === undefined || g.class === r.item.class) &&
+          (g.expires === undefined || compareTimestamps(r.at as string, g.expires) < 0),
       ),
   },
-} as const;
+  // Non-vacuity (expected to fail): the premises the two invariants above are
+  // about are reachable, and every left set allows some request.
+  "model-write-reachable": {
+    actions: ["write", "write_without_review"],
+    cedar: `permit (principal, action, resource)
+when { resource.kind != "model" };`,
+    holds: (r: Decoded) => r.item.provenance.kind !== "model",
+  },
+  "person-read-by-non-member-reachable": {
+    actions: ["read"],
+    cedar: `permit (principal, action, resource)
+when { resource.scope.level != "person" || principal in resource.scope };`,
+    holds: (r: Decoded) =>
+      !r.item.scope.startsWith("person:") || r.actor.memberships.includes(r.item.scope),
+  },
+  "left-allows-some": {
+    actions: ["read", "write", "write_without_review"],
+    // The empty policy set denies every request.
+    cedar: "",
+    holds: (_r: Decoded) => false,
+  },
+} as const satisfies {
+  [id: string]: { actions: readonly Action[]; cedar: string; holds: (r: Decoded) => boolean };
+};
 export type InvariantId = keyof typeof INVARIANTS;
 
 export interface PropertySpec {
@@ -100,6 +138,9 @@ export interface PropertySpec {
 
 export interface Check {
   id: string;
+  /** sha256 of `left` and of `right`, recorded in the result so a changed statement moves its bytes. */
+  left_sha256: string;
+  right_sha256: string;
   property: string;
   shape: PropertySpec["shape"];
   expect: PropertySpec["expect"];
@@ -112,7 +153,10 @@ export interface Check {
 
 export interface Job {
   schema: string;
-  domain: string;
+  /** The domain forbid of each action, as the left sets carry it. */
+  domains: { [action: string]: string };
+  /** Each invariant's permit, as the right sets carry it. */
+  invariants: { [id: string]: string };
   exports: { [preset: string]: { policies_sha256: string; rules: number } };
   checks: Check[];
 }
@@ -125,7 +169,7 @@ const inRange = (expr: string, lo: number, hi: number) => `(${lo} <= ${expr} && 
 const optional = (expr: string, attr: string, cond: string) =>
   `(if ${expr} has ${attr} then ${cond} else true)`;
 const instant = (expr: string) =>
-  `(${inRange(`${expr}.s`, 0, MAX_SECOND)} && ${inRange(`${expr}.ns`, 0, 999999999)})`;
+  `(${inRange(`${expr}.s`, MIN_SECOND, MAX_SECOND)} && ${inRange(`${expr}.ns`, 0, 999999999)})`;
 
 /**
  * The domain of every check: the requests Engram can express. A forbid of
@@ -165,6 +209,15 @@ export function domain(action: Action): string {
             "existing",
             `${isLevel("context.existing.scope.level")} && ${inRange("context.existing.version", 1, MAX_SAFE)}`,
           ),
+          // The flattened grant flags only as cedarWriteRequest can set them:
+          // a change of grants is a rewrite with grants on one side or the
+          // other; a rewrite that keeps them keeps whether there are any; the
+          // in-place transition is a rewrite that keeps the scope, the owner
+          // and the grants. The solver could otherwise pick flags no pair of
+          // Engram items gives.
+          "(if context.changes_grants then (context has existing && (context.granted || context.existing.granted)) else true)",
+          "(if context has existing then (context.changes_grants || context.granted == context.existing.granted) else !context.in_place_promotion)",
+          "(if context.in_place_promotion then (context has existing && !context.changes_grants && context.existing.scope == resource.scope && context.existing.owner == resource.owner) else true)",
         ];
   return `// The domain (card E2.18): only requests Engram can express.
 @id("domain")
@@ -189,7 +242,8 @@ export async function buildJob(properties: readonly PropertySpec[]): Promise<Job
     }
     return e;
   };
-  const checks: Check[] = [];
+  const checks: Omit<Check, "left_sha256" | "right_sha256">[] = [];
+  const used = new Set<InvariantId>();
   for (const p of properties) {
     if (p.shape === "monotone") {
       for (const [a, b] of p.pairs ?? [])
@@ -208,6 +262,7 @@ export async function buildJob(properties: readonly PropertySpec[]): Promise<Job
     } else {
       const inv = INVARIANTS[p.id as InvariantId];
       if (!inv) throw new Error(`unknown invariant ${p.id}`);
+      used.add(p.id as InvariantId);
       for (const preset of p.presets ?? [])
         for (const action of inv.actions)
           checks.push({
@@ -219,7 +274,7 @@ export async function buildJob(properties: readonly PropertySpec[]): Promise<Job
             left_preset: preset,
             right_preset: null,
             left: `${exported(preset).policies}\n${domain(action)}\n`,
-            right: `${inv.cedar}\n`,
+            right: inv.cedar === "" ? "" : `${inv.cedar}\n`,
           });
     }
   }
@@ -228,11 +283,15 @@ export async function buildJob(properties: readonly PropertySpec[]): Promise<Job
   const summary: Job["exports"] = {};
   for (const [name, e] of [...exports].sort(([a], [b]) => a.localeCompare(b)))
     summary[name] = { policies_sha256: await sha256(e.policies), rules: e.rules };
+  const hashed: Check[] = [];
+  for (const c of checks)
+    hashed.push({ ...c, left_sha256: await sha256(c.left), right_sha256: await sha256(c.right) });
   return {
     schema: [...schemas][0] as string,
-    domain: domain("read"),
+    domains: Object.fromEntries(ACTIONS.map((a) => [a, domain(a)])),
+    invariants: Object.fromEntries([...used].sort().map((id) => [id, INVARIANTS[id].cedar])),
     exports: summary,
-    checks,
+    checks: hashed,
   };
 }
 
@@ -389,13 +448,21 @@ export function decode(
       item.grants = [
         {
           to: actor.id,
+          class: cls,
           mode: "read",
           ...(grant.expires === undefined ? {} : { expires: toInstant(grant.expires) }),
         },
       ];
   } else {
     const existing = ctx.existing as Obj | undefined;
-    const grantTo = (n: number): Grant => ({ to: `actor:grantee${n}`, mode: "read" });
+    // A grant the per-grant rules accept (ADR 0021: it names the item's class
+    // and an expiry), which the export does not translate (ADR 0041, decision 5).
+    const grantTo = (n: number): Grant => ({
+      to: `actor:grantee${n}`,
+      class: cls,
+      mode: "read",
+      expires: "9999-12-31T23:59:59Z",
+    });
     if (ctx.granted === true) item.grants = [grantTo(0)];
     if (existing !== undefined) {
       decoded.promotion = ctx.in_place_promotion === true;
@@ -507,14 +574,21 @@ function normalise(r: CedarRequest, names: Names | null): Json {
 
 /** Whether Engram's evaluator allows a decoded request under `policy`, for the check's action. */
 export function evaluatorAllows(policy: Policy, d: Decoded): boolean {
-  if (d.action === "read")
-    return evaluateRead(policy, d.actor, d.item, d.at as string, d.validAt).admitted;
+  return evaluatorDecides(policy, d).allows;
+}
+
+/** The evaluator's verdict on a decoded request, with the rule that decided it. */
+export function evaluatorDecides(policy: Policy, d: Decoded): { allows: boolean; rule: string } {
+  if (d.action === "read") {
+    const r = evaluateRead(policy, d.actor, d.item, d.at as string, d.validAt);
+    return { allows: r.admitted, rule: r.policy_id };
+  }
   const w = evaluateWrite(policy, d.actor, d.item, d.existing, d.retired, undefined, {
     promotion: d.promotion,
   });
-  return d.action === "write"
-    ? w.decision === "allow"
-    : w.decision === "allow" && w.check === "admit";
+  const allows =
+    d.action === "write" ? w.decision === "allow" : w.decision === "allow" && w.check === "admit";
+  return { allows, rule: w.policy_id };
 }
 
 export interface Replay {
@@ -523,6 +597,8 @@ export interface Replay {
   problems: string[];
   engram: Obj | null;
   left_allows: boolean | null;
+  /** The rule of the left preset's evaluator that decided. */
+  left_rule: string;
   right_allows: boolean | null;
   reproduced: boolean;
 }
@@ -541,7 +617,8 @@ export function replay(job: Job, answers: readonly Answer[]): Replay[] {
     const check = checks.get(a.id);
     if (!check) throw new Error(`an answer for no check: ${a.id}`);
     const { decoded, faithful, problems } = decode(a.counterexample, check.action);
-    const leftAllows = evaluatorAllows(loadPreset(check.left_preset), decoded);
+    const left = evaluatorDecides(loadPreset(check.left_preset), decoded);
+    const leftAllows = left.allows;
     const rightAllows =
       check.right_preset === null
         ? INVARIANTS[check.property as InvariantId].holds(decoded)
@@ -552,6 +629,7 @@ export function replay(job: Job, answers: readonly Answer[]): Replay[] {
       problems,
       engram: engramView(decoded),
       left_allows: leftAllows,
+      left_rule: left.rule,
       right_allows: rightAllows,
       reproduced: faithful && leftAllows && !rightAllows,
     });
@@ -567,7 +645,9 @@ function engramView(d: Decoded): Obj {
     class: i.class,
     status: i.status,
     kind: i.provenance.kind,
-    confidence: i.confidence,
+    // Exactly, as the shortest decimal that reads back to the same double;
+    // the result's writer rounds numbers.
+    confidence: String(i.confidence),
     version: i.version,
     valid_from: i.valid_from,
     valid_to: i.valid_to,

@@ -9,7 +9,9 @@ a cvc5 at another version, and the exit status when a tool is missing.
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -25,36 +27,25 @@ def config() -> dict[str, Any]:
     return load_config(CONFIG)
 
 
+_JOB: dict[str, Any] = {}
+
+
 def job_for(cfg: dict[str, Any]) -> dict[str, Any]:
-    """A job with the config's checks, named as tools/symcc/properties.ts names them."""
-    checks = []
-    for p in cfg["properties"]:
-        if p["shape"] == "monotone":
-            for a, b in p["pairs"]:
-                for action in p["actions"]:
-                    checks.append(
-                        {
-                            "id": f"{p['id']}/{a}-before-{b}/{action}",
-                            "property": p["id"],
-                            "action": action,
-                            "left_preset": a,
-                            "right_preset": b,
-                        }
-                    )
-        else:
-            actions = ["write", "write_without_review"] if "write" in p["id"] else ["read"]
-            for preset in p["presets"]:
-                for action in actions:
-                    checks.append(
-                        {
-                            "id": f"{p['id']}/{preset}/{action}",
-                            "property": p["id"],
-                            "action": action,
-                            "left_preset": preset,
-                            "right_preset": None,
-                        }
-                    )
-    return {"checks": checks, "domain": "forbid ...", "exports": {"medium": {"rules": 40}}}
+    """The real job of the committed config, as tools/symcc/cli.ts writes it (node, no solver)."""
+    del cfg
+    if not _JOB:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "job.json"
+            subprocess.run(
+                ["node", cp.CLI, "job", "--config", str(CONFIG), "--out", str(out)],
+                cwd=REPO,
+                check=True,
+            )
+            _JOB.update(json.loads(out.read_text(encoding="utf-8")))
+    return _JOB
+
+
+EXPECTED_TO_FAIL = {p["id"] for p in load_config(CONFIG)["properties"] if p["expect"] == "fails"}
 
 
 CEX: dict[str, Any] = {
@@ -81,7 +72,7 @@ def answers_and_replays(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     answers, replays = [], []
     for c in job["checks"]:
-        refuted = c["property"] == "read-monotone-reversed" or c["id"] == refute
+        refuted = c["property"] in EXPECTED_TO_FAIL or c["id"] == refute
         answers.append(
             {
                 "id": c["id"],
@@ -100,6 +91,7 @@ def answers_and_replays(
                     "problems": [],
                     "engram": {"action": c["action"]},
                     "left_allows": True,
+                    "left_rule": "preset/read/person",
                     "right_allows": not reproduced,
                     "reproduced": reproduced,
                 }
@@ -115,22 +107,32 @@ def test_every_property_as_expected_on_the_planted_answers() -> None:
     assert result["status"] == "proof of concept"
     assert result["hypothesis"] == "none"
     assert result["summary"] == {
-        "checks": 13,
+        "checks": 31,
         "proved": 11,
-        "refuted": 2,
-        "reproduced": 2,
-        "as_expected": 13,
+        "refuted": 20,
+        "reproduced": 20,
+        "as_expected": 31,
         "all_as_expected": True,
     }
     assert [p["id"] for p in result["properties"]] == [p["id"] for p in cfg["properties"]]
     assert all(p["as_expected"] for p in result["properties"])
-    control = result["properties"][-1]["checks"][0]
+    control = next(p for p in result["properties"] if p["id"] == "read-monotone-reversed")[
+        "checks"
+    ][0]
     assert control["verdict"] == "refuted"
     assert control["right"] == "strict"
     assert control["counterexample"]["reproduced"] is True
-    invariant = result["properties"][1]["checks"][0]
+    prop = result["properties"][1]
+    invariant = prop["checks"][0]
     assert invariant["right"] == "the property"
     assert "counterexample" not in invariant
+    # Both sides of every check and every domain are in the result, so a
+    # changed statement or domain changes the result's bytes.
+    assert prop["cedar"] == job["invariants"]["model-write-person-scope"]
+    assert set(result["scope"]["domains"]) == {"read", "write", "write_without_review"}
+    assert "evaluate.ts" in result["scope"]["evaluator"]
+    for c in (c for p in result["properties"] for c in p["checks"]):
+        assert len(c["left_sha256"]) == 64 and len(c["right_sha256"]) == 64
     assert dumps_result(result) == dumps_result(cp.assemble(cfg, job, answers, replays))
 
 
@@ -152,9 +154,10 @@ def test_a_control_counterexample_the_evaluator_does_not_reproduce_is_not_as_exp
     job = job_for(cfg)
     answers, replays = answers_and_replays(job, control_reproduced=False)
     result = cp.assemble(cfg, job, answers, replays)
-    assert result["summary"]["reproduced"] == 0
+    assert result["summary"]["reproduced"] == 18  # every refutation but the control's two
     assert result["summary"]["all_as_expected"] is False
-    assert result["properties"][-1]["as_expected"] is False
+    control = next(p for p in result["properties"] if p["id"] == "read-monotone-reversed")
+    assert control["as_expected"] is False
 
 
 def test_answers_that_miss_a_check_are_refused() -> None:
@@ -212,6 +215,16 @@ def test_a_missing_cvc5_exits_with_the_skip_status_and_writes_nothing(
     assert cp.main(["--config", str(CONFIG), "--out", str(out)]) == cp.MISSING
     assert not out.exists()
     assert "cvc5 is missing" in capsys.readouterr().err
+
+
+def test_a_tool_error_exits_with_its_own_status_never_as_a_property_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("CVC5", str(fake_cvc5(tmp_path, "1.3.1")))
+    out = tmp_path / "result.json"
+    assert cp.main(["--config", str(CONFIG), "--out", str(out)]) == cp.TOOL_ERROR
+    assert not out.exists()
+    assert "a tool failed" in capsys.readouterr().err
 
 
 def test_the_offline_guard_forbids_fetching_cvc5(

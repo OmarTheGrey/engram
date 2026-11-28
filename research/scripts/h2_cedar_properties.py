@@ -30,7 +30,9 @@ cvc5 is the pinned release: the CVC5 environment variable, else the binary
 the config pins under .engram/upstream (fetched from the release at its
 sha256 when missing, never under ENGRAM_OFFLINE=1), else `cvc5` on the PATH;
 its version must be the pinned one. When cargo or cvc5 is missing the script
-exits 3 and writes nothing, which make verify-policy reports as a skip. No
+exits 3 and writes nothing, which make verify-policy and make test-repro
+report as a skip; when a tool fails it exits 4, writes nothing, and decides
+no property. No
 model is called and nothing here reads a registered result.
 """
 
@@ -54,8 +56,17 @@ from typing import Any
 from scripts.results_io import REPO, load_config, write_result
 
 CLI = "tools/symcc/cli.ts"
-# The exit status when cargo or cvc5 is missing: make verify-policy skips on it.
+EVALUATOR_LINK = (
+    "proved of exportCedar's text for the three presets, not of evaluate.ts itself; the two are "
+    "tied only by card E2.12's differential test (packages/core/test/property/cedar.test.ts), "
+    "which samples requests and requires the same decision, with the exclusions its header names"
+)
+# The exit status when cargo or cvc5 is missing: make verify-policy and
+# make test-repro (research/scripts/reproduce.py) report it as a skip.
 MISSING = 3
+# The exit status when a tool fails (cargo, cvc5, tools/symcc or node): no
+# property was decided, so it is never reported as a property not as expected.
+TOOL_ERROR = 4
 
 
 class ToolMissing(Exception):
@@ -189,6 +200,8 @@ def assemble(
                 "action": c["action"],
                 "left": c["left_preset"],
                 "right": c["right_preset"] if c["right_preset"] is not None else "the property",
+                "left_sha256": c["left_sha256"],
+                "right_sha256": c["right_sha256"],
                 "request_environments": a["envs"],
                 "verdict": "proved" if a["holds"] else "refuted",
             }
@@ -208,6 +221,7 @@ def assemble(
                     "decode_problems": r["problems"],
                     "evaluator": {
                         "left_allows": r["left_allows"],
+                        "left_rule": r["left_rule"],
                         "right_allows": r["right_allows"],
                     },
                     "reproduced": r["reproduced"],
@@ -219,16 +233,17 @@ def assemble(
             checks.append(entry)
         if not checks:
             raise ValueError(f"{spec['id']}: the job has no check for it")
-        properties.append(
-            {
-                "id": spec["id"],
-                "shape": spec["shape"],
-                "statement": spec["statement"],
-                "expect": spec["expect"],
-                "checks": checks,
-                "as_expected": all(c["as_expected"] for c in checks),
-            }
-        )
+        prop: dict[str, Any] = {
+            "id": spec["id"],
+            "shape": spec["shape"],
+            "statement": spec["statement"],
+            "expect": spec["expect"],
+            "checks": checks,
+            "as_expected": all(c["as_expected"] for c in checks),
+        }
+        if spec["shape"] == "invariant":
+            prop["cedar"] = job["invariants"][spec["id"]]
+        properties.append(prop)
     return {
         "name": config["name"],
         "card": config["card"],
@@ -244,7 +259,8 @@ def assemble(
         "scope": {
             "grants": "flattened by the export (ADR 0041, decision 5): "
             "every proof holds modulo grants",
-            "domain": job["domain"],
+            "domains": job["domains"],
+            "evaluator": EVALUATOR_LINK,
         },
         "exports": job["exports"],
         "properties": properties,
@@ -336,6 +352,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ToolMissing as e:
         print(f"h2_cedar_properties: {e}", file=sys.stderr)
         return MISSING
+    except subprocess.CalledProcessError as e:
+        if e.stderr:
+            print(e.stderr, file=sys.stderr, end="")
+        print(f"h2_cedar_properties: a tool failed: {e}", file=sys.stderr)
+        return TOOL_ERROR
+    except (ValueError, OSError) as e:
+        print(f"h2_cedar_properties: a tool failed: {e}", file=sys.stderr)
+        return TOOL_ERROR
     write_result(args.out, result)
     print("\n".join(report(result)))
     return 0 if result["summary"]["all_as_expected"] else 1

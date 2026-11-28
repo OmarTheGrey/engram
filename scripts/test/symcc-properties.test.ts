@@ -4,6 +4,7 @@
 // `make verify-policy` (cargo and cvc5); here a counterexample is built the
 // way the solver returns one, from a Cedar request with every entity renamed,
 // so these tests need neither.
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import type { Actor } from "../../packages/core/src/actor.ts";
@@ -129,14 +130,33 @@ describe("the checks", () => {
       "person-read-needs-grant/permissive/read",
       "read-monotone-reversed/medium-before-strict/read",
       "read-monotone-reversed/permissive-before-medium/read",
+      ...["strict", "medium", "permissive"].flatMap((p) =>
+        ["read", "write", "write_without_review"].map((a) => `left-allows-some/${p}/${a}`),
+      ),
+      ...["strict", "medium", "permissive"].flatMap((p) =>
+        ["write", "write_without_review"].map((a) => `model-write-reachable/${p}/${a}`),
+      ),
+      ...["strict", "medium", "permissive"].map(
+        (p) => `person-read-by-non-member-reachable/${p}/read`,
+      ),
     ]);
     for (const c of j.checks) {
       const left = exportCedar(loadPreset(c.left_preset)).policies;
       expect(c.left).toBe(`${left}\n${domain(c.action)}\n`);
       if (c.right_preset !== null)
         expect(c.right).toBe(exportCedar(loadPreset(c.right_preset)).policies);
-      else expect(c.right).toBe(`${INVARIANTS[c.property as keyof typeof INVARIANTS].cedar}\n`);
+      else {
+        const cedar = INVARIANTS[c.property as keyof typeof INVARIANTS].cedar;
+        expect(c.right).toBe(cedar === "" ? "" : `${cedar}\n`);
+      }
+      // Both sides are hashed, so the result's bytes move with either.
+      expect(c.left_sha256).toBe(createHash("sha256").update(c.left).digest("hex"));
+      expect(c.right_sha256).toBe(createHash("sha256").update(c.right).digest("hex"));
     }
+    expect(Object.keys(j.domains)).toEqual(["read", "write", "write_without_review"]);
+    for (const a of ["read", "write", "write_without_review"] as const)
+      expect(j.domains[a]).toBe(domain(a));
+    expect(Object.keys(j.invariants)).toEqual(Object.keys(INVARIANTS).sort());
     expect(Object.keys(j.exports)).toEqual(["medium", "permissive", "strict"]);
     expect(j.schema).toBe(exportCedar(loadPreset("medium")).schema);
   });
@@ -145,11 +165,19 @@ describe("the checks", () => {
     const read = domain("read");
     expect(read).toContain('forbid (principal, action == Engram::Action::"read", resource)');
     expect(read).toContain("unless {");
-    for (const s of ['"person", "role", "team", "org"', "253402300799", "999999999", "1072693248"])
+    for (const s of [
+      '"person", "role", "team", "org"',
+      "-62167219200",
+      "253402300799",
+      "999999999",
+      "1072693248",
+    ])
       expect(read).toContain(s);
     expect(read).toContain("context.grant.expires");
     expect(domain("write")).toContain("context.existing.version");
-    expect(domain("write")).not.toContain("context.grant");
+    expect(domain("write")).not.toContain("context.grant.expires");
+    // The flattened grant flags only as the encoder sets them.
+    expect(domain("write")).toContain("if context.in_place_promotion then");
   });
 
   test("a config naming a preset, action or invariant there is not is refused", () => {
@@ -184,6 +212,17 @@ describe("counterexamples", () => {
     expect(decoded.at).toBe(at);
   });
 
+  test("an instant before 1970, which a timestamp can write, decodes and round-trips", () => {
+    const early = item({ valid_from: "0001-01-01T00:00:00.25Z" });
+    const { decoded, faithful } = decode(
+      asSolver(cedarReadRequest(omar, early, "1960-06-01T00:00:00Z")),
+      "read",
+    );
+    expect(faithful).toBe(true);
+    expect(decoded.item.valid_from).toBe("0001-01-01T00:00:00.250000000Z");
+    expect(decoded.at).toBe("1960-06-01T00:00:00Z");
+  });
+
   test("the evaluator reproduces a counterexample: medium admits the read, strict does not", async () => {
     const id = "read-monotone-reversed/medium-before-strict/read";
     const [r] = replay(await loadJob(), [answer(id, asSolver(cedarReadRequest(omar, old, at)))]);
@@ -209,7 +248,7 @@ describe("counterexamples", () => {
     const { decoded, faithful } = decode(cex, "read");
     expect(faithful).toBe(true);
     expect(decoded.item.grants).toEqual([
-      { to: decoded.actor.id, mode: "read", expires: "2026-04-01T00:00:00Z" },
+      { to: decoded.actor.id, class: "semantic", mode: "read", expires: "2026-04-01T00:00:00Z" },
     ]);
     // The property's own statement over the Engram request: a live grant names the reader.
     expect(INVARIANTS["person-read-needs-grant"].holds(decoded)).toBe(true);

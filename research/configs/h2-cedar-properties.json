@@ -4,7 +4,7 @@
   "hypothesis": "none",
   "status": "proof of concept",
   "card": "E2.18",
-  "wording": "properties of the three registered presets proved for every request the Cedar export can express, by Cedar's symbolic compiler and cvc5, modulo grants (ADR 0041, decision 5); a proof of concept of the evaluator's first proofs, no hypothesis result, and no registered analysis reads it",
+  "wording": "properties of the Cedar export of the three registered presets, proved by Cedar's symbolic compiler and cvc5 for every request in the stated domain (scope.domains: every level, status, class, source kind, version, ttl, confidence and instant from 0000 to 9999 that Engram's schema accepts, instants to the nanosecond as the export encodes them), modulo grants (ADR 0041, decision 5); tied to evaluate.ts only by card E2.12's sampled differential test (scope.evaluator); a proof of concept, no hypothesis result, and no registered analysis reads it",
   "tools": {
     "symcc": {
       "manifest": "tools/symcc/Cargo.toml",
@@ -65,6 +65,27 @@
       "actions": ["read"],
       "expect": "fails",
       "statement": "the control: the converse of read-monotone, which must be refuted, with a counterexample the evaluator reproduces; it shows the solver is not answering yes to everything and exercises the replay"
+    },
+    {
+      "id": "left-allows-some",
+      "shape": "invariant",
+      "presets": ["strict", "medium", "permissive"],
+      "expect": "fails",
+      "statement": "non-vacuity: each preset's left set, its export with the domain, allows some read, some write and some write without review, so no proof above holds because its left side allows nothing"
+    },
+    {
+      "id": "model-write-reachable",
+      "shape": "invariant",
+      "presets": ["strict", "medium", "permissive"],
+      "expect": "fails",
+      "statement": "non-vacuity: each preset allows some model-sourced write, with and without review, so model-write-person-scope is about writes that happen"
+    },
+    {
+      "id": "person-read-by-non-member-reachable",
+      "shape": "invariant",
+      "presets": ["strict", "medium", "permissive"],
+      "expect": "fails",
+      "statement": "non-vacuity: each preset lets a non-member read some person scope's item, under a grant, so person-read-needs-grant is about reads that happen"
     }
   ]
 }
