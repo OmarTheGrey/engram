@@ -13,6 +13,10 @@
 // own temporary repository, `history`, `delete` and `read`, since the plane
 // has neither history nor delete (checkLettaAdapter).
 //
+// One check warns and never fails: `harness memory` (card E9.10), the harness
+// memory files outside every store root, counted by `engram discover`'s walk
+// of the home and the current folder, by size and time only, never content.
+//
 // The checks that read the repository (provider key names, benchmark pins,
 // the pi pin) run only from a checkout (`io.repo`); elsewhere they are
 // skipped with that reason. The provider key names come from
@@ -43,6 +47,7 @@ import {
 } from "@engram/core";
 import { bindRefusal, hasCredentialFlags, openCredentials } from "@engram/server";
 import { parse } from "./commands.ts";
+import { discoverHarnessMemory, outsideText } from "./discover.ts";
 import { plural } from "./format.ts";
 import { AUTH_OPTIONS, OPTIONS } from "./registry.ts";
 import type { Io } from "./run.ts";
@@ -57,7 +62,8 @@ import {
   MEMORY_DB,
 } from "./setup.ts";
 
-export type Status = "ok" | "fail" | "skip";
+/** A warning is said and counted, and never fails the run (card E9.10). */
+export type Status = "ok" | "warn" | "fail" | "skip";
 export type CheckResult = [Status, string];
 export interface Check {
   status: Status;
@@ -617,6 +623,24 @@ export function checkServe(
   return ["ok", `${host}: authenticated, ${parts.join("; ")}`];
 }
 
+/**
+ * The harness memory files outside every store root (card E9.10): a
+ * warning when there is one, never a failure. Gate D's zero violations are
+ * measured on the plane with this memory stated as outside it; the check
+ * says how much of it there is on this machine. The walk is discover's:
+ * the home's harness locations and the current folder, sizes and times only.
+ */
+export function checkHarnessMemory(
+  home: string,
+  projects: readonly string[],
+  roots: readonly string[],
+): CheckResult {
+  const d = discoverHarnessMemory({ home, projects, roots });
+  const floor = d.bounded.length > 0 ? " (a floor: the walk stopped at a bound)" : "";
+  const said = `${outsideText(d)}${floor}; ${d.inside} inside one`;
+  return d.outside === 0 ? ["ok", said] : ["warn", `${said}; engram discover lists them`];
+}
+
 /** Node 24 or later. */
 export function checkNode(version: string): CheckResult {
   const major = Number(version.split(".")[0]);
@@ -669,14 +693,21 @@ export async function doctorCommand(args: string[], io: Io): Promise<number> {
   await check("benchmark pins", () => checkBenchmarkPins(io.repo));
   await check("pi pin", () => checkPiPin(io.repo));
   await check("node", () => checkNode(io.nodeVersion));
+  await check("harness memory", () =>
+    checkHarnessMemory(io.home, [io.cwd], root === undefined ? [] : [root]),
+  );
   await check("serve", () => checkServe(values, io.cwd, at));
 
   const failed = checks.filter((c) => c.status === "fail").length;
-  if (values.json) io.out(`${JSON.stringify({ checks, failed }, null, 2)}\n`);
+  const warned = checks.filter((c) => c.status === "warn").length;
+  if (values.json) io.out(`${JSON.stringify({ checks, failed, warned }, null, 2)}\n`);
   else {
     const lines = checks.map((c) => `${c.status.padEnd(5)}${c.name.padEnd(16)}${c.detail}`);
+    const warnings = warned === 0 ? "" : `, ${plural(warned, "warning")}`;
     lines.push(
-      failed === 0 ? "doctor: all checks passed" : `doctor: ${plural(failed, "check")} failed`,
+      failed === 0
+        ? `doctor: all checks passed${warnings}`
+        : `doctor: ${plural(failed, "check")} failed${warnings}`,
     );
     io.out(`${lines.join("\n")}\n`);
   }

@@ -63,8 +63,18 @@ const ON_MAIN = [
   "log verify",
   "log checkpoint",
 ];
-/** The commands card E8.15a adds (docs/design/tui.md 3.6), read --item and scopes over card E8.14's routes, and E8.15b's tui. */
-const ADDED = ["read --item", "check", "grants", "events", "policy", "scopes", "tui"];
+/** The commands card E8.15a adds (docs/design/tui.md 3.6), read --item and scopes over card E8.14's routes, E8.15b's tui and E9.10's discover. */
+const ADDED = [
+  "read --item",
+  "check",
+  "grants",
+  "events",
+  "policy",
+  "scopes",
+  "tui",
+  // Card E9.10.
+  "discover",
+];
 
 describe("HELP from the registry", () => {
   it("is run.ts's HELP, and its first line names engram tui", () => {
