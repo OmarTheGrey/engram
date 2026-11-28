@@ -27,3 +27,4 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h1-redteam.json | research/configs/redteam.json | research/scripts/redteam.py | fe05b8a3 | c1e73f53c9efda9de310e6bf76f8888210ad08da2311ae90d93f6088608610ae | none |
 | research/results/h3-near-duplicate.json | research/configs/near-duplicate.json | research/scripts/near_duplicate.py | 8387b6a6 | f50c8f465a2479c84894d4a6fd0fcfbd55df71bcdcc7d3559515d9b46e9b8b3b | none |
 | research/results/h3-lint-nli.json | research/configs/h3-lint-nli.json | research/scripts/h3_lint_nli.py | 030a7fba | 22e3c1225171941d7fac6d426942dd0d52634499a6290d709f4f8f47888763db | none |
+| research/results/h2-cedar-properties.json | research/configs/h2-cedar-properties.json | research/scripts/h2_cedar_properties.py | d8d34ffc | e36dc45356e7346034c7487e0ae43237e25bc10b780a12e83ffa1a9ce5ddcc29 | none |

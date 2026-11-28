@@ -993,6 +993,36 @@
           ]
         }
       ]
+    },
+    {
+      "file": "research/results/h2-cedar-properties.json",
+      "hypothesis": "none",
+      "status": "proof of concept",
+      "prereg": null,
+      "question": "Do the registered presets' Cedar exports satisfy, for every request Engram can express, that strict allows no read medium denies and medium none permissive denies, that a model-sourced write lands only in a person scope its writer is a member of, and that a person's item is read only by a member or under a live grant; and is the converse refuted with a counterexample the evaluator reproduces?",
+      "headline": [
+        {
+          "label": "checks",
+          "path": ["summary", "checks"]
+        },
+        {
+          "label": "proved",
+          "path": ["summary", "proved"]
+        },
+        {
+          "label": "refuted (the control's two checks)",
+          "path": ["summary", "refuted"]
+        },
+        {
+          "label": "refutations the evaluator reproduces",
+          "path": ["summary", "reproduced"]
+        },
+        {
+          "label": "every check as the config expects",
+          "path": ["summary", "all_as_expected"]
+        }
+      ],
+      "note": "Card E2.18. Proved by cedar-policy-symcc 0.8.1 and cvc5 1.4.2 on card E2.12's Cedar export, modulo grants (ADR 0041, decision 5); `make verify-policy` reruns it. The file is under `h2-` for the results glob only."
     }
   ]
 }
