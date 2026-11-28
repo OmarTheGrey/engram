@@ -79,7 +79,23 @@ export class ExportScreen extends SurfaceScreen {
     return undefined;
   }
   protected override buttons(): Button[] {
-    return [{ id: "button:run", label: "Export", press: (c) => this.run(c) }];
+    return [
+      { id: "button:run", label: "Export", press: (c) => this.run(c) },
+      // Card E9.16: the subject access export, its report shown on its screen.
+      {
+        id: "button:subject-export",
+        label: "Subject access export",
+        press: (c) => {
+          const db = (this.form.get("db") as string | undefined) || undefined;
+          const as = this.ctx.ws.actorId();
+          const person = as?.startsWith("person:") ? as : undefined;
+          return c.openCommand(spec("export --subject"), {
+            db,
+            ...(person === undefined ? {} : { subject: person }),
+          });
+        },
+      },
+    ];
   }
   protected override rich(_ctx: Ctx, width: number, result: RunResult): Row[] {
     return [{ kind: "text", lines: this.plainLines(result, width) }];
@@ -479,6 +495,12 @@ export class LogVerifyScreen extends SurfaceScreen {
         id: "button:audit-verify",
         label: "Verify an audit report",
         press: (c) => c.openCommand(spec("audit verify"), { db: db() }),
+      },
+      {
+        // Card E9.16: the record of processing, counts from this log.
+        id: "button:audit-ropa",
+        label: "Record of processing",
+        press: (c) => c.openCommand(spec("audit ropa"), { db: db() }),
       },
     ];
   }

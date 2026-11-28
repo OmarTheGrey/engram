@@ -3,7 +3,7 @@
    Public key       [                                          ]
    Held checkpoints [                                          ]  enter adds
 
- [ Verify ]  [ Export an audit report ]  [ Verify an audit report ]
+ [ Verify ]  [ Export an audit report ]  [ Verify an audit report ]  [ Record of processing ]
 
  ✗ broken   exit 1  the chain or a checkpoint does not verify
 

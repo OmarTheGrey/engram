@@ -4,6 +4,7 @@
    Held checkpoints [                          ]  enter adds
 
  [ Verify ]  [ Export an audit report ]  [ Verify an audit report ]
+ [ Record of processing ]
 
  ▲ unsigned   exit 3  intact, but no pinned, signed checkpoint covers it
 
@@ -19,7 +20,6 @@
  The chain proves no event was changed or removed after it was written, and
  from chain version 2 that no served event's attestation was changed. A signed
  checkpoint also proves who vouched for it.
-
 $ engram log verify --db engram.db   exit 3
  ? help  ctrl+s verify  v plain  J json  ; commands  esc back
 --- styles

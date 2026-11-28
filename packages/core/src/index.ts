@@ -2,6 +2,7 @@
 export * from "./adapter.ts";
 export * from "./audit/dsse.ts";
 export * from "./audit/report.ts";
+export * from "./audit/ropa.ts";
 export * from "./content-hash.ts";
 export * from "./crypto/keys.ts";
 export * from "./db/db.ts";

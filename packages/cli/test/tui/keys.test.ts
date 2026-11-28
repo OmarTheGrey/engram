@@ -180,6 +180,8 @@ describe("the frame's keys", () => {
         "hook install",
         "audit export",
         "audit verify",
+        "audit ropa",
+        "export --subject",
         "explain --absent",
       ]).toContain(s.name);
     await wide.quit();
@@ -192,6 +194,8 @@ describe("the frame's keys", () => {
       ["hook install", "Install a hook"],
       ["audit export", "Export an audit report"],
       ["audit verify", "Verify an audit report"],
+      ["audit ropa", "Record of processing"],
+      ["export --subject", "Subject access export"],
       // Card E2.17.
       ["explain --absent", "Why not this item"],
     ] as const) {

@@ -5,7 +5,7 @@
    Encryption   (o) none   ( ) age recipients   ( ) passphrase file
    ▸ More flags: 7, set: --db --owner
 
- [ Export ]
+ [ Export ]  [ Subject access export ]
 
  ✓ exit 0  exported
 

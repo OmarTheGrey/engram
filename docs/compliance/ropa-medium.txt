@@ -1,0 +1,52 @@
+record of processing under preset.medium v1 (policy sha256 fdc920e02b7b656b3612c5d69acb9ebcc482f5f46a61dcc00d5c4ec0839b42a5), schema version 1
+GDPR Article 30(1), as far as the policy states it:
+  (a) not held by the policy, for the controller to state: the name and contact details of the controller, any joint controller, representative and data protection officer
+  (b) not held by the policy, for the controller to state: the purposes of the processing
+  (e) not held by the policy, for the controller to state: transfers of personal data to a third country or international organisation
+person scopes
+  (c) data subjects: the person the scope is named for, and the people its memories mention
+  (c) episodic: from compaction, document, import, model, tool, user, confidence at least 0.3
+  (c) semantic: from compaction, document, import, model, tool, user, confidence at least 0.3
+  (c) procedural: from compaction, document, import, model, tool, user, confidence at least 0.3
+  (d) recipients: the members of the scope at a level that reads it (person, role), and the grantees an item's owner names
+  (f) episodic: retired after 7776000 s, at most 5000 active (recency eviction)
+  (f) semantic: no ttl, at most 2000 active (utility eviction)
+  (f) procedural: no ttl, at most 200 active (utility eviction)
+  items: semantic active 1, retired 2
+role scopes
+  (c) data subjects: the holders of the role, and the people its memories mention
+  (c) semantic: from document, import, tool, user, confidence at least 0.5
+  (c) procedural: from document, import, tool, user, confidence at least 0.5
+  (c) never held: episodic
+  (d) recipients: the members of the scope at a level that reads it (person, role, team), and the grantees an item's owner names
+  (f) semantic: no ttl, at most 2000 active (utility eviction)
+  (f) procedural: no ttl, at most 200 active (utility eviction)
+  items: none
+team scopes
+  (c) data subjects: the team's members, and the people its memories mention
+  (c) semantic: from document, import, tool, user, confidence at least 0.6
+  (c) procedural: from document, import, tool, user, confidence at least 0.6
+  (c) never held: episodic
+  (d) recipients: the members of the scope at a level that reads it (person, role, team, org), and the grantees an item's owner names
+  (f) semantic: no ttl, at most 10000 active (utility eviction)
+  (f) procedural: no ttl, at most 500 active (utility eviction)
+  items: semantic active 3
+org scopes
+  (c) data subjects: the organisation's members, and the people its memories mention
+  (c) semantic: from document, import, tool, user, confidence at least 0.8, reviewed
+  (c) procedural: from document, import, tool, user, confidence at least 0.8, reviewed
+  (c) never held: episodic
+  (d) recipients: the members of the scope at a level that reads it (person, role, team, org), and the grantees an item's owner names
+  (f) semantic: no ttl
+  (f) procedural: no ttl
+  items: none
+(f) erasure: redact, by offboarding a person scope: its items leave the store and the projection, the events keep their decisions
+(g) measures:
+  a write gate: every write is decided against the write rules and logged with its reason and rule
+  a read filter: every read is filtered by the read matrix and grants, and logged
+  a hash-chained event log of every decision (engram log verify)
+  memory lints enabled: duplicate, expired-validity, missing-provenance, orphan, scope-class-mismatch, source-changed
+consent opt-outs: 0
+note: evidence a controller can put in its record of processing activities (GDPR Article 30(1)), not the record itself and not a certification
+note: counts and categories only: no content, item id, scope id, actor or reason
+note: a ttl retires an item and keeps its bytes (ADR 0010); erasure is by offboarding a person scope

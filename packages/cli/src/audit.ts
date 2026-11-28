@@ -1,5 +1,8 @@
 // `engram audit export` and `engram audit verify` (card E9.15): the signed
 // audit report of a window of the event log, and its check against the log.
+// `engram audit ropa` (card E9.16): the record of processing core's
+// ropaRecord builds from the policy, with each level's counts from a log
+// given by --db; counts and categories only.
 // The statement and its verification are core's (packages/core/src/audit/);
 // here are the files, the operator's Ed25519 key (signing.ts, as for `log
 // checkpoint`) and the printing. Like `engram log`, both read the log's own
@@ -23,7 +26,10 @@ import {
   type AuditVerification,
   auditStatement,
   type Checkpoint,
+  currentItems,
   envelopeText,
+  type RopaRecord,
+  ropaRecord,
   signAuditStatement,
   VERDICT_EXIT,
   verifyAuditReport,
@@ -257,9 +263,74 @@ async function verifyCommand(args: string[], io: Io): Promise<number> {
   }
 }
 
+/** The record as `engram audit ropa` prints it without --json. */
+export function ropaText(r: RopaRecord): string {
+  const lines = [
+    `record of processing under ${r.policy.id} v${r.policy.version} (policy sha256 ${r.policy.sha256}), schema version ${r.schema_version}`,
+    "GDPR Article 30(1), as far as the policy states it:",
+  ];
+  for (const n of r.not_held)
+    lines.push(`  (${n.point}) not held by the policy, for the controller to state: ${n.field}`);
+  for (const l of r.levels) {
+    lines.push(`${l.level} scopes`);
+    lines.push(`  (c) data subjects: ${l.data_subjects}`);
+    for (const c of l.categories)
+      lines.push(
+        `  (c) ${c.class}: from ${c.allowed_sources.join(", ") || "no source"}, confidence at least ${c.confidence_floor}${c.requires_review ? ", reviewed" : ""}`,
+      );
+    if (l.forbidden_classes.length > 0)
+      lines.push(`  (c) never held: ${l.forbidden_classes.join(", ")}`);
+    const readers = l.recipients.reader_levels;
+    lines.push(
+      `  (d) recipients: ${readers.length === 0 ? "no reader level" : `the members of the scope at a level that reads it (${readers.join(", ")})`}${l.recipients.grants_honoured ? ", and the grantees an item's owner names" : ""}`,
+    );
+    if (l.time_limits.length === 0)
+      lines.push("  (f) time limits: none set; items stay until erased");
+    for (const t of l.time_limits)
+      lines.push(
+        `  (f) ${t.class}: ${t.ttl === null ? "no ttl" : `retired after ${t.ttl} s`}${t.budget === null ? "" : `, at most ${t.budget} active (${t.eviction} eviction)`}`,
+      );
+    if (l.counts !== null) {
+      const parts = Object.entries(l.counts).map(
+        ([cls, by]) =>
+          `${cls} ${Object.entries(by)
+            .map(([st, n]) => `${st} ${n}`)
+            .join(", ")}`,
+      );
+      lines.push(`  items: ${parts.length === 0 ? "none" : parts.join("; ")}`);
+    }
+  }
+  lines.push(`(f) erasure: ${r.erasure.mode}, by ${r.erasure.by}`);
+  lines.push("(g) measures:");
+  for (const m of r.measures) lines.push(`  ${m}`);
+  lines.push(`consent opt-outs: ${r.consent_opt_outs}`);
+  for (const n of r.notes) lines.push(`note: ${n}`);
+  return `${lines.join("\n")}\n`;
+}
+
+async function ropaCommand(args: string[], io: Io): Promise<number> {
+  const { values } = parse(args, OPTIONS["audit ropa"], false);
+  const policy = loadPolicy(values.policy, io.cwd);
+  let items: ReturnType<typeof currentItems> | undefined;
+  if (values.db !== undefined) {
+    const db = openExisting(values, io);
+    try {
+      items = currentItems(db);
+    } finally {
+      db.close();
+    }
+  }
+  const record = ropaRecord(policy, items);
+  io.out(values.json ? `${JSON.stringify(record, null, 2)}\n` : ropaText(record));
+  return 0;
+}
+
 export async function auditCommand(args: string[], io: Io): Promise<number> {
   const [sub, ...rest] = args;
   if (sub === "export") return exportCommand(rest, io);
   if (sub === "verify") return verifyCommand(rest, io);
-  throw new UsageError(`engram audit takes export or verify, not ${JSON.stringify(sub ?? "")}`);
+  if (sub === "ropa") return ropaCommand(rest, io);
+  throw new UsageError(
+    `engram audit takes export, verify or ropa, not ${JSON.stringify(sub ?? "")}`,
+  );
 }
