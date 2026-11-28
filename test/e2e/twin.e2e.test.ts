@@ -184,6 +184,20 @@ describe.skipIf(skip !== undefined)("the twin screens on the twin fixture worksp
     );
     expect(await outcome.textContent()).toContain("has no expiry");
 
+    // Card E2.21: the twin profile's cap, shown beside the expiry and in the refusal.
+    expect(
+      await card(ONE as string)
+        .getByTestId("grant-cap-note")
+        .textContent(),
+    ).toContain("365 days");
+    const capped = await addGrant(ONE as string, "person:lee", "2028-01-01");
+    expect(capped).toMatchObject({ decision: "deny", policy_id: "engram/write/grant-expiry-cap" });
+    expect(await outcome.getByTestId("grant-outcome-policy").textContent()).toBe(
+      "engram/write/grant-expiry-cap",
+    );
+    expect(await outcome.textContent()).toContain("the limit of 365 days");
+    expect(await outcome.textContent()).toContain("expires 2028-01-01T00:00:00Z");
+
     const model = await addGrant(SIX as string, "person:sam", "2026-12-19");
     expect(model).toMatchObject({ decision: "deny", policy_id: "engram/write/grant" });
     expect(model.reason).toContain("model content carries no grants");
