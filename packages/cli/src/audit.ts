@@ -18,9 +18,11 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   type Actor,
+  ActorShape,
   type AuditStatement,
   type AuditVerification,
   auditStatement,
+  type Checkpoint,
   envelopeText,
   signAuditStatement,
   VERDICT_EXIT,
@@ -68,6 +70,47 @@ function viewerOf(values: Values): Actor | undefined {
   );
 }
 
+/**
+ * The actors declared to the oracle (--declare <file>): a JSON array of
+ * actors as core takes them, each an id, a level and its memberships. The
+ * log records no memberships, so without them the report gives no oracle count.
+ */
+function declaredOf(io: Io, values: Values): Actor[] | undefined {
+  if (values.declare === undefined) return undefined;
+  const path = values.declare as string;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readText(io, "--declare", path));
+  } catch (e) {
+    if (e instanceof UsageError) throw e;
+    throw new UsageError(`--declare ${path} is not JSON`);
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0)
+    throw new UsageError(`--declare ${path} is not a non-empty JSON array of actors`);
+  return parsed.map((a, i) => {
+    const r = ActorShape.safeParse(a);
+    if (!r.success)
+      throw new UsageError(
+        `--declare ${path}: actor ${i + 1} is not an actor (id, level, memberships)`,
+      );
+    return { id: r.data.id, level: r.data.level, memberships: r.data.memberships };
+  });
+}
+
+/** A checkpoint kept outside the log (log checkpoint --out), as `log verify --checkpoint` reads it. */
+function heldCheckpoint(io: Io, path: string): Checkpoint {
+  const text = readText(io, "--checkpoint", path);
+  try {
+    const c = JSON.parse(text) as Checkpoint;
+    if (typeof c.note !== "string") throw new Error("no note");
+    return { note: c.note, key: c.key ?? null, signature: c.signature ?? null };
+  } catch {
+    throw new UsageError(
+      `--checkpoint ${path} is not a checkpoint engram log checkpoint --out wrote`,
+    );
+  }
+}
+
 /** The log, checked as `log verify` checks it before reading: it must exist and be one this plane can read. */
 function openExisting(values: Values, io: Io) {
   const target = dbTarget(values.db as string | undefined, io);
@@ -104,8 +147,10 @@ function summary(s: AuditStatement): string[] {
     lines.push(`  rule ${rule}: ${counts(p.by_rule[rule] as Record<string, number>)}`);
   lines.push(
     p.oracle === null
-      ? "oracle: not judged for a viewer"
-      : `oracle: ${p.oracle.violations.total} violations (read ${p.oracle.violations.read}, grant change ${p.oracle.violations.grant_change})`,
+      ? p.reach.whole_log
+        ? "oracle: not counted, no actor declared (--declare)"
+        : "oracle: not judged for a viewer"
+      : `oracle: ${p.oracle.violations.total} violations (read ${p.oracle.violations.read}, grant change ${p.oracle.violations.grant_change}), ${p.oracle.declared} actors declared, set sha256 ${p.oracle.declared_sha256}`,
   );
   for (const n of p.notes) lines.push(`note: ${n}`);
   return lines;
@@ -129,6 +174,7 @@ async function exportCommand(args: string[], io: Io): Promise<number> {
   }
   const policy = loadPolicy(values.policy, io.cwd);
   const viewer = viewerOf(values);
+  const declared = declaredOf(io, values);
   const db = openExisting(values, io);
   try {
     // Nothing is signed unless the log verifies first, every stored
@@ -141,6 +187,7 @@ async function exportCommand(args: string[], io: Io): Promise<number> {
       verify: signatureCheck,
       pin: signer.key,
       ...(viewer === undefined ? {} : { viewer }),
+      ...(declared === undefined ? {} : { declared }),
     });
     const text = envelopeText(signAuditStatement(statement, signer));
     if (values.out === undefined) {
@@ -189,6 +236,10 @@ async function verifyCommand(args: string[], io: Io): Promise<number> {
   }
   const policy = loadPolicy(values.policy, io.cwd);
   const viewer = viewerOf(values);
+  const declared = declaredOf(io, values);
+  const held = ((values.checkpoint as string[] | undefined) ?? []).map((c) =>
+    heldCheckpoint(io, c),
+  );
   const db = openExisting(values, io);
   try {
     const v = verifyAuditReport(db, envelope, {
@@ -196,6 +247,8 @@ async function verifyCommand(args: string[], io: Io): Promise<number> {
       verify: signatureCheck,
       ...(pin === undefined ? {} : { pin }),
       ...(viewer === undefined ? {} : { viewer }),
+      ...(declared === undefined ? {} : { declared }),
+      ...(held.length === 0 ? {} : { held }),
     });
     io.out(values.json ? `${JSON.stringify(v, null, 2)}\n` : report(v));
     return VERDICT_EXIT[v.verdict];

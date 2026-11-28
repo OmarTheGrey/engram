@@ -544,7 +544,7 @@ const SCREENS: Record<
             "events counted 5: allow 3, deny 2",
             "  write: allow 2, deny 2",
             "  rule engram/write/membership: deny 1",
-            "oracle: 0 violations (read 0, grant change 0)",
+            "oracle: 0 violations (read 0, grant change 0), 1 actors declared, set sha256 5d1c",
             "",
           ].join("\n"),
         ),

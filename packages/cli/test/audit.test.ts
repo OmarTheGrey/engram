@@ -45,7 +45,8 @@ describe("engram audit export and verify", () => {
     const { db, pub, out, exportOut } = await exported();
     expect(exportOut).toMatch(/^engram audit export: written to .*report\.json, signed\n/);
     expect(exportOut).toMatch(/checkpoint 0 at \d+ entries, signed, at the head/);
-    expect(exportOut).toMatch(/oracle: 0 violations/);
+    // No actor declared: no oracle count is signed (review of E9.15, finding 1).
+    expect(exportOut).toMatch(/oracle: not counted, no actor declared/);
     const envelope = JSON.parse(readFileSync(out, "utf8"));
     expect(envelope.payloadType).toBe("application/vnd.in-toto+json");
     const statement = JSON.parse(Buffer.from(envelope.payload, "base64").toString("utf8"));
@@ -152,6 +153,63 @@ describe("engram audit export and verify", () => {
     const whole = await cli(["audit", "verify", "--db", db, "--report", out, "--key", pub]);
     expect(whole.code).toBe(1);
     expect(whole.out).toMatch(/fail {2}counts: .*reach/);
+  });
+
+  it("counts the oracle for the actors --declare names, and verify needs the same file", async () => {
+    const { dir, db, priv, pub } = await exported();
+    const declare = join(dir, "actors.json");
+    writeFileSync(
+      declare,
+      JSON.stringify([{ id: "person:dana", level: "person", memberships: ["person:dana"] }]),
+    );
+    const out = join(dir, "declared.json");
+    const e = await cli([
+      "audit",
+      "export",
+      "--db",
+      db,
+      ...WINDOW,
+      "--key",
+      priv,
+      "--out",
+      out,
+      "--declare",
+      declare,
+    ]);
+    expect(e.code, e.err).toBe(0);
+    expect(e.out).toMatch(
+      /oracle: 0 violations \(read 0, grant change 0\), 1 actors declared, set sha256 [0-9a-f]{64}/,
+    );
+    const args = ["audit", "verify", "--db", db, "--report", out, "--key", pub];
+    expect((await cli([...args, "--declare", declare])).code).toBe(0);
+    const undeclared = await cli(args);
+    expect(undeclared.code).toBe(1);
+    expect(undeclared.out).toMatch(/fail {2}counts: .*oracle/);
+    const bad = join(dir, "bad.json");
+    writeFileSync(bad, JSON.stringify([{ id: "person:dana" }]));
+    expect((await cli([...args, "--declare", bad])).code).toBe(2);
+  });
+
+  it("checks the log against a checkpoint held outside it (--checkpoint)", async () => {
+    const { dir, db, priv, pub, out } = await exported();
+    const held = join(dir, "held.json");
+    expect((await cli(["log", "checkpoint", "--db", db, "--key", priv, "--out", held])).code).toBe(
+      0,
+    );
+    const args = ["audit", "verify", "--db", db, "--report", out, "--key", pub];
+    expect((await cli([...args, "--checkpoint", held])).code).toBe(0);
+    // Another log in the report's place, its checkpoint held: the report's log does not extend it.
+    const other = join(dir, "other.db");
+    expect((await cli([...readArgs(other, await fixtureCopy()), "query that differs"])).code).toBe(
+      0,
+    );
+    const theirs = join(dir, "theirs.json");
+    expect(
+      (await cli(["log", "checkpoint", "--db", other, "--key", priv, "--out", theirs])).code,
+    ).toBe(0);
+    const r = await cli([...args, "--checkpoint", theirs]);
+    expect(r.code).toBe(1);
+    expect(r.out).toMatch(/fail {2}chain: .*held/);
   });
 
   it("refuses a missing log, missing flags and an unknown subcommand, exit 2", async () => {

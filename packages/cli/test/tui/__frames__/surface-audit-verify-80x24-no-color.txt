@@ -1,5 +1,5 @@
  engram  Verify an audit report                in process  person:dana (person)
-   9 more above: pgup
+   11 more above: pgup
  ✓ verified   exit 0  signed by the pinned key, and the log recomputed says t...
 
    ✓ ok    envelope
@@ -16,10 +16,10 @@
    events counted 5: allow 3, deny 2
      write: allow 2, deny 2
      rule engram/write/membership: deny 1
-   oracle: 0 violations (read 0, grant change 0)
+   oracle: 0 violations (read 0, grant change 0), 1 actors declared, set sha256
+   5d1c
 
- A report holds counts, hashes and seqs only, never content or names. Its
- counts are recomputed from the log to the report's head.
+ ▾ 1 more lines: pgdn
 $ engram audit verify --db engram.db
  ? help  ctrl+s verify  v plain  J json  ; commands  esc back
 --- styles

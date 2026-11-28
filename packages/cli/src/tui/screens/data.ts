@@ -558,7 +558,10 @@ export class AuditVerifyScreen extends SurfaceScreen {
       { kind: "field", id: "db", label: "Log", hint: "read only; nothing is migrated" },
       { kind: "field", id: "policy" },
       { kind: "field", id: "as", label: "Viewer", hint: "as the report was exported for" },
+      { kind: "field", id: "level", label: "Viewer's level" },
       { kind: "field", id: "member", label: "Viewer's scopes" },
+      { kind: "field", id: "declare", label: "Declared actors" },
+      { kind: "field", id: "checkpoint", label: "Held checkpoints" },
     ];
   }
   protected override buttons(): Button[] {

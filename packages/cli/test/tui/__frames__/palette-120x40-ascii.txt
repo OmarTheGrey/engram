@@ -21,13 +21,13 @@
 |   [f] Verify the l|   MCP server                  engram mcp                                     |                   |
 |   [F] Checkpoint t|   Explain a read              engram explain <readId>                        |                   |
 | 4 Data            |   Lint a scope                engram lint                                    |                   |
-|   [x] Export a bun|   Verify an audit report      engram audit verify                            |                   |
-|   [i] Import a bun|   Supersede                   engram supersede <itemId>                      |                   |
-| 5 Surfaces        |   Install a hook              engram hook install <harness>                  |                   |
-|   [h] Serve the AP|   Serve the API and inspector engram serve                                   |                   |
-|   [m] MCP server  |   Import a bundle             engram import <bundle>                         |                   |
-|   [b] Claude Code |   Scopes you can see          engram scopes                                  |                   |
-|   [a] Create a key|   Events                      engram events                                  |                   |
+|   [x] Export a bun|   Supersede                   engram supersede <itemId>                      |                   |
+|   [i] Import a bun|   Install a hook              engram hook install <harness>                  |                   |
+| 5 Surfaces        |   Serve the API and inspector engram serve                                   |                   |
+|   [h] Serve the AP|   Import a bundle             engram import <bundle>                         |                   |
+|   [m] MCP server  |   Scopes you can see          engram scopes                                  |                   |
+|   [b] Claude Code |   Events                      engram events                                  |                   |
+|   [a] Create a key|   Verify an audit report      engram audit verify                            |                   |
 |   [A] List keys   |   Simulate a policy           engram simulate                                |                   |
 |   [R] Revoke a key|                                                                              |                   |
 | 6 Machine         | enter open   tab fill   esc close                                            |                   |
