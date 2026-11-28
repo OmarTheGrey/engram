@@ -485,7 +485,7 @@ Recorded by [`docs/log/2026-11-28-rr-measurement-perf-budget.md`](../log/2026-11
 - **Question.** Do canaries written through every write path reach a non-member, an expired grantee, a former member or a partial grantee on any surface (the HTTP API, MCP, the CLI, the TUI, the pi extension)?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. Card E8.16's suites on a fixture workspace; the file is under `h1-` for the results glob only. Answers that tell existence by their shape, not by a canary, are counted apart as characterised oracles.
-- **Made by.** `research/scripts/leakage.py` from `research/configs/leakage.json`, MANIFEST commit `3c0e4280`, sha256 `a23b1a8478d7904e6e694f8986089b1e54501dd7036221e6ce816a0ff16de119`.
+- **Made by.** `research/scripts/leakage.py` from `research/configs/leakage.json`, MANIFEST commit `f0bcad2b`, sha256 `a23b1a8478d7904e6e694f8986089b1e54501dd7036221e6ce816a0ff16de119`.
 
 | value | reads | key path |
 |---|---|---|
