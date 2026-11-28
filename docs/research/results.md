@@ -16,9 +16,9 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | cost estimate | 4 | dollars and calls estimated from token counts and prices; no model called |
 | power computation | 2 | a simulation of the registered test that sets or checks a sample size |
 | engineering check | 4 | a check of a component's behaviour or speed that decides no hypothesis |
-| proof of concept | 7 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
+| proof of concept | 8 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
 
-31 results in all, one per MANIFEST row.
+32 results in all, one per MANIFEST row.
 
 ## What each hypothesis still needs
 
@@ -528,7 +528,7 @@ Recorded by [`docs/log/2026-11-28-e1-7-measurement-trace-replay.md`](../log/2026
 - **Question.** Do the invariants' property tests kill hand-written mutants of the write gate, the read filter, retention, promotion, adoption, offboarding, the trust floors and the log's chain, and which mutants survive?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. A proof of concept on the code's own tests (card X16); the file is under `h1-` for the results glob only.
-- **Made by.** `research/scripts/gate_mutation_audit.py` from `research/configs/gate-mutation-audit.json`, MANIFEST commit `0772cd3b`, sha256 `8e61f235b5dc2d7af647b27ecbe92b13b5db4769448438452f662ec20b873e05`.
+- **Made by.** `research/scripts/gate_mutation_audit.py` from `research/configs/gate-mutation-audit.json`, MANIFEST commit `b85f4c78`, sha256 `6afe298f947366f440ec967016a8d909482e898bba423e1049d383fc79f73011`.
 
 | value | reads | key path |
 |---|---|---|
@@ -596,3 +596,20 @@ Recorded by [`docs/log/2026-11-28-l9-measurement-grounding-after-review.md`](../
 | new model calls | 0 | `calls.new` |
 
 Recorded by [`docs/log/2026-11-28-d4-measurement-drift-fixture.md`](../log/2026-11-28-d4-measurement-drift-fixture.md).
+
+### `research/results/h1-audit-report.json`
+
+- **Question.** Does a signed, content-free audit report of a window of the log verify against the log as exported and after a later write, and fail, at the check that should catch it, under every tampering of the report or the log a person with database access but not the operator's key can make?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. Card E9.15's core suite on one chained fixture log, SQLite, a fixed key; the file is under `h1-` for the results glob only. The envelope's sha256 is fixed by the log, the clock and the key.
+- **Made by.** `research/scripts/audit_report.py` from `research/configs/audit-report.json`, MANIFEST commit `47f8dc31`, sha256 `dc1562bf4c9319681932e9699b1e4a8bf30f5e5785ec98805da643b111f7f31f`.
+
+| value | reads | key path |
+|---|---|---|
+| cases | 11 | `totals.cases` |
+| cases with the expected verdict and check | 11 | `totals.matched` |
+| tamperings detected | 8 | `totals.tampering_detected` |
+| events counted in the window | 5 | `statement.events_counted` |
+| envelope bytes | 2,979 | `envelope.bytes` |
+
+Recorded by [`docs/log/2026-11-28-e9-15-measurement-audit-report.md`](../log/2026-11-28-e9-15-measurement-audit-report.md).
