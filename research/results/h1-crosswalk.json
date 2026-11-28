@@ -1826,8 +1826,8 @@
       "unmapped": null
     },
     {
-      "claim": "Active procedures carry a smoothed success rate; a drop below threshold or a changed environment hash retires them, and a human rejection narrows the trigger.",
-      "gap": "not built: the smoothed success rate is a later schema change (ADR 0011, D4) and drift retirement waits for card D3; no test exists",
+      "claim": "An admitted procedure is re-validated by replay when its environment hash changes or a period passes, and retired by a governed event when its success rate falls below the policy's floor after its minimum trials; the retired version is kept and restored when it passes the admission rule again. Off unless the policy sets procedures.drift.",
+      "gap": null,
       "id": "C48",
       "invariant": null,
       "limits": null,
@@ -1835,17 +1835,41 @@
         {
           "id": "AIA-15-1",
           "relation": "bears on",
-          "why": "retirement on drift would keep an admitted procedure performing consistently"
-        },
-        {
-          "id": "AIA-14-4-d",
-          "relation": "bears on",
-          "why": "a human rejection would override the system's admission"
+          "why": "retirement on drift keeps an admitted procedure performing consistently, or takes it out of use"
         }
       ],
-      "source": "ADR 0011 (decision); AGENTS.md (What this is: Distill, retired on drift)",
-      "status": "not evidenced",
-      "tests": [],
+      "source": "ADR 0011 (decision, and its amendment of 2026-11-28 by card D4); AGENTS.md (What this is: Distill, retired on drift)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "acceptance (card D4): a fixture with a changed task retires the skill"
+          ],
+          "file": "packages/core/test/unit/distill/drift.test.ts",
+          "it": "the changed environment retires the admitted procedure by one retire event naming the trigger"
+        },
+        {
+          "describe": [
+            "acceptance (card D4): a fixture with a changed task retires the skill"
+          ],
+          "file": "packages/core/test/unit/distill/drift.test.ts",
+          "it": "re-validated on the environment put back, the retired version is restored"
+        },
+        {
+          "describe": [
+            "Plane.revalidate"
+          ],
+          "file": "packages/core/test/unit/distill/drift.test.ts",
+          "it": "the period retires under replay-drift, counted from the last validation"
+        },
+        {
+          "describe": [
+            "Plane.revalidate"
+          ],
+          "file": "packages/core/test/unit/distill/drift.test.ts",
+          "it": "off by default: a policy without procedures.drift refuses, and nothing retires"
+        }
+      ],
       "unmapped": null
     },
     {
@@ -1900,6 +1924,24 @@
         }
       ],
       "source": "docs/dogfood.md (the twin dogfood); docs/roadmap.md (Gate D)",
+      "status": "not evidenced",
+      "tests": [],
+      "unmapped": null
+    },
+    {
+      "claim": "A human rejection of a procedure narrows its trigger rather than deleting it.",
+      "gap": "not built: card D4 built drift retirement (C48) and no card builds a rejection that narrows a trigger; no test exists",
+      "id": "C51",
+      "invariant": null,
+      "limits": null,
+      "obligations": [
+        {
+          "id": "AIA-14-4-d",
+          "relation": "bears on",
+          "why": "a human rejection would override the system's admission"
+        }
+      ],
+      "source": "ADR 0011 (decision)",
       "status": "not evidenced",
       "tests": [],
       "unmapped": null
@@ -2013,7 +2055,7 @@
       "claims": [
         "C28",
         "C30",
-        "C48"
+        "C51"
       ],
       "heading": "Human oversight",
       "id": "AIA-14-4-d",
@@ -2325,19 +2367,19 @@
   },
   "statement": "Engram supplies evidence about how a memory control plane behaves: each row names a claim, the test in this repository that proves it, and an article of the EU AI Act or the GDPR the evidence bears on. A row never says that Engram, or a deployment using it, meets an obligation. Whether a deployment is compliant depends on its purpose, its operator and facts the plane cannot see.",
   "summary": {
-    "claims": 50,
+    "claims": 51,
     "claims_unmapped": [
       "C21"
     ],
-    "evidenced": 47,
+    "evidenced": 48,
     "not_evidenced": [
       "C30",
-      "C48",
-      "C50"
+      "C50",
+      "C51"
     ],
     "obligations": 27,
     "obligations_without_claim": [],
-    "test_files": 33,
-    "tests": 107
+    "test_files": 34,
+    "tests": 111
   }
 }
