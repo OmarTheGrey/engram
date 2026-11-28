@@ -621,7 +621,7 @@ Recorded by [`docs/log/2026-11-28-d5-measurement-procedure-scan-limits.md`](../l
 - **Question.** Does a signed, content-free audit report of a window of the log verify against the log as exported and after a later write, and fail, at the check that should catch it, under every tampering of the report or the log a person with database access but not the operator's key can make?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. Card E9.15's core suite on one chained fixture log, SQLite, a fixed key; the file is under `h1-` for the results glob only. The envelope's sha256 is fixed by the log, the clock and the key.
-- **Made by.** `research/scripts/audit_report.py` from `research/configs/audit-report.json`, MANIFEST commit `87bef631`, sha256 `d503840658800b3cd4318fe4f660df3fe49ae89c5f3bec16f07a2b4714840c5e`.
+- **Made by.** `research/scripts/audit_report.py` from `research/configs/audit-report.json`, MANIFEST commit `aeb88f23`, sha256 `d503840658800b3cd4318fe4f660df3fe49ae89c5f3bec16f07a2b4714840c5e`.
 
 | value | reads | key path |
 |---|---|---|
