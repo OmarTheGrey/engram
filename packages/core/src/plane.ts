@@ -397,6 +397,7 @@ export interface Plane {
    * the write queue; nothing runs on a timer.
    */
   expireRequests(actor: Actor, scope: string, at: string): Promise<ExpiryReport>;
+  /**
    * Re-validates an admitted procedure on drift (card D4, ADR 0011 and
    * ADR 0050, proposed): the replay is presented, as for promote (ADR 0046),
    * by a user-sourced member of the item's scope, and checked against the
