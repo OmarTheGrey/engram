@@ -13,22 +13,21 @@
     "An engineering check, not a hypothesis result: proposal U7 is in the pre-registration's section of proposed amendments, not yet registered. The lead decided on 2026-11-25 to register it as a descriptive arm by amendment once this check merges (docs/log/2026-11-25-ans-2026-11-25-decision-u6-u7.md); until then it decides nothing and adds nothing to Holm.",
     "The search is verbatim and by hash (each canary's text, and its fact's strict and merging content hashes as hex): a literal, case-sensitive byte match, as inspeximus's scan is, so a copy a store lowercases, re-wraps or encodes (base64, a hash of another form) is not found. Recovery of an erased fact by a model composing fragments, AfterDeleteBench's attack, is not measured.",
     "A byte tier's residue is split as inspeximus's scan splits it: residue_unreclaimed counts the canaries found there but as residue in no live tier (a page or a file the engine did not zero), the rest are bytes a live row or record still holds.",
-    "A hit in the database's or the store's bytes cannot be attributed to an item: it counts as retained by decision when the same needle is retained by decision in a live tier (the projection, the events, the store's records) and found there as nothing else, and as residue otherwise. So a stale copy of a retained canary's bytes is counted as retained.",
-    "Postgres runs with autovacuum off, so the bytes do not depend on when its timer fires, and its files are read after a CHECKPOINT. A vacuum marks dead tuples' space reusable without zeroing it, so the heap's residue is not expected to fall to zero with it on; that is not measured. A value Postgres compresses (TOAST, pglz, over about 2 kB) is not found verbatim in its bytes; the check's event bodies are smaller.",
+    "A hit in the database's or the store's bytes cannot be attributed to an item, so no byte hit is counted as retained. The 40 canaries the plane keeps by decision (20 promoted, 20 at a shared ref) are indeterminate in every byte tier: a promoted or shared copy holds the same bytes as the erased version. A byte tier's residue rate is over the 160 countable canaries, and residue_of_exposed gives the same count over all 200. A hash needle the log keeps by decision in a live tier and holds as nothing else there is indeterminate in the bytes too.",
+    "Postgres runs with autovacuum off, so the bytes do not depend on when its timer fires, and its files are read after a CHECKPOINT. Its heap counts are therefore an upper bound on what a vacuumed server keeps: a vacuum marks dead tuples' space reusable without zeroing it, so the heap's residue is not expected to fall to zero with it on, but how far it falls is not measured. A value Postgres compresses (TOAST, pglz, over about 2 kB) is not found verbatim in its bytes; the check's event bodies are smaller.",
     "SQLite runs in WAL mode, as the plane opens it, read while open: the main file holds the pages the automatic checkpoint has copied, the WAL the rest. Its free pages are not zeroed (secure_delete is off by default).",
     "The store's files are read as files; what a file system keeps of a deleted file's blocks, and any backup or copy outside the folder, are not searched. Letta's history is every object git keeps (git cat-file --batch-all-objects), reachable or not.",
-    "The shared store ref is a fixture event (policy x19/fixture/shared-ref) appended to the log, as the core tests build one: no plane path writes two items at one ref, which adoption alone makes. The promotion into the team is made by a reviewer the harness makes a member of every person scope, since under twin only such a reviewer can widen an item out of a person scope.",
+    "The shared store ref is a fixture event (policy x19/fixture/shared-ref) appended to the log, as the core tests build one: no plane path writes two items at one ref, which adoption alone makes. Retained by decision is only what ADR 0010 and U7 name: a promotion out of the person scope, a store ref an item of the person scope also held, the hashes erase events keep, and a hash a surviving item holds; any other copy outside the person scope is residue. The promotion into the team is made by a reviewer the harness makes a member of every person scope, since under twin only such a reviewer can widen an item out of a person scope.",
     "Card E1.7's put-back leftover (a sweep's put-back whose delete fails) is not replayed: its race needs paused stores on two log handles. Its end state, a record under an erased id after an erasure that found no record at its ref, is the moved-record case here (person 2, slot 5), and is pinned by packages/core/test/unit/plane/erasure-gaps.test.ts, 'known limit'."
   ],
   "name": "h3-erasure-residue",
-  "outcomes_sha256": "27ade8f4d1bf5377aae3dc655ccbf29978f5582d038b0622dfae07e08b313f45",
+  "outcomes_sha256": "a03f08e216f751eaac537ae5413bcdd68937c829c609f3334a1e89889a5b6670",
   "persons": 20,
   "policy": "packages/pi-package/profiles/twin.yaml",
   "proposal": "U7",
   "registered": false,
   "retained_kinds": [
     "promoted",
-    "outside-person-scope",
     "shared-store-ref",
     "erased-content-hash",
     "surviving-hash"
@@ -59,6 +58,13 @@
           "not-found": 1,
           "plain": 38,
           "summary": 40
+        },
+        "residue_of_countable": {
+          "high": 1.0,
+          "low": 0.976554,
+          "n": 160,
+          "rate": 1.0,
+          "successes": 160
         }
       },
       "before": {
@@ -90,6 +96,13 @@
           "not-found": 1,
           "plain": 38,
           "summary": 40
+        },
+        "residue_of_countable": {
+          "high": 1.0,
+          "low": 0.976554,
+          "n": 160,
+          "rate": 1.0,
+          "successes": 160
         }
       },
       "deletion_reports": {
@@ -120,13 +133,20 @@
         "residue_by_role": {
           "left-in-store": 1,
           "not-found": 1
+        },
+        "residue_of_countable": {
+          "high": 0.044425,
+          "low": 0.003435,
+          "n": 160,
+          "rate": 0.0125,
+          "successes": 2
         }
       },
       "never_exposed": 200,
       "searched": {
         "events": 13600,
         "explanations": 7600,
-        "log-other": 120,
+        "log-other": 140,
         "projection": 800,
         "store-records": 840
       },
@@ -136,6 +156,8 @@
       },
       "tiers": {
         "db-file": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -144,10 +166,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.836281,
-            "low": 0.722977,
-            "n": 200,
-            "rate": 0.785,
+            "high": 0.993603,
+            "low": 0.94633,
+            "n": 160,
+            "rate": 0.98125,
             "successes": 157
           },
           "residue_by_role": {
@@ -161,14 +183,20 @@
             "summary": 40
           },
           "residue_hash": 157,
+          "residue_of_exposed": {
+            "high": 0.836281,
+            "low": 0.722977,
+            "n": 200,
+            "rate": 0.785,
+            "successes": 157
+          },
           "residue_text": 157,
           "residue_unreclaimed": 155,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "db-wal": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -177,10 +205,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.849548,
-            "low": 0.739145,
-            "n": 200,
-            "rate": 0.8,
+            "high": 1.0,
+            "low": 0.976554,
+            "n": 160,
+            "rate": 1.0,
             "successes": 160
           },
           "residue_by_role": {
@@ -194,12 +222,16 @@
             "summary": 40
           },
           "residue_hash": 160,
+          "residue_of_exposed": {
+            "high": 0.849548,
+            "low": 0.739145,
+            "n": 200,
+            "rate": 0.8,
+            "successes": 160
+          },
           "residue_text": 160,
           "residue_unreclaimed": 158,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "events": {
           "never_exposed_found": {
@@ -221,8 +253,8 @@
           "residue_text": 0,
           "retained_by_decision": {
             "erased-content-hash": 2,
-            "outside-person-scope": 20,
-            "promoted": 20
+            "promoted": 20,
+            "shared-store-ref": 20
           }
         },
         "explanations": {
@@ -284,11 +316,13 @@
           "residue_hash": 0,
           "residue_text": 0,
           "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
+            "promoted": 20,
+            "shared-store-ref": 20
           }
         },
         "store-files": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -297,10 +331,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.035722,
-            "low": 0.002747,
-            "n": 200,
-            "rate": 0.01,
+            "high": 0.044425,
+            "low": 0.003435,
+            "n": 160,
+            "rate": 0.0125,
             "successes": 2
           },
           "residue_by_role": {
@@ -308,12 +342,16 @@
             "not-found": 1
           },
           "residue_hash": 2,
+          "residue_of_exposed": {
+            "high": 0.035722,
+            "low": 0.002747,
+            "n": 200,
+            "rate": 0.01,
+            "successes": 2
+          },
           "residue_text": 2,
           "residue_unreclaimed": 0,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "store-history": null,
         "store-records": {
@@ -369,6 +407,13 @@
           "not-found": 1,
           "plain": 38,
           "summary": 40
+        },
+        "residue_of_countable": {
+          "high": 1.0,
+          "low": 0.976554,
+          "n": 160,
+          "rate": 1.0,
+          "successes": 160
         }
       },
       "before": {
@@ -400,6 +445,13 @@
           "not-found": 1,
           "plain": 38,
           "summary": 40
+        },
+        "residue_of_countable": {
+          "high": 1.0,
+          "low": 0.976554,
+          "n": 160,
+          "rate": 1.0,
+          "successes": 160
         }
       },
       "deletion_reports": {
@@ -430,13 +482,20 @@
         "residue_by_role": {
           "left-in-store": 1,
           "not-found": 1
+        },
+        "residue_of_countable": {
+          "high": 0.044425,
+          "low": 0.003435,
+          "n": 160,
+          "rate": 0.0125,
+          "successes": 2
         }
       },
       "never_exposed": 200,
       "searched": {
         "events": 13600,
         "explanations": 7600,
-        "log-other": 120,
+        "log-other": 140,
         "projection": 800,
         "store-records": 840
       },
@@ -446,6 +505,8 @@
       },
       "tiers": {
         "db-file": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -454,10 +515,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.836281,
-            "low": 0.722977,
-            "n": 200,
-            "rate": 0.785,
+            "high": 0.993603,
+            "low": 0.94633,
+            "n": 160,
+            "rate": 0.98125,
             "successes": 157
           },
           "residue_by_role": {
@@ -471,14 +532,20 @@
             "summary": 40
           },
           "residue_hash": 157,
+          "residue_of_exposed": {
+            "high": 0.836281,
+            "low": 0.722977,
+            "n": 200,
+            "rate": 0.785,
+            "successes": 157
+          },
           "residue_text": 156,
           "residue_unreclaimed": 155,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "db-wal": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -487,10 +554,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.849548,
-            "low": 0.739145,
-            "n": 200,
-            "rate": 0.8,
+            "high": 1.0,
+            "low": 0.976554,
+            "n": 160,
+            "rate": 1.0,
             "successes": 160
           },
           "residue_by_role": {
@@ -504,12 +571,16 @@
             "summary": 40
           },
           "residue_hash": 160,
+          "residue_of_exposed": {
+            "high": 0.849548,
+            "low": 0.739145,
+            "n": 200,
+            "rate": 0.8,
+            "successes": 160
+          },
           "residue_text": 160,
           "residue_unreclaimed": 158,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "events": {
           "never_exposed_found": {
@@ -531,8 +602,8 @@
           "residue_text": 0,
           "retained_by_decision": {
             "erased-content-hash": 2,
-            "outside-person-scope": 20,
-            "promoted": 20
+            "promoted": 20,
+            "shared-store-ref": 20
           }
         },
         "explanations": {
@@ -594,11 +665,13 @@
           "residue_hash": 0,
           "residue_text": 0,
           "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
+            "promoted": 20,
+            "shared-store-ref": 20
           }
         },
         "store-files": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -607,10 +680,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.035722,
-            "low": 0.002747,
-            "n": 200,
-            "rate": 0.01,
+            "high": 0.044425,
+            "low": 0.003435,
+            "n": 160,
+            "rate": 0.0125,
             "successes": 2
           },
           "residue_by_role": {
@@ -618,14 +691,20 @@
             "not-found": 1
           },
           "residue_hash": 2,
+          "residue_of_exposed": {
+            "high": 0.035722,
+            "low": 0.002747,
+            "n": 200,
+            "rate": 0.01,
+            "successes": 2
+          },
           "residue_text": 2,
           "residue_unreclaimed": 0,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "store-history": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -634,10 +713,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.849548,
-            "low": 0.739145,
-            "n": 200,
-            "rate": 0.8,
+            "high": 1.0,
+            "low": 0.976554,
+            "n": 160,
+            "rate": 1.0,
             "successes": 160
           },
           "residue_by_role": {
@@ -651,12 +730,16 @@
             "summary": 40
           },
           "residue_hash": 160,
+          "residue_of_exposed": {
+            "high": 0.849548,
+            "low": 0.739145,
+            "n": 200,
+            "rate": 0.8,
+            "successes": 160
+          },
           "residue_text": 160,
           "residue_unreclaimed": 158,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "store-records": {
           "never_exposed_found": {
@@ -711,6 +794,13 @@
           "not-found": 1,
           "plain": 38,
           "summary": 40
+        },
+        "residue_of_countable": {
+          "high": 1.0,
+          "low": 0.976554,
+          "n": 160,
+          "rate": 1.0,
+          "successes": 160
         }
       },
       "before": {
@@ -742,6 +832,13 @@
           "not-found": 1,
           "plain": 38,
           "summary": 40
+        },
+        "residue_of_countable": {
+          "high": 1.0,
+          "low": 0.976554,
+          "n": 160,
+          "rate": 1.0,
+          "successes": 160
         }
       },
       "deletion_reports": {
@@ -772,13 +869,20 @@
         "residue_by_role": {
           "left-in-store": 1,
           "not-found": 1
+        },
+        "residue_of_countable": {
+          "high": 0.044425,
+          "low": 0.003435,
+          "n": 160,
+          "rate": 0.0125,
+          "successes": 2
         }
       },
       "never_exposed": 200,
       "searched": {
         "events": 13600,
         "explanations": 7600,
-        "log-other": 120,
+        "log-other": 140,
         "projection": 800,
         "store-records": 840
       },
@@ -788,6 +892,8 @@
       },
       "tiers": {
         "db-file": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -796,10 +902,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.836281,
-            "low": 0.722977,
-            "n": 200,
-            "rate": 0.785,
+            "high": 0.993603,
+            "low": 0.94633,
+            "n": 160,
+            "rate": 0.98125,
             "successes": 157
           },
           "residue_by_role": {
@@ -813,14 +919,20 @@
             "summary": 40
           },
           "residue_hash": 157,
+          "residue_of_exposed": {
+            "high": 0.836281,
+            "low": 0.722977,
+            "n": 200,
+            "rate": 0.785,
+            "successes": 157
+          },
           "residue_text": 156,
           "residue_unreclaimed": 155,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "db-wal": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -829,10 +941,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.849548,
-            "low": 0.739145,
-            "n": 200,
-            "rate": 0.8,
+            "high": 1.0,
+            "low": 0.976554,
+            "n": 160,
+            "rate": 1.0,
             "successes": 160
           },
           "residue_by_role": {
@@ -846,12 +958,16 @@
             "summary": 40
           },
           "residue_hash": 160,
+          "residue_of_exposed": {
+            "high": 0.849548,
+            "low": 0.739145,
+            "n": 200,
+            "rate": 0.8,
+            "successes": 160
+          },
           "residue_text": 160,
           "residue_unreclaimed": 158,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "events": {
           "never_exposed_found": {
@@ -873,8 +989,8 @@
           "residue_text": 0,
           "retained_by_decision": {
             "erased-content-hash": 2,
-            "outside-person-scope": 20,
-            "promoted": 20
+            "promoted": 20,
+            "shared-store-ref": 20
           }
         },
         "explanations": {
@@ -936,11 +1052,13 @@
           "residue_hash": 0,
           "residue_text": 0,
           "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
+            "promoted": 20,
+            "shared-store-ref": 20
           }
         },
         "store-files": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -949,10 +1067,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.035722,
-            "low": 0.002747,
-            "n": 200,
-            "rate": 0.01,
+            "high": 0.044425,
+            "low": 0.003435,
+            "n": 160,
+            "rate": 0.0125,
             "successes": 2
           },
           "residue_by_role": {
@@ -960,12 +1078,16 @@
             "not-found": 1
           },
           "residue_hash": 2,
+          "residue_of_exposed": {
+            "high": 0.035722,
+            "low": 0.002747,
+            "n": 200,
+            "rate": 0.01,
+            "successes": 2
+          },
           "residue_text": 2,
           "residue_unreclaimed": 0,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "store-history": null,
         "store-records": {
@@ -1021,6 +1143,13 @@
           "not-found": 1,
           "plain": 38,
           "summary": 40
+        },
+        "residue_of_countable": {
+          "high": 1.0,
+          "low": 0.976554,
+          "n": 160,
+          "rate": 1.0,
+          "successes": 160
         }
       },
       "before": {
@@ -1052,6 +1181,13 @@
           "not-found": 1,
           "plain": 38,
           "summary": 40
+        },
+        "residue_of_countable": {
+          "high": 1.0,
+          "low": 0.976554,
+          "n": 160,
+          "rate": 1.0,
+          "successes": 160
         }
       },
       "deletion_reports": {
@@ -1082,13 +1218,20 @@
         "residue_by_role": {
           "left-in-store": 1,
           "not-found": 1
+        },
+        "residue_of_countable": {
+          "high": 0.044425,
+          "low": 0.003435,
+          "n": 160,
+          "rate": 0.0125,
+          "successes": 2
         }
       },
       "never_exposed": 200,
       "searched": {
         "events": 13600,
         "explanations": 7600,
-        "log-other": 120,
+        "log-other": 140,
         "projection": 800,
         "store-records": 840
       },
@@ -1098,6 +1241,8 @@
       },
       "tiers": {
         "db-file": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -1106,10 +1251,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.827376,
-            "low": 0.712259,
-            "n": 200,
-            "rate": 0.775,
+            "high": 0.986579,
+            "low": 0.92894,
+            "n": 160,
+            "rate": 0.96875,
             "successes": 155
           },
           "residue_by_role": {
@@ -1123,14 +1268,20 @@
             "summary": 40
           },
           "residue_hash": 155,
+          "residue_of_exposed": {
+            "high": 0.827376,
+            "low": 0.712259,
+            "n": 200,
+            "rate": 0.775,
+            "successes": 155
+          },
           "residue_text": 155,
           "residue_unreclaimed": 153,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "db-wal": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -1139,10 +1290,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.849548,
-            "low": 0.739145,
-            "n": 200,
-            "rate": 0.8,
+            "high": 1.0,
+            "low": 0.976554,
+            "n": 160,
+            "rate": 1.0,
             "successes": 160
           },
           "residue_by_role": {
@@ -1156,12 +1307,16 @@
             "summary": 40
           },
           "residue_hash": 160,
+          "residue_of_exposed": {
+            "high": 0.849548,
+            "low": 0.739145,
+            "n": 200,
+            "rate": 0.8,
+            "successes": 160
+          },
           "residue_text": 160,
           "residue_unreclaimed": 158,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "events": {
           "never_exposed_found": {
@@ -1183,8 +1338,8 @@
           "residue_text": 0,
           "retained_by_decision": {
             "erased-content-hash": 2,
-            "outside-person-scope": 20,
-            "promoted": 20
+            "promoted": 20,
+            "shared-store-ref": 20
           }
         },
         "explanations": {
@@ -1246,11 +1401,13 @@
           "residue_hash": 0,
           "residue_text": 0,
           "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
+            "promoted": 20,
+            "shared-store-ref": 20
           }
         },
         "store-files": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -1259,10 +1416,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.754636,
-            "low": 0.628014,
-            "n": 200,
-            "rate": 0.695,
+            "high": 0.912527,
+            "low": 0.807681,
+            "n": 160,
+            "rate": 0.86875,
             "successes": 139
           },
           "residue_by_role": {
@@ -1276,12 +1433,16 @@
             "summary": 39
           },
           "residue_hash": 137,
+          "residue_of_exposed": {
+            "high": 0.754636,
+            "low": 0.628014,
+            "n": 200,
+            "rate": 0.695,
+            "successes": 139
+          },
           "residue_text": 139,
           "residue_unreclaimed": 137,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "store-history": null,
         "store-records": {
@@ -1322,14 +1483,14 @@
           "successes": 0
         },
         "residue": {
-          "high": 0.786766,
-          "low": 0.664566,
+          "high": 0.791318,
+          "low": 0.669824,
           "n": 200,
-          "rate": 0.73,
-          "successes": 146
+          "rate": 0.735,
+          "successes": 147
         },
         "residue_by_role": {
-          "agent": 15,
+          "agent": 16,
           "candidate": 20,
           "duplicate": 19,
           "explained": 19,
@@ -1337,6 +1498,13 @@
           "not-found": 1,
           "plain": 31,
           "summary": 40
+        },
+        "residue_of_countable": {
+          "high": 0.951904,
+          "low": 0.86596,
+          "n": 160,
+          "rate": 0.91875,
+          "successes": 147
         }
       },
       "before": {
@@ -1353,14 +1521,14 @@
           "successes": 0
         },
         "residue": {
-          "high": 0.786766,
-          "low": 0.664566,
+          "high": 0.791318,
+          "low": 0.669824,
           "n": 200,
-          "rate": 0.73,
-          "successes": 146
+          "rate": 0.735,
+          "successes": 147
         },
         "residue_by_role": {
-          "agent": 15,
+          "agent": 16,
           "candidate": 20,
           "duplicate": 19,
           "explained": 19,
@@ -1368,6 +1536,13 @@
           "not-found": 1,
           "plain": 31,
           "summary": 40
+        },
+        "residue_of_countable": {
+          "high": 0.951904,
+          "low": 0.86596,
+          "n": 160,
+          "rate": 0.91875,
+          "successes": 147
         }
       },
       "deletion_reports": {
@@ -1398,13 +1573,20 @@
         "residue_by_role": {
           "left-in-store": 1,
           "not-found": 1
+        },
+        "residue_of_countable": {
+          "high": 0.044425,
+          "low": 0.003435,
+          "n": 160,
+          "rate": 0.0125,
+          "successes": 2
         }
       },
       "never_exposed": 200,
       "searched": {
         "events": 13600,
         "explanations": 7600,
-        "log-other": 120,
+        "log-other": 140,
         "projection": 800,
         "store-records": 840
       },
@@ -1414,6 +1596,8 @@
       },
       "tiers": {
         "db-file": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -1422,10 +1606,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.76846,
-            "low": 0.643625,
-            "n": 200,
-            "rate": 0.71,
+            "high": 0.927644,
+            "low": 0.829186,
+            "n": 160,
+            "rate": 0.8875,
             "successes": 142
           },
           "residue_by_role": {
@@ -1439,14 +1623,20 @@
             "summary": 36
           },
           "residue_hash": 137,
+          "residue_of_exposed": {
+            "high": 0.76846,
+            "low": 0.643625,
+            "n": 200,
+            "rate": 0.71,
+            "successes": 142
+          },
           "residue_text": 135,
           "residue_unreclaimed": 140,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "db-wal": {
+          "countable": 160,
+          "indeterminate": 38,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -1455,28 +1645,32 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.568639,
-            "low": 0.431361,
-            "n": 200,
-            "rate": 0.5,
-            "successes": 100
+            "high": 0.707956,
+            "low": 0.560597,
+            "n": 160,
+            "rate": 0.6375,
+            "successes": 102
           },
           "residue_by_role": {
-            "agent": 3,
-            "candidate": 18,
+            "agent": 4,
+            "candidate": 19,
             "duplicate": 19,
             "explained": 17,
             "left-in-store": 1,
             "plain": 2,
             "summary": 40
           },
-          "residue_hash": 79,
-          "residue_text": 83,
-          "residue_unreclaimed": 99,
-          "retained_by_decision": {
-            "outside-person-scope": 19,
-            "promoted": 19
-          }
+          "residue_hash": 83,
+          "residue_of_exposed": {
+            "high": 0.578437,
+            "low": 0.441186,
+            "n": 200,
+            "rate": 0.51,
+            "successes": 102
+          },
+          "residue_text": 84,
+          "residue_unreclaimed": 101,
+          "retained_by_decision": {}
         },
         "events": {
           "never_exposed_found": {
@@ -1498,8 +1692,8 @@
           "residue_text": 0,
           "retained_by_decision": {
             "erased-content-hash": 2,
-            "outside-person-scope": 20,
-            "promoted": 20
+            "promoted": 20,
+            "shared-store-ref": 20
           }
         },
         "explanations": {
@@ -1561,11 +1755,13 @@
           "residue_hash": 0,
           "residue_text": 0,
           "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
+            "promoted": 20,
+            "shared-store-ref": 20
           }
         },
         "store-files": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -1574,10 +1770,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.035722,
-            "low": 0.002747,
-            "n": 200,
-            "rate": 0.01,
+            "high": 0.044425,
+            "low": 0.003435,
+            "n": 160,
+            "rate": 0.0125,
             "successes": 2
           },
           "residue_by_role": {
@@ -1585,12 +1781,16 @@
             "not-found": 1
           },
           "residue_hash": 2,
+          "residue_of_exposed": {
+            "high": 0.035722,
+            "low": 0.002747,
+            "n": 200,
+            "rate": 0.01,
+            "successes": 2
+          },
           "residue_text": 2,
           "residue_unreclaimed": 0,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "store-history": null,
         "store-records": {
@@ -1646,6 +1846,13 @@
           "not-found": 1,
           "plain": 38,
           "summary": 40
+        },
+        "residue_of_countable": {
+          "high": 1.0,
+          "low": 0.976554,
+          "n": 160,
+          "rate": 1.0,
+          "successes": 160
         }
       },
       "before": {
@@ -1677,6 +1884,13 @@
           "not-found": 1,
           "plain": 38,
           "summary": 40
+        },
+        "residue_of_countable": {
+          "high": 1.0,
+          "low": 0.976554,
+          "n": 160,
+          "rate": 1.0,
+          "successes": 160
         }
       },
       "deletion_reports": {
@@ -1707,13 +1921,20 @@
         "residue_by_role": {
           "left-in-store": 1,
           "not-found": 1
+        },
+        "residue_of_countable": {
+          "high": 0.044425,
+          "low": 0.003435,
+          "n": 160,
+          "rate": 0.0125,
+          "successes": 2
         }
       },
       "never_exposed": 200,
       "searched": {
         "events": 13600,
         "explanations": 7600,
-        "log-other": 120,
+        "log-other": 140,
         "projection": 800,
         "store-records": 840
       },
@@ -1723,6 +1944,8 @@
       },
       "tiers": {
         "db-file": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -1731,10 +1954,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.77305,
-            "low": 0.648847,
-            "n": 200,
-            "rate": 0.715,
+            "high": 0.932598,
+            "low": 0.836438,
+            "n": 160,
+            "rate": 0.89375,
             "successes": 143
           },
           "residue_by_role": {
@@ -1748,14 +1971,20 @@
             "summary": 40
           },
           "residue_hash": 134,
+          "residue_of_exposed": {
+            "high": 0.77305,
+            "low": 0.648847,
+            "n": 200,
+            "rate": 0.715,
+            "successes": 143
+          },
           "residue_text": 139,
           "residue_unreclaimed": 141,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "db-wal": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -1764,10 +1993,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.627022,
-            "low": 0.490717,
-            "n": 200,
-            "rate": 0.56,
+            "high": 0.765636,
+            "low": 0.624985,
+            "n": 160,
+            "rate": 0.7,
             "successes": 112
           },
           "residue_by_role": {
@@ -1779,12 +2008,16 @@
             "summary": 38
           },
           "residue_hash": 80,
+          "residue_of_exposed": {
+            "high": 0.627022,
+            "low": 0.490717,
+            "n": 200,
+            "rate": 0.56,
+            "successes": 112
+          },
           "residue_text": 110,
           "residue_unreclaimed": 112,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "events": {
           "never_exposed_found": {
@@ -1806,8 +2039,8 @@
           "residue_text": 0,
           "retained_by_decision": {
             "erased-content-hash": 2,
-            "outside-person-scope": 20,
-            "promoted": 20
+            "promoted": 20,
+            "shared-store-ref": 20
           }
         },
         "explanations": {
@@ -1869,11 +2102,13 @@
           "residue_hash": 0,
           "residue_text": 0,
           "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
+            "promoted": 20,
+            "shared-store-ref": 20
           }
         },
         "store-files": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -1882,10 +2117,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.035722,
-            "low": 0.002747,
-            "n": 200,
-            "rate": 0.01,
+            "high": 0.044425,
+            "low": 0.003435,
+            "n": 160,
+            "rate": 0.0125,
             "successes": 2
           },
           "residue_by_role": {
@@ -1893,14 +2128,20 @@
             "not-found": 1
           },
           "residue_hash": 2,
+          "residue_of_exposed": {
+            "high": 0.035722,
+            "low": 0.002747,
+            "n": 200,
+            "rate": 0.01,
+            "successes": 2
+          },
           "residue_text": 2,
           "residue_unreclaimed": 0,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "store-history": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -1909,10 +2150,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.849548,
-            "low": 0.739145,
-            "n": 200,
-            "rate": 0.8,
+            "high": 1.0,
+            "low": 0.976554,
+            "n": 160,
+            "rate": 1.0,
             "successes": 160
           },
           "residue_by_role": {
@@ -1926,12 +2167,16 @@
             "summary": 40
           },
           "residue_hash": 160,
+          "residue_of_exposed": {
+            "high": 0.849548,
+            "low": 0.739145,
+            "n": 200,
+            "rate": 0.8,
+            "successes": 160
+          },
           "residue_text": 160,
           "residue_unreclaimed": 158,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "store-records": {
           "never_exposed_found": {
@@ -1986,6 +2231,13 @@
           "not-found": 1,
           "plain": 35,
           "summary": 40
+        },
+        "residue_of_countable": {
+          "high": 0.970128,
+          "low": 0.896564,
+          "n": 160,
+          "rate": 0.94375,
+          "successes": 151
         }
       },
       "before": {
@@ -2017,6 +2269,13 @@
           "not-found": 1,
           "plain": 35,
           "summary": 40
+        },
+        "residue_of_countable": {
+          "high": 0.970128,
+          "low": 0.896564,
+          "n": 160,
+          "rate": 0.94375,
+          "successes": 151
         }
       },
       "deletion_reports": {
@@ -2047,13 +2306,20 @@
         "residue_by_role": {
           "left-in-store": 1,
           "not-found": 1
+        },
+        "residue_of_countable": {
+          "high": 0.044425,
+          "low": 0.003435,
+          "n": 160,
+          "rate": 0.0125,
+          "successes": 2
         }
       },
       "never_exposed": 200,
       "searched": {
         "events": 13600,
         "explanations": 7600,
-        "log-other": 120,
+        "log-other": 140,
         "projection": 800,
         "store-records": 840
       },
@@ -2063,6 +2329,8 @@
       },
       "tiers": {
         "db-file": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -2071,10 +2339,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.77305,
-            "low": 0.648847,
-            "n": 200,
-            "rate": 0.715,
+            "high": 0.932598,
+            "low": 0.836438,
+            "n": 160,
+            "rate": 0.89375,
             "successes": 143
           },
           "residue_by_role": {
@@ -2088,14 +2356,20 @@
             "summary": 40
           },
           "residue_hash": 134,
+          "residue_of_exposed": {
+            "high": 0.77305,
+            "low": 0.648847,
+            "n": 200,
+            "rate": 0.715,
+            "successes": 143
+          },
           "residue_text": 139,
           "residue_unreclaimed": 141,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "db-wal": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -2104,10 +2378,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.627022,
-            "low": 0.490717,
-            "n": 200,
-            "rate": 0.56,
+            "high": 0.765636,
+            "low": 0.624985,
+            "n": 160,
+            "rate": 0.7,
             "successes": 112
           },
           "residue_by_role": {
@@ -2119,12 +2393,16 @@
             "summary": 38
           },
           "residue_hash": 80,
+          "residue_of_exposed": {
+            "high": 0.627022,
+            "low": 0.490717,
+            "n": 200,
+            "rate": 0.56,
+            "successes": 112
+          },
           "residue_text": 110,
           "residue_unreclaimed": 112,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "events": {
           "never_exposed_found": {
@@ -2146,8 +2424,8 @@
           "residue_text": 0,
           "retained_by_decision": {
             "erased-content-hash": 2,
-            "outside-person-scope": 20,
-            "promoted": 20
+            "promoted": 20,
+            "shared-store-ref": 20
           }
         },
         "explanations": {
@@ -2209,11 +2487,13 @@
           "residue_hash": 0,
           "residue_text": 0,
           "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
+            "promoted": 20,
+            "shared-store-ref": 20
           }
         },
         "store-files": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -2222,10 +2502,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.035722,
-            "low": 0.002747,
-            "n": 200,
-            "rate": 0.01,
+            "high": 0.044425,
+            "low": 0.003435,
+            "n": 160,
+            "rate": 0.0125,
             "successes": 2
           },
           "residue_by_role": {
@@ -2233,12 +2513,16 @@
             "not-found": 1
           },
           "residue_hash": 2,
+          "residue_of_exposed": {
+            "high": 0.035722,
+            "low": 0.002747,
+            "n": 200,
+            "rate": 0.01,
+            "successes": 2
+          },
           "residue_text": 2,
           "residue_unreclaimed": 0,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "store-history": null,
         "store-records": {
@@ -2294,6 +2578,13 @@
           "not-found": 1,
           "plain": 34,
           "summary": 40
+        },
+        "residue_of_countable": {
+          "high": 0.990236,
+          "low": 0.93749,
+          "n": 160,
+          "rate": 0.975,
+          "successes": 156
         }
       },
       "before": {
@@ -2325,6 +2616,13 @@
           "not-found": 1,
           "plain": 34,
           "summary": 40
+        },
+        "residue_of_countable": {
+          "high": 0.990236,
+          "low": 0.93749,
+          "n": 160,
+          "rate": 0.975,
+          "successes": 156
         }
       },
       "deletion_reports": {
@@ -2355,13 +2653,20 @@
         "residue_by_role": {
           "left-in-store": 1,
           "not-found": 1
+        },
+        "residue_of_countable": {
+          "high": 0.044425,
+          "low": 0.003435,
+          "n": 160,
+          "rate": 0.0125,
+          "successes": 2
         }
       },
       "never_exposed": 200,
       "searched": {
         "events": 13600,
         "explanations": 7600,
-        "log-other": 120,
+        "log-other": 140,
         "projection": 800,
         "store-records": 840
       },
@@ -2371,6 +2676,8 @@
       },
       "tiers": {
         "db-file": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -2379,10 +2686,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.763861,
-            "low": 0.638413,
-            "n": 200,
-            "rate": 0.705,
+            "high": 0.922645,
+            "low": 0.821977,
+            "n": 160,
+            "rate": 0.88125,
             "successes": 141
           },
           "residue_by_role": {
@@ -2396,14 +2703,20 @@
             "summary": 36
           },
           "residue_hash": 136,
+          "residue_of_exposed": {
+            "high": 0.763861,
+            "low": 0.638413,
+            "n": 200,
+            "rate": 0.705,
+            "successes": 141
+          },
           "residue_text": 135,
           "residue_unreclaimed": 139,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "db-wal": {
+          "countable": 160,
+          "indeterminate": 38,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -2412,10 +2725,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.578437,
-            "low": 0.441186,
-            "n": 200,
-            "rate": 0.51,
+            "high": 0.707956,
+            "low": 0.560597,
+            "n": 160,
+            "rate": 0.6375,
             "successes": 102
           },
           "residue_by_role": {
@@ -2428,12 +2741,16 @@
             "summary": 40
           },
           "residue_hash": 81,
+          "residue_of_exposed": {
+            "high": 0.578437,
+            "low": 0.441186,
+            "n": 200,
+            "rate": 0.51,
+            "successes": 102
+          },
           "residue_text": 85,
           "residue_unreclaimed": 101,
-          "retained_by_decision": {
-            "outside-person-scope": 19,
-            "promoted": 19
-          }
+          "retained_by_decision": {}
         },
         "events": {
           "never_exposed_found": {
@@ -2455,8 +2772,8 @@
           "residue_text": 0,
           "retained_by_decision": {
             "erased-content-hash": 2,
-            "outside-person-scope": 20,
-            "promoted": 20
+            "promoted": 20,
+            "shared-store-ref": 20
           }
         },
         "explanations": {
@@ -2518,11 +2835,13 @@
           "residue_hash": 0,
           "residue_text": 0,
           "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
+            "promoted": 20,
+            "shared-store-ref": 20
           }
         },
         "store-files": {
+          "countable": 160,
+          "indeterminate": 40,
           "never_exposed_found": {
             "high": 0.018845,
             "low": 0.0,
@@ -2531,10 +2850,10 @@
             "successes": 0
           },
           "residue": {
-            "high": 0.754636,
-            "low": 0.628014,
-            "n": 200,
-            "rate": 0.695,
+            "high": 0.912527,
+            "low": 0.807681,
+            "n": 160,
+            "rate": 0.86875,
             "successes": 139
           },
           "residue_by_role": {
@@ -2548,12 +2867,16 @@
             "summary": 39
           },
           "residue_hash": 137,
+          "residue_of_exposed": {
+            "high": 0.754636,
+            "low": 0.628014,
+            "n": 200,
+            "rate": 0.695,
+            "successes": 139
+          },
           "residue_text": 139,
           "residue_unreclaimed": 137,
-          "retained_by_decision": {
-            "outside-person-scope": 20,
-            "promoted": 20
-          }
+          "retained_by_decision": {}
         },
         "store-history": null,
         "store-records": {
