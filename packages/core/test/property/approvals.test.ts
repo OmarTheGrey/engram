@@ -194,7 +194,7 @@ async function run(routes: Routes, steps: Step[]): Promise<Run> {
         : { scope: "person:dana", owner: "person:dana", writer: "dana" };
   for (const s of steps) {
     at = later(at, s.dt);
-    const now = currentItems(db).find((i) => i.id === id(s.n));
+    const now = "n" in s ? currentItems(db).find((i) => i.id === id(s.n)) : undefined;
     if (s.kind === "write") {
       if (now) continue;
       const h = home(s.home);
