@@ -128,7 +128,9 @@ describe("the ITF reader", () => {
   test("restates specs/replay.qnt's schedule: a stale commit's handle goes on, a store write lets any go", () => {
     const [first] = load("e18OwnBytesEditedTest.itf.json.gz").states;
     const s = modelState(first as Record<string, ItfValue>);
-    expect(forced({ ...s, lastAction: { name: "commitStale", handle: "h1", iid: "a" } })).toBe("h1");
+    expect(forced({ ...s, lastAction: { name: "commitStale", handle: "h1", iid: "a" } })).toBe(
+      "h1",
+    );
     expect(forced({ ...s, lastAction: { name: "storeWrite", handle: "h1", iid: "a" } })).toBe("");
     expect(forced({ ...s, lastAction: { name: "obBegin", handle: "h2", iid: "" } })).toBe("h2");
   });
@@ -150,12 +152,12 @@ describe("the committed traces", () => {
 
   test.for(random)(
     "%s replays on the Plane as the results file records",
+    { timeout: 60_000 },
     async (f) => {
       const r = await replay(load(f));
       expect(r.finding).not.toBe("unexplained");
       expect(outcome(r)).toEqual(result.traces[f]);
     },
-    60_000,
   );
 });
 
@@ -185,34 +187,53 @@ describe("the two known gaps of card E1.5, as the model states them", () => {
 
 describe("the findings of card E1.8, each pinned where the code leaves the model", () => {
   const pinned: { file: string; finding: keyof typeof FINDINGS; step: number; what: string }[] = [
-    { file: "e18RetractionWhileErasingTest", finding: "E18-F1", step: 13, what: "the trail of decisions" },
-    { file: "e18ErasingRefusalFinalTest", finding: "E18-F2", step: 11, what: "the projection of a" },
+    {
+      file: "e18RetractionWhileErasingTest",
+      finding: "E18-F1",
+      step: 13,
+      what: "the trail of decisions",
+    },
+    {
+      file: "e18ErasingRefusalFinalTest",
+      finding: "E18-F2",
+      step: 11,
+      what: "the projection of a",
+    },
     { file: "e18OwnBytesEditedTest", finding: "E18-F3", step: 7, what: "the projection of b" },
-    { file: "e18RepeatedPurgeTest", finding: "E18-F4", step: 21, what: "whether handle h3 is inside a call" },
+    {
+      file: "e18RepeatedPurgeTest",
+      finding: "E18-F4",
+      step: 21,
+      what: "whether handle h3 is inside a call",
+    },
     { file: "e18VersionOnlyTest", finding: "E18-F5", step: 43, what: "the trail of decisions" },
     { file: "e18WithdrawnStillHeldTest", finding: "E18-F6", step: 19, what: "the projection of a" },
-    { file: "e18NotFoundNoPurgeTest", finding: "E18-F7", step: 23, what: "whether handle h3 is inside a call" },
+    {
+      file: "e18NotFoundNoPurgeTest",
+      finding: "E18-F7",
+      step: 23,
+      what: "whether handle h3 is inside a call",
+    },
   ];
 
   test("every finding has its scenario", () => {
     expect(pinned.map((p) => p.finding)).toEqual(Object.keys(FINDINGS));
   });
 
-  test.for(pinned)("$finding: $file diverges at step $step ($what)", async ({ file, finding, step, what }) => {
-    const r = await replay(load(`${file}.itf.json.gz`));
-    expect(r.mismatch?.step).toBe(step);
-    expect(r.mismatch?.what).toBe(what);
-    expect(r.finding).toBe(finding);
-  });
+  test.for(pinned)(
+    "$finding: $file diverges at step $step ($what)",
+    async ({ file, finding, step, what }) => {
+      const r = await replay(load(`${file}.itf.json.gz`));
+      expect(r.mismatch?.step).toBe(step);
+      expect(r.mismatch?.what).toBe(what);
+      expect(r.finding).toBe(finding);
+    },
+  );
 
   test("E18-F1: the retraction is appended while the scope's erasure is open", async () => {
     const r = await replay(load("e18RetractionWhileErasingTest.itf.json.gz"));
     const rules = r.final.events.map((e) => e.split(" ")[2]);
-    expect(rules).toEqual([
-      "test/write/person",
-      "engram/offboard/begin",
-      "engram/adopt/retract",
-    ]);
+    expect(rules).toEqual(["test/write/person", "engram/offboard/begin", "engram/adopt/retract"]);
     expect(r.final.marks).toEqual([0]);
   });
 });

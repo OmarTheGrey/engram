@@ -21,7 +21,9 @@ if (!from || !to) {
   let n = 0;
   for (const f of readdirSync(from).sort()) {
     if (!f.endsWith(".itf.json")) continue;
-    const doc = JSON.parse(readFileSync(join(from, f), "utf8")) as { "#meta"?: Record<string, unknown> };
+    const doc = JSON.parse(readFileSync(join(from, f), "utf8")) as {
+      "#meta"?: Record<string, unknown>;
+    };
     if (doc["#meta"]) {
       delete doc["#meta"].description;
       delete doc["#meta"].timestamp;

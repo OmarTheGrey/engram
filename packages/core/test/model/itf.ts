@@ -19,27 +19,38 @@
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 
-export type ItfValue = string | boolean | number | ItfValue[] | Map<ItfValue, ItfValue> | Set<ItfValue> | { [k: string]: ItfValue };
+export type ItfValue =
+  | string
+  | boolean
+  | number
+  | ItfValue[]
+  | Map<ItfValue, ItfValue>
+  | Set<ItfValue>
+  | { [k: string]: ItfValue };
 
 /** Decodes one ITF value; integers become numbers (the model's are small). */
 export function decode(v: unknown): ItfValue {
   if (typeof v === "string" || typeof v === "boolean") return v;
   if (typeof v === "number") {
-    if (!Number.isSafeInteger(v)) throw new Error(`itf: a JSON number that is not a safe integer: ${v}`);
+    if (!Number.isSafeInteger(v))
+      throw new Error(`itf: a JSON number that is not a safe integer: ${v}`);
     return v;
   }
   if (Array.isArray(v)) return v.map(decode);
-  if (v === null || typeof v !== "object") throw new Error(`itf: not a value: ${JSON.stringify(v)}`);
+  if (v === null || typeof v !== "object")
+    throw new Error(`itf: not a value: ${JSON.stringify(v)}`);
   const o = v as Record<string, unknown>;
   if ("#bigint" in o) {
     const n = Number(o["#bigint"]);
     if (!Number.isSafeInteger(n)) throw new Error(`itf: a bigint out of range: ${o["#bigint"]}`);
     return n;
   }
-  if ("#map" in o) return new Map((o["#map"] as [unknown, unknown][]).map(([k, x]) => [decode(k), decode(x)]));
+  if ("#map" in o)
+    return new Map((o["#map"] as [unknown, unknown][]).map(([k, x]) => [decode(k), decode(x)]));
   if ("#set" in o) return new Set((o["#set"] as unknown[]).map(decode));
   if ("#tup" in o) return (o["#tup"] as unknown[]).map(decode);
-  if ("#unserializable" in o) throw new Error(`itf: an unserializable value: ${String(o["#unserializable"])}`);
+  if ("#unserializable" in o)
+    throw new Error(`itf: an unserializable value: ${String(o["#unserializable"])}`);
   const out: { [k: string]: ItfValue } = {};
   for (const [k, x] of Object.entries(o)) if (k !== "#meta") out[k] = decode(x);
   return out;
@@ -57,8 +68,13 @@ const short = (name: string) => name.slice(name.lastIndexOf("::") + 2);
 
 /** Parses an ITF document (a trace as JSON text). */
 export function parseTrace(text: string): Trace {
-  const doc = JSON.parse(text) as { "#meta"?: Record<string, unknown>; vars: string[]; states: Record<string, unknown>[] };
-  if (!Array.isArray(doc.vars) || !Array.isArray(doc.states)) throw new Error("itf: no vars or states");
+  const doc = JSON.parse(text) as {
+    "#meta"?: Record<string, unknown>;
+    vars: string[];
+    states: Record<string, unknown>[];
+  };
+  if (!Array.isArray(doc.vars) || !Array.isArray(doc.states))
+    throw new Error("itf: no vars or states");
   return {
     meta: doc["#meta"] ?? {},
     vars: [...new Set(doc.vars.map(short))],
@@ -172,7 +188,8 @@ export function projOf(items: readonly string[], log: readonly Event[]): Map<str
   const p = new Map(items.map((x) => [x, NONE] as const));
   for (const e of log) {
     if (e.decision !== "allow" || e.iid === "") continue;
-    if (e.effect === "set") p.set(e.iid, { live: true, content: e.content, kind: e.kind, meta: e.meta });
+    if (e.effect === "set")
+      p.set(e.iid, { live: true, content: e.content, kind: e.kind, meta: e.meta });
     else if (e.effect === "remove") p.set(e.iid, NONE);
   }
   return p;

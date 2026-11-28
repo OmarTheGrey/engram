@@ -30,10 +30,11 @@
 //   rules the model has, in log order (the code's own extra events, an
 //   adoption's retractions, are not modelled and are left out);
 // - which handles are inside a call.
-import { createFakeAdapter } from "@engram/adapters";
+
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createFakeAdapter } from "@engram/adapters";
 import type { Adapter, StoreRef } from "../../src/adapter.ts";
 import type { Db } from "../../src/db/db.ts";
 import { migrate } from "../../src/db/migrate.ts";
@@ -51,7 +52,13 @@ import {
   WRITE_CONFLICT_ID,
 } from "../../src/plane/commit.ts";
 import { WRITE_ERASED_ID } from "../../src/plane/write.ts";
-import { type Actor, adoptStoreItems, offboard, type PlaneDeps, createPlane } from "../../src/plane.ts";
+import {
+  type Actor,
+  adoptStoreItems,
+  createPlane,
+  offboard,
+  type PlaneDeps,
+} from "../../src/plane.ts";
 import { STORE_FAILURE_ID } from "../../src/policy/evaluate.ts";
 import type { MemoryItem, Policy } from "../../src/schema.ts";
 import { id, item, testPolicy } from "../unit/plane/helpers.ts";
@@ -75,7 +82,11 @@ export const ITEMS = ["a", "b"] as const;
 export const ID: Record<string, string> = { a: id(1), b: id(2) };
 const NAME = new Map(Object.entries(ID).map(([k, v]) => [v, k]));
 
-const KIND: Record<number, MemoryItem["provenance"]["kind"]> = { [USER]: "user", [IMPORT]: "import", [MODEL]: "model" };
+const KIND: Record<number, MemoryItem["provenance"]["kind"]> = {
+  [USER]: "user",
+  [IMPORT]: "import",
+  [MODEL]: "model",
+};
 const RANK: Record<string, number> = { user: USER, import: IMPORT, model: MODEL };
 
 /** The model's content n as the code's. */
@@ -109,7 +120,12 @@ const writer = (kind: number): Actor => ({
   memberships: [PERSON],
   source: KIND[kind],
 });
-const hr: Actor = { id: "person:hr", level: "person", memberships: ["person:hr", PERSON], source: "user" };
+const hr: Actor = {
+  id: "person:hr",
+  level: "person",
+  memberships: ["person:hr", PERSON],
+  source: "user",
+};
 const owner: Actor = { id: PERSON, level: "person", memberships: [PERSON], source: "user" };
 
 /** The handle was killed at a point (obStop): its call and every later one throws. */
@@ -340,7 +356,12 @@ export async function replay(trace: Trace): Promise<Replayed> {
       },
       close: () => raw.close(),
     };
-    const point = async (op: Point["op"], phase: Point["phase"], itemId: string, found?: boolean) => {
+    const point = async (
+      op: Point["op"],
+      phase: Point["phase"],
+      itemId: string,
+      found?: boolean,
+    ) => {
       alive();
       await new Promise<void>((resolve, reject) => {
         h.at = {
@@ -405,7 +426,9 @@ export async function replay(trace: Trace): Promise<Replayed> {
       if (h.at || !h.busy) return resolve();
       const timer = setTimeout(() => {
         h.wake = null;
-        reject(new ReplayError(`handle ${h.name} neither stopped at a point nor finished within 5 s`));
+        reject(
+          new ReplayError(`handle ${h.name} neither stopped at a point nor finished within 5 s`),
+        );
       }, 5000);
       h.wake = () => {
         clearTimeout(timer);
@@ -422,7 +445,8 @@ export async function replay(trace: Trace): Promise<Replayed> {
 
   /** Runs the handle on until `stop` accepts the point it reaches, or its call settles. */
   const advance = async (h: Handle, stop: (p: Point) => boolean = () => true) => {
-    if (!h.busy) throw new ReplayError(`handle ${h.name} is idle in the code but inside a call in the model`);
+    if (!h.busy)
+      throw new ReplayError(`handle ${h.name} is idle in the code but inside a call in the model`);
     release(h);
     for (;;) {
       await settle(h);
@@ -433,7 +457,8 @@ export async function replay(trace: Trace): Promise<Replayed> {
   };
 
   const start = async (h: Handle, call: () => Promise<unknown>) => {
-    if (h.busy) throw new ReplayError(`handle ${h.name} is inside a call in the code but idle in the model`);
+    if (h.busy)
+      throw new ReplayError(`handle ${h.name} is inside a call in the code but idle in the model`);
     h.busy = true;
     h.error = undefined;
     call().then(
@@ -492,7 +517,12 @@ export async function replay(trace: Trace): Promise<Replayed> {
     for (const x of ITEMS) {
       const r = await store.read({ adapter: store.name, key: ID[x] as string } as StoreRef);
       s.store[x] = r
-        ? { present: true, content: number(r.content), kind: RANK[r.provenance.kind] ?? -1, meta: metaOf(r.confidence) }
+        ? {
+            present: true,
+            content: number(r.content),
+            kind: RANK[r.provenance.kind] ?? -1,
+            meta: metaOf(r.confidence),
+          }
         : { present: false, content: -1, kind: 0, meta: 0 };
     }
     const events = allEvents(raw);
@@ -501,38 +531,58 @@ export async function replay(trace: Trace): Promise<Replayed> {
     if (process.env.ENGRAM_E18_DEBUG)
       for (const x of ITEMS) {
         console.log("projected", x, JSON.stringify(itemById(raw, ID[x] as string)));
-        console.log("stored   ", x, JSON.stringify(await store.read({ adapter: store.name, key: ID[x] as string } as StoreRef)));
+        console.log(
+          "stored   ",
+          x,
+          JSON.stringify(
+            await store.read({ adapter: store.name, key: ID[x] as string } as StoreRef),
+          ),
+        );
       }
     s.events = events.map(
-      (e) => `${e.seq} ${e.op} ${e.policy_id} ${e.decision} ${e.item_id === null ? "" : (NAME.get(e.item_id) ?? e.item_id)}: ${e.reason}`,
+      (e) =>
+        `${e.seq} ${e.op} ${e.policy_id} ${e.decision} ${e.item_id === null ? "" : (NAME.get(e.item_id) ?? e.item_id)}: ${e.reason}`,
     );
     for (const [name, h] of handles) s.busy[name] = h.busy;
     return s;
   };
 
   const compare = (step: number, action: string, m: State, c: CodeState): Mismatch | null => {
-    const miss = (what: string, model: unknown, code: unknown): Mismatch => ({ step, action, what, model, code });
+    const miss = (what: string, model: unknown, code: unknown): Mismatch => ({
+      step,
+      action,
+      what,
+      model,
+      code,
+    });
     const proj = projOf(ITEMS, m.log);
     for (const x of ITEMS) {
       const a = proj.get(x) as Item;
       const b = c.proj[x] as Item;
       const pa = a.live ? a : NONE;
-      if (pa.live !== b.live || (pa.live && (pa.content !== b.content || pa.kind !== b.kind || pa.meta !== b.meta)))
+      if (
+        pa.live !== b.live ||
+        (pa.live && (pa.content !== b.content || pa.kind !== b.kind || pa.meta !== b.meta))
+      )
         return miss(`the projection of ${x}`, pa, b);
       const r = m.store.get(x);
       const sa = r?.present
         ? { present: true, content: r.content, kind: r.kind, meta: r.meta }
         : { present: false, content: -1, kind: 0, meta: 0 };
       const sb = c.store[x];
-      if (JSON.stringify(sa) !== JSON.stringify(sb)) return miss(`the store record of ${x}`, sa, sb);
+      if (JSON.stringify(sa) !== JSON.stringify(sb))
+        return miss(`the store record of ${x}`, sa, sb);
     }
     const ma = openMarks(m.log);
-    if (JSON.stringify(ma) !== JSON.stringify(c.marks)) return miss("the open offboarding marks", ma, c.marks);
+    if (JSON.stringify(ma) !== JSON.stringify(c.marks))
+      return miss("the open offboarding marks", ma, c.marks);
     const ta = modelTrail(states, step);
-    if (JSON.stringify(ta) !== JSON.stringify(c.trail)) return miss("the trail of decisions", ta, c.trail);
+    if (JSON.stringify(ta) !== JSON.stringify(c.trail))
+      return miss("the trail of decisions", ta, c.trail);
     for (const [name, p] of m.pc) {
       const inside = p.tag !== "idle";
-      if (inside !== c.busy[name]) return miss(`whether handle ${name} is inside a call`, p.tag, c.busy[name]);
+      if (inside !== c.busy[name])
+        return miss(`whether handle ${name} is inside a call`, p.tag, c.busy[name]);
     }
     return null;
   };
@@ -549,7 +599,9 @@ export async function replay(trace: Trace): Promise<Replayed> {
       const h = a.handle === "" ? undefined : handles.get(a.handle);
       const must = forced(prev);
       if (must !== "" && must !== a.handle)
-        throw new ReplayError(`step ${i} (${a.name}) is on ${a.handle}, but the schedule has ${must} go on: not a trace of specs/replay.qnt`);
+        throw new ReplayError(
+          `step ${i} (${a.name}) is on ${a.handle}, but the schedule has ${must} go on: not a trace of specs/replay.qnt`,
+        );
       try {
         if (must !== "") folded++;
         else if (a.name === "decide") {
@@ -579,7 +631,8 @@ export async function replay(trace: Trace): Promise<Replayed> {
             h as Handle,
             (p) =>
               p.iid === a.iid &&
-              ((p.op === "delete" && p.phase === "after") || (p.op === "read" && p.phase === "after" && !p.found)),
+              ((p.op === "delete" && p.phase === "after") ||
+                (p.op === "read" && p.phase === "after" && !p.found)),
           );
         } else if (a.name === "obErase") {
           const handle = h as Handle;
@@ -591,7 +644,9 @@ export async function replay(trace: Trace): Promise<Replayed> {
           release(handle, true);
           await settle(handle);
           if (!(handle.error instanceof Killed))
-            throw new ReplayError(`the stopped handle ${handle.name} ended with ${String(handle.error)}`);
+            throw new ReplayError(
+              `the stopped handle ${handle.name} ended with ${String(handle.error)}`,
+            );
           handles.delete(handle.name);
           open(handle.name);
         } else if (a.name === "outsideEdit") {
@@ -614,8 +669,12 @@ export async function replay(trace: Trace): Promise<Replayed> {
           const x = a.iid;
           const ref = { adapter: store.name, key: ID[x] as string } as StoreRef;
           const was = await store.read(ref);
-          if (!was) throw new ReplayError(`outsideEditMeta(${x}) finds no record in the code's store`);
-          await store.write({ ...was, confidence: confidence(next.store.get(x)?.meta ?? 0) } as MemoryItem);
+          if (!was)
+            throw new ReplayError(`outsideEditMeta(${x}) finds no record in the code's store`);
+          await store.write({
+            ...was,
+            confidence: confidence(next.store.get(x)?.meta ?? 0),
+          } as MemoryItem);
         } else await advance(h as Handle);
       } catch (e) {
         if (!(e instanceof ReplayError)) throw e;
@@ -624,20 +683,36 @@ export async function replay(trace: Trace): Promise<Replayed> {
       }
       for (const handle of handles.values())
         if (handle.error !== undefined && !(handle.error instanceof Killed)) {
-          mismatch = { step: i, action: a.name, what: `handle ${handle.name}'s call threw`, model: null, code: String(handle.error) };
+          mismatch = {
+            step: i,
+            action: a.name,
+            what: `handle ${handle.name}'s call threw`,
+            model: null,
+            code: String(handle.error),
+          };
           handle.error = undefined;
         }
       if (mismatch) break;
       if (forced(next) !== "") continue;
       compared++;
-      mismatch = compare(i, `${a.name}(${a.handle}${a.iid ? `, ${a.iid}` : ""})`, next, await snapshot());
+      mismatch = compare(
+        i,
+        `${a.name}(${a.handle}${a.iid ? `, ${a.iid}` : ""})`,
+        next,
+        await snapshot(),
+      );
     }
     const final = await snapshot();
     let finding: Finding | null = null;
     if (mismatch) {
       if (final.events.some((e) => e.includes(" engram/adopt/retract "))) marks.add("E18-F1");
-      if (final.events.some((e) => e.includes(" retire engram/adopt/withdrawn "))) marks.add("E18-F6");
-      if (final.events.some((e) => e.includes(" engram/offboard/erase ") && e.includes(NOT_FOUND_CLAUSE)))
+      if (final.events.some((e) => e.includes(" retire engram/adopt/withdrawn ")))
+        marks.add("E18-F6");
+      if (
+        final.events.some(
+          (e) => e.includes(" engram/offboard/erase ") && e.includes(NOT_FOUND_CLAUSE),
+        )
+      )
         marks.add("E18-F7");
       for (const f of modelMarks(states, mismatch.step)) marks.add(f);
       finding = (Object.keys(FINDINGS) as Finding[]).find((f) => marks.has(f)) ?? "unexplained";
@@ -692,19 +767,39 @@ function modelMarks(states: readonly State[], upTo: number): Set<Finding> {
     const rec = prev.pc.get(a.handle)?.listing.get(a.iid);
     const bytes = rec ? `${rec.content}/${rec.kind}/${rec.meta}` : "";
     const was = last.get(a.iid);
-    if ((a.name === "adoptDefer" || a.name === "adoptSkip") && was?.rule === ADOPT_ERASED_ID && was.bytes === bytes)
+    if (
+      (a.name === "adoptDefer" || a.name === "adoptSkip") &&
+      was?.rule === ADOPT_ERASED_ID &&
+      was.bytes === bytes
+    )
       if (!projOf(ITEMS, prev.log).get(a.iid)?.live) out.add("E18-F4");
     for (const e of s.log.slice(prev.log.length)) {
       if (!WRITE_OPS.has(e.rule)) continue;
       const eb = e.adopted ? bytes : "";
       const before = last.get(e.iid);
-      if (e.adopted && e.decision === "allow" && before?.rule === ERASING_ID && before.adopted && before.bytes === eb)
+      if (
+        e.adopted &&
+        e.decision === "allow" &&
+        before?.rule === ERASING_ID &&
+        before.adopted &&
+        before.bytes === eb
+      )
         out.add("E18-F2");
       if (e.adopted && e.decision === "allow" && e.meta !== 0)
         for (const p of prev.pc.values())
-          if (p.content === e.content && ["decided", "wrote", "settling", "settleStore", "settleConfirm"].includes(p.tag))
+          if (
+            p.content === e.content &&
+            ["decided", "wrote", "settling", "settleStore", "settleConfirm"].includes(p.tag)
+          )
             out.add("E18-F3");
-      if (e.adopted && e.decision === "deny" && before?.deny && before.adopted && before.bytes === eb) continue;
+      if (
+        e.adopted &&
+        e.decision === "deny" &&
+        before?.deny &&
+        before.adopted &&
+        before.bytes === eb
+      )
+        continue;
       last.set(e.iid, { rule: e.rule, adopted: e.adopted, deny: e.decision === "deny", bytes: eb });
     }
   }
@@ -712,7 +807,13 @@ function modelMarks(states: readonly State[], upTo: number): Set<Finding> {
 }
 
 /** The model's events the code records as `write` events (the rest are retire and update events). */
-const WRITE_OPS = new Set(["gate/allow", WRITE_CONFLICT_ID, ERASING_ID, WRITE_ERASED_ID, ADOPT_ERASED_ID]);
+const WRITE_OPS = new Set([
+  "gate/allow",
+  WRITE_CONFLICT_ID,
+  ERASING_ID,
+  WRITE_ERASED_ID,
+  ADOPT_ERASED_ID,
+]);
 
 /**
  * The model's log up to state `upTo` as the code records it. One rule of the
@@ -739,7 +840,9 @@ function modelTrail(states: readonly State[], upTo: number): string[] {
     for (const e of appended) {
       const rule = e.rule === "gate/allow" ? (e.adopted ? "adopt" : "write") : e.rule;
       if (WRITE_OPS.has(e.rule)) {
-        const rec = e.adopted ? (states[j - 1] as State).pc.get(s.lastAction.handle)?.listing.get(e.iid) : undefined;
+        const rec = e.adopted
+          ? (states[j - 1] as State).pc.get(s.lastAction.handle)?.listing.get(e.iid)
+          : undefined;
         const bytes = rec ? `${rec.content}/${rec.kind}/${rec.meta}` : "";
         const was = last.get(e.iid);
         if (e.adopted && e.decision === "deny" && was?.deny && was.bytes === bytes) continue;
@@ -759,7 +862,9 @@ function codeTrail(events: readonly ReturnType<typeof allEvents>[number][]): str
     if (RULES.has(e.policy_id)) out.push(`${e.policy_id} ${e.decision} ${x}`.trim());
     else if (e.policy_id === STORE_FAILURE_ID) out.push(`${e.policy_id} ${e.decision} ${x}`.trim());
     else if (e.op === "write" && !e.policy_id.startsWith("engram/"))
-      out.push(`${e.reason.startsWith("adopted from store ") ? "adopt" : "write"} ${e.decision} ${x}`);
+      out.push(
+        `${e.reason.startsWith("adopted from store ") ? "adopt" : "write"} ${e.decision} ${x}`,
+      );
   }
   return out;
 }
@@ -776,7 +881,8 @@ function codeMarks(events: readonly ReturnType<typeof allEvents>[number][]): num
       open.add(e.id);
       at.set(e.id, new Set(open));
     } else if (e.policy_id === OFFBOARD_REPORT_ID)
-      for (const [begin, then] of at) if (e.reason.includes(closesClause(begin))) for (const m of then) open.delete(m);
+      for (const [begin, then] of at)
+        if (e.reason.includes(closesClause(begin))) for (const m of then) open.delete(m);
   }
   return [...open].map((b) => index.get(b) as number).sort((a, b) => a - b);
 }

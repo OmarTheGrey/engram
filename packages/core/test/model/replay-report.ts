@@ -36,13 +36,19 @@ async function main() {
     digest.update(f).update("\0").update(bytes).update("\0");
     const r = await replay(readTrace(join(dir, f)));
     if (f.startsWith(prefix)) traces[f] = outcome(r);
-    else scenarios[f] = { ...outcome(r), final: { proj: r.final.proj, store: r.final.store, marks: r.final.marks } };
+    else
+      scenarios[f] = {
+        ...outcome(r),
+        final: { proj: r.final.proj, store: r.final.store, marks: r.final.marks },
+      };
   }
   const rows = Object.values(traces);
   const byFinding: Record<string, number> = Object.fromEntries(
     [...Object.keys(FINDINGS), "unexplained"].map((f) => [f, 0]),
   );
-  for (const r of rows) if (r.outcome === "diverged") byFinding[r.finding as string] = (byFinding[r.finding as string] ?? 0) + 1;
+  for (const r of rows)
+    if (r.outcome === "diverged")
+      byFinding[r.finding as string] = (byFinding[r.finding as string] ?? 0) + 1;
   const report = {
     traces_sha256: digest.digest("hex"),
     totals: {
