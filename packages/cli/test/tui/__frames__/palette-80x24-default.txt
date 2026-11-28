@@ -4,18 +4,18 @@
 │ > │ > prom                                                               │   │
 │   │                                                                      │ry │
 │   │ > Promote an item             engram promote <itemId>                │   │
-│   │   Check a write               engram check                           │   │
-│   │   Write a memory              engram write                           │ts │
-│   │   Grants on an item           engram grants <itemId>                 │.  │
+│   │   Harness memory              engram discover                        │   │
+│   │   Check a write               engram check                           │ts │
+│   │   Write a memory              engram write                           │.  │
+│   │   Grants on an item           engram grants <itemId>                 │   │
 │   │   Read one item               engram read --item <id>                │   │
 │   │   Who can read                engram who-can-read                    │   │
 │   │   Retention sweep             engram retain                          │   │
-│   │   Read and explain            engram read [query]                    │   │
-│ 2 │   Export a bundle             engram export                          │t, │
+│ 2 │   Read and explain            engram read [query]                    │t, │
+│   │   Export a bundle             engram export                          │   │
 │   │   MCP server                  engram mcp                             │   │
 │   │   Explain a read              engram explain <readId>                │   │
 │   │   Lint a scope                engram lint                            │   │
-│   │   Supersede                   engram supersede <itemId>              │   │
 │ 3 │                                                                      │   │
 │   │ enter open   tab fill   esc close                                    │   │
 └───└──────────────────────────────────────────────────────────────────────┘───┘
