@@ -3,11 +3,13 @@
 
  [ Run doctor again ]
 
- x 1 failed   exit 1
+ x 1 failed  ! 1 warning   exit 1
 
  What to do: Choose a preset or a readable policy file in the workspace (ctrl+o, Policy).
 
   x fail  policy          --policy nosuch.yaml is neither a preset nor a readable file
+  ! warn  harness memory  2 harness memory files outside every store root (claude-code auto-memory 1, codex
+                          project-agents-md 1); 0 inside one; engram discover lists them
   + ok    log             sqlite engram.db: no log yet; the first read or write creates it
   - skip  store           no --root given
   - skip  adapter files   no --root given
@@ -19,9 +21,7 @@
   + ok    node            Node 24.0.0
   - skip  serve           no serve flags given (--host, --keys, --issuer, --insecure-loopback)
 
- doctor: 1 check failed      exit 1
-
-
+ doctor: 1 check failed, 1 warning      exit 1
 
 
 
@@ -42,11 +42,13 @@ $ engram doctor --db engram.db --root mem   exit 1
 r0 c0-119 inverse
 r3 c1-20 inverse
 r5 c1-1 fg #E86A1A
+r5 c13-13 fg #E69F00
 r9 c2-2 fg #E86A1A
-r10 c2-2 fg #00A67A
-r13 c2-2 fg #00A67A
-r14 c2-2 fg #00A67A
+r10 c2-2 fg #E69F00
+r12 c2-2 fg #00A67A
 r15 c2-2 fg #00A67A
 r16 c2-2 fg #00A67A
 r17 c2-2 fg #00A67A
 r18 c2-2 fg #00A67A
+r19 c2-2 fg #00A67A
+r20 c2-2 fg #00A67A

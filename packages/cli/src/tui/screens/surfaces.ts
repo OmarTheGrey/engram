@@ -12,7 +12,7 @@ import {
   KeysScreen,
   LogVerifyScreen,
 } from "./data.ts";
-import { DoctorScreen } from "./machine.ts";
+import { DiscoverScreen, DoctorScreen } from "./machine.ts";
 import { LintScreen, RetainScreen, SimulateScreen } from "./policy.ts";
 import { ServeScreen } from "./serve.ts";
 import { HookScreen, McpScreen } from "./setup.ts";
@@ -24,6 +24,7 @@ export const SURFACE_SCREENS: Readonly<Record<string, Make>> = {
   lint: (s, c, v, p) => new LintScreen(s, c, v, p),
   simulate: (s, c, v, p) => new SimulateScreen(s, c, v, p),
   doctor: (s, c, v, p) => new DoctorScreen(s, c, v, p),
+  discover: (s, c, v, p) => new DiscoverScreen(s, c, v, p),
   serve: (s, c, v, p) => new ServeScreen(s, c, v, p),
   mcp: (s, c, v, p) => new McpScreen(s, c, v, p),
   "hook claude-code": (s, c, v, p) => new HookScreen(s, c, v, p),
