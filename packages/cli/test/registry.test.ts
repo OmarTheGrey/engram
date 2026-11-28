@@ -81,6 +81,7 @@ const ADDED = [
   "audit export",
   "audit verify",
   // Card E9.16.
+  "export --subject",
   "audit ropa",
 ];
 
@@ -243,6 +244,7 @@ describe("the registry's entries", () => {
       ["audit export", { out: "report.json" }, {}, "file"],
       ["audit verify", ROOT, SERVER, "none"],
       ["audit ropa", ROOT, SERVER, "none"],
+      ["export --subject", ROOT, SERVER, "file"],
       // The TUI runs until quit; what each action changes is its own entry's answer.
       ["tui", {}, {}, "process"],
       ["tui", ROOT, SERVER, "process"],

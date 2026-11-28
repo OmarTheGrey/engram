@@ -62,12 +62,6 @@ export class ExportScreen extends SurfaceScreen {
     if (this.encryption === "recipients")
       rows.push({ kind: "field", id: "recipient", label: "Recipients" });
     if (this.encryption === "passphrase") rows.push({ kind: "field", id: "passphrase-file" });
-    // Card E9.16: a subject access export, the report shown below.
-    rows.push({
-      kind: "field",
-      id: "subject",
-      hint: "your own person:<id> for a subject access export; the report is shown here",
-    });
     return rows;
   }
   protected override hidden(): ReadonlySet<string> {
@@ -85,7 +79,15 @@ export class ExportScreen extends SurfaceScreen {
     return undefined;
   }
   protected override buttons(): Button[] {
-    return [{ id: "button:run", label: "Export", press: (c) => this.run(c) }];
+    return [
+      { id: "button:run", label: "Export", press: (c) => this.run(c) },
+      // Card E9.16: the subject access export, its report shown on its screen.
+      {
+        id: "button:subject-export",
+        label: "Subject access export",
+        press: (c) => c.openCommand(spec("export --subject"), {}),
+      },
+    ];
   }
   protected override rich(_ctx: Ctx, width: number, result: RunResult): Row[] {
     return [{ kind: "text", lines: this.plainLines(result, width) }];
