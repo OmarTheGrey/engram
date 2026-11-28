@@ -2,13 +2,12 @@
 // question of a LongMemEval file as a base built as card B5 builds it, with
 // its control and its six fault pairs (packages/bench/src/governance-faults/).
 //
-//   node packages/bench/scripts/governance-faults.ts --data <file> --seed <n> --out <file.jsonl> [--from <i> --to <j>]
+//   node packages/bench/scripts/governance-faults.ts --data <file> --seed <n> --out <file.jsonl>
 //
 // <file> is upstream's JSON array (longmemeval_s_cleaned.json at the pin) or
-// a vendored questions.jsonl. --from and --to take the questions at those
-// positions only (half open), so research/scripts/h3_fault_injection.py can
-// split the run across processes; a base depends only on the seed and its
-// question. Writes one line per base: ids, counts, verdicts and booleans, no
+// a vendored questions.jsonl; research/scripts/h3_fault_injection.py splits
+// the run across processes by writing one such file per process, and a base
+// depends only on the seed and its question. Writes one line per base: ids, counts, verdicts and booleans, no
 // LongMemEval text. Byte-stable for the same input, seed and range. Nothing is
 // fetched and no model is called.
 import { closeSync, openSync, writeSync } from "node:fs";
@@ -23,24 +22,17 @@ async function main(): Promise<number> {
       data: { type: "string" },
       seed: { type: "string" },
       out: { type: "string" },
-      from: { type: "string" },
-      to: { type: "string" },
     },
   });
   if (!values.data || values.seed === undefined || !values.out) {
-    console.error(
-      "usage: governance-faults.ts --data <file> --seed <n> --out <file.jsonl> [--from <i> --to <j>]",
-    );
+    console.error("usage: governance-faults.ts --data <file> --seed <n> --out <file.jsonl>");
     return 2;
   }
   const seed = Number(values.seed);
   if (!Number.isInteger(seed)) throw new Error("--seed must be an integer");
-  const all = readQuestions(values.data);
-  const from = values.from === undefined ? 0 : Number(values.from);
-  const to = values.to === undefined ? all.length : Number(values.to);
   const fd = openSync(values.out, "w");
   try {
-    for (const q of all.slice(from, to)) {
+    for (const q of readQuestions(values.data)) {
       const outcome = await checkBase(visibleQuestion(q), { seed });
       writeSync(fd, `${JSON.stringify(outcome)}\n`);
     }

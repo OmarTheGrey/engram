@@ -64,18 +64,48 @@ export const PLACES = ["projection", "log"] as const;
 export type Place = (typeof PLACES)[number];
 
 /**
- * The lint that checks the field each operator corrupts: a finding by it on
- * the target that the clean state lacks is a detection. A new finding by any
- * other lint is counted (`new_lint_ids`) but is no detection: restoring a
- * closed version makes it readable again, so the lints reach it and raise its
- * natural findings (an assistant turn's missing model), which say nothing of
- * the fault (decision entry docs/log/2026-11-28-x18-decision-lint-detection.md).
+ * The lint that checks the field each operator corrupts. For missing
+ * metadata and supersession a detection is a finding by it on the target
+ * that the clean state lacks. A deleted item is not projected, so no finding
+ * can name it: a deletion is detected by a new orphan finding on any item
+ * whose evidence names the target's id (its provenance ref or a lineage id),
+ * which is what the orphan lint can see. A new finding by any other lint is
+ * counted (`new_lint_ids`) but is no detection: restoring a closed version
+ * makes it readable again, so the lints reach it and raise its natural
+ * findings (an assistant turn's missing model), which say nothing of the
+ * fault (decision entry docs/log/2026-11-28-x18-decision-lint-detection.md).
+ * Supersession's detection is zero by construction: expired-validity fires
+ * on a passed valid_to, and both supersession faults reopen the window.
  */
 export const DETECTING_LINT: Readonly<Record<Operator, string>> = {
   deletion: "orphan",
   "temporal-supersession": "expired-validity",
   "missing-metadata": "missing-provenance",
 };
+
+type Finding = Pick<LintFinding, "lint_id" | "item_id" | "evidence">;
+
+/** The findings of a faulted state that bear on its target and the clean state lacks: on the target, or an orphan naming it. */
+export function freshFindings(
+  operator: Operator,
+  target: string,
+  clean: readonly Finding[],
+  corrupted: readonly Finding[],
+): Finding[] {
+  const known = new Set(clean.map(findingKey));
+  return corrupted.filter(
+    (f) =>
+      !known.has(findingKey(f)) &&
+      (f.item_id === target ||
+        (operator === "deletion" &&
+          f.lint_id === "orphan" &&
+          f.evidence.some((e) => e.split(" ").includes(target)))),
+  );
+}
+
+/** Whether those findings detect the fault: one by the operator's detecting lint. */
+export const detects = (operator: Operator, fresh: readonly Finding[]): boolean =>
+  fresh.some((f) => f.lint_id === DETECTING_LINT[operator]);
 
 /** B5's preset for C5 (research/configs/b5-longmemeval-plane.json). */
 export const PRESET = "medium";
@@ -98,9 +128,9 @@ export interface PairOutcome {
   changed: boolean;
   /** The enforced read's ids and order equal the clean read's. */
   enforced_equals_clean: boolean;
-  /** The operator's detecting lint (DETECTING_LINT), run on the corrupted state, names the target with a finding the clean state lacks. */
+  /** The operator's detecting lint (DETECTING_LINT), run on the corrupted state, raised a finding bearing on the target that the clean state lacks (freshFindings). */
   lint_detected: boolean;
-  /** The lint ids of every finding on the target the clean state lacks, sorted. */
+  /** The lint ids of every finding bearing on the target that the clean state lacks, sorted. */
   new_lint_ids: string[];
   /** verifyChain's verdict on the corrupted log, before any read. */
   verify: Verdict;
@@ -117,6 +147,8 @@ export interface BaseOutcome {
   b5_read: number;
   /** Items the clean read returned. */
   clean_read: number;
+  /** Whether the item the governed close superseded is still in the clean read (it must not be); null when B5's read was empty. */
+  closed_in_clean_read: boolean | null;
   /** The clean state's own deterministic findings, by lint id. */
   clean_findings: Record<string, number>;
   /** A copy of the clean log, unedited, through the same steps as a log fault: its verdict and whether both its reads equal the clean read. */
@@ -195,8 +227,7 @@ function copyLog(from: Db): Db {
 const ids = (items: readonly MemoryItem[]) => items.map((i) => i.id);
 const same = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((x, i) => x === b[i]);
-const findingKey = (f: Pick<LintFinding, "lint_id" | "item_id" | "evidence">) =>
-  JSON.stringify([f.lint_id, f.item_id, f.evidence]);
+const findingKey = (f: Finding) => JSON.stringify([f.lint_id, f.item_id, f.evidence]);
 
 /** The writer of an item's next version: the user, with the source its provenance kind implies. */
 const writerOf = (item: MemoryItem): Actor => ({
@@ -326,7 +357,6 @@ export async function checkBase(view: VisibleQuestion, opts: CheckOptions): Prom
   };
 
   const control = await run();
-  const cleanKeys = new Set(control.findings.map(findingKey));
   const cleanFindings: Record<string, number> = {};
   for (const f of control.findings) cleanFindings[f.lint_id] = (cleanFindings[f.lint_id] ?? 0) + 1;
 
@@ -350,7 +380,7 @@ export async function checkBase(view: VisibleQuestion, opts: CheckOptions): Prom
         continue;
       }
       const r = await run({ operator, place, target });
-      const fresh = r.findings.filter((f) => f.item_id === target && !cleanKeys.has(findingKey(f)));
+      const fresh = freshFindings(operator, target, control.findings, r.findings);
       pairs.push({
         operator,
         place,
@@ -358,7 +388,7 @@ export async function checkBase(view: VisibleQuestion, opts: CheckOptions): Prom
         target,
         changed: !same(r.corrupted, clean),
         enforced_equals_clean: same(r.enforced, clean),
-        lint_detected: fresh.some((f) => f.lint_id === DETECTING_LINT[operator]),
+        lint_detected: detects(operator, fresh),
         new_lint_ids: [...new Set(fresh.map((f) => f.lint_id))].sort(),
         verify: r.report.verdict,
         verify_check: r.report.verdict === "FAILED" ? (r.report.first_break?.check ?? null) : null,
@@ -371,6 +401,7 @@ export async function checkBase(view: VisibleQuestion, opts: CheckOptions): Prom
     turns: writes.length,
     b5_read: b5.length,
     clean_read: clean.length,
+    closed_in_clean_read: earlier ? clean.includes(earlier.id) : null,
     clean_findings: Object.fromEntries(Object.entries(cleanFindings).sort()),
     control: {
       verify: control.report.verdict,

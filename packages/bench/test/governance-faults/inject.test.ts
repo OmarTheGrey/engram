@@ -45,6 +45,7 @@ describe("the paired fault-injection check", () => {
       if (base.b5_read === 0) continue;
       const close = base.pairs.find((p) => p.operator === "temporal-supersession");
       expect(close?.targeted).toBe(true);
+      expect(base.closed_in_clean_read).toBe(false);
       expect(base.clean_read).toBeLessThanOrEqual(base.b5_read);
     }
   });
