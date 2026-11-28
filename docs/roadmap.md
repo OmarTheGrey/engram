@@ -12,20 +12,122 @@ Dates assume a start on Monday 5 October 2026 and submission in the last week of
 
 **The second absorb plan, 2026-11-25.** The lead asked for another thirty pull requests from the absorb research. They are `docs/tasks/absorb-plan-2.md`: twenty-eight new cards, and cards D4 and E8.8 rewritten. Their cards are in the section "The second absorb plan" under Task cards, their weeks under "The second absorb plan in the week plan", their cost under Effort budget. No card in it bumps `schema_version`, and nothing that changes code a registered config runs merges between the `prereg-v1` tag and the merge of H1's shards.
 
-**The answers of 2026-11-20.** The lead chose the three models, and the orchestrating session answered every other open decision under his delegation (`docs/tasks/lead-decisions.md`, items 1 to 48 and the review cards' table). The answers card of 2026-11-21 carried them into the pre-registration, the ADRs and this roadmap: Gate C's undecided branch, Gate D's store and dogfood criteria, the dates, the variance bound, the spend ceiling and where the cassettes go. Two drafts are still owed to the lead: the kill list's rewrite (item 26, proposed below) and H5's prerequisites (item 30).
+**The answers of 2026-11-20.** The lead chose the three models, and the orchestrating session answered every other open decision under the lead's delegation (`docs/tasks/lead-decisions.md`, items 1 to 48 and the review cards' table). The answers card of 2026-11-21 carried them into the pre-registration, the ADRs and this roadmap: Gate C's undecided branch, Gate D's store and dogfood criteria, the dates, the variance bound, the spend ceiling and where the cassettes go. Two drafts were owed to the lead. The kill list's rewrite (item 26, proposed below) still waits for the lead's approval. H5's prerequisites (item 30) are drafted by card H5P (#121, merged 2026-11-27) as a proposed amendment in `docs/research/preregistration.md` ("H5's prerequisites, drafted for the lead"), with twenty-two proposed values listed in `docs/tasks/H5P.md`; nothing is registered until the lead approves the text.
 
-1.  [Planning principles](#principles)
-2.  [Phases and gates](#phases)
-3.  [Timeline at a glance](#gantt)
-4.  [Week by week](#weeks)
-5.  [Task cards](#cards)
-6.  [Dependency map](#deps)
-7.  [Effort budget](#effort)
-8.  [Compute and data budget](#compute)
-9.  [Conventions and definition of done](#conventions)
-10. [Writing schedule](#writing)
-11. [Risk triggers and the kill list](#risks)
-12. [Appendix: deferred items](#appendix)
+1.  [Where things stand, 2026-11-28](#state)
+2.  [Planning principles](#principles)
+3.  [Phases and gates](#phases)
+4.  [Timeline at a glance](#gantt)
+5.  [Week by week](#weeks)
+6.  [Task cards](#cards)
+7.  [Dependency map](#deps)
+8.  [Effort budget](#effort)
+9.  [Compute and data budget](#compute)
+10. [Conventions and definition of done](#conventions)
+11. [Writing schedule](#writing)
+12. [Risk triggers and the kill list](#risks)
+13. [Appendix: deferred items](#appendix)
+
+## Where things stand, 2026-11-28
+
+Written on Saturday 28 November, the last weekend of week 8 (23 to 29 November), from the card files under `docs/tasks/`, the merged pull requests and the log. The sections after this one are the plan; this section and its table are the state.
+
+**The gate.** The project is in phase 2, "First result", between Gate B and Gate C. Gate A was declared passed with two exceptions on 2026-10-29 by the orchestrating session, pending the lead's review (`docs/log/2026-10-29-gate-a-milestone-corrected.md`); no later entry records that review. Gate B's engineering was done on 2026-10-29 and proposed as passed with exceptions (a) and (c) (`docs/log/2026-10-29-gate-b-engineering-done.md`); no entry records the lead declaring it (`docs/log/2026-11-21-readme-finding-gate-b-undeclared.md`). On the drafter's reading (`docs/log/2026-11-28-roadmap-decision-gate-b-exceptions.md`), condition 4's live checks, once they pass, would also close both exceptions. B1 is exception (a). The smoke run's C5 sessions on M1 are the live half of criterion 4, which the Gate B plan (section 5) assigned to a live `b3-gatemem-plane.json` run. Neither check has run yet. The lead declares the gate. Gate C, at the end of week 10 (13 December), needs H1's table.
+
+**Merged since the second absorb plan (2026-11-25).** ANS-2026-11-25, the lead's acceptance of ADRs 0034 and 0042 to 0048 (#113). E8.15, the terminal interface `engram tui` (#114), and the READMEs after it (#115). The gate-work cards R5, R6, X20, X21, X22, X23, L10 and E9.17 with the lead's answers of 2026-11-26 (#116); then X21 (#117), R5 (#118, #119), R6 (#120), H5P as a proposed amendment with nothing registered (#121), X20 (#122) and the runbook's credit check (#123, `docs/tasks/prereg-v1-plan.md`, "The commands that run H1 once the key exists"). Then L8 (#124), E9.9 (#125), E2.21 part 1 (#126) and RD1 (#127). Every card of the first absorb plan is now merged (the table "The absorb plan, 2026-11-21" under Task cards, which adds E8.15, E9.9 and L8 to `docs/tasks/absorb-plan.md`), so the nine it placed before Gate C are merged and the Effort budget's trigger ("fewer than seven of the nine") cannot fire. No card of the second absorb plan has merged.
+
+**Results.** All 24 rows of `research/results/MANIFEST.md` matched their sha256 under `make test-repro` at `42131029`, RD1's branch with main through #126 merged in; the commits after it, up to main's head `b30cdffd`, change tests and log entries only (PR #127's description; `git diff --stat 42131029 b30cdffd`). They had matched at X20's head too (`docs/log/2026-11-27-x20-measurement-test-repro-at-head.md`). No registered result exists yet: H1 has not run.
+
+**Pre-tag conditions** (`docs/research/preregistration.md`, header). Done: 2 (R5, #118, merged 2026-11-27), 3 (X21, #117, merged 2026-11-26, and X20, #122, merged 2026-11-27), 5 (R6, #120, merged 2026-11-27) and 6 (the answers card, 2026-11-21); the header marks 2, 3 and 5 done on 2026-11-26 (`docs/log/2026-11-28-roadmap-finding-header-done-dates.md`). Merge dates here are UTC, as `gh pr list` gives them. Left, before the `prereg-v1` tag on 30 November:
+
+| Condition | What is left | Who |
+|---|---|---|
+| 1 | The label audit (Omar, Mohamad and Shady, 23 to 28 November; `docs/research/label-audit.md`), then the PR that writes its rates, kappas and rejected items into the Benchmarks section, whose place still reads "label audit not yet done" | the three members, then the lead |
+| 4 | The smoke run and B1, live: the smoke run on M1 (`openrouter/deepseek/deepseek-v4-pro-0813` on Wafer's `wafer/us`, an mxfp4 build), B1 on GPT-5.4; the smoke run priced on `gpt-5.6-terra`, item 1's earlier recommendation, at 0.53 to 4.26 USD (DeepSeek's catalogue price scales it), and B1 at 2.06 to 6.04 USD (`research/results/h1-check-runs-cost.json`), about 3 to 10 USD together on those prices; commands in `docs/tasks/prereg-v1-plan.md`, "The live checks before the tag (card RV6)" | the lead, with the key |
+| 7 | Held for H1 by the operator's credit check (OpenRouter's balance before the first live command and at least every two hours, `docs/tasks/prereg-v1-plan.md`), until card X22 has the runner enforce the cap after H1's `MERGE=4` (the lead's answer to Q1 of 2026-11-25) | the operator of H1's runs |
+| 8 | The tag on the commit that holds the final text, and its Zenodo deposit by 30 November (ADR 0023), recorded as a `milestone` entry | the lead |
+
+Also the lead's, before the tag or at the latest before H1's data exist (lead-decisions item 9): reading H5P's twenty-two proposed values (`docs/tasks/H5P.md`), and the pre-registration header's sentence "on the commit he tags", whose pronoun is the lead's to keep or change. The lead's approval of the kill list's rewrite (item 26, under Risk triggers) and the declaration of Gate B remain open, with no date.
+
+**Dates ahead.** The `prereg-v1` tag and Zenodo deposit by Monday 30 November (W9). H1 live from 1 to 8 December: the GateMem arm as 4 shards (`SHARD=i/4`, card RV6) joined with `MERGE=4`, and the MEM-INV-Bench arm (cards X2 and X3). During the runs only tests, specs, research scripts and new read-only commands merge; core changes, new configs and new MANIFEST rows resume after `MERGE=4` ("The second absorb plan in the week plan", below). Gate C at the end of W10, 13 December. Gate D at the end of W16, 24 January 2027. Experiments freeze at the end of W21, 28 February; submission in the last week of March.
+
+**Open findings, each left to a later card.** Core's property test "rebuild equals incremental" (`packages/core/test/replay/rebuild.test.ts`) times out on embedded Postgres under the full suite's load and passes alone (`docs/log/2026-11-26-e8-15-failure-rebuild-timeout-on-postgres.md`): a core card after H1. Card X20's Goal calls a plain 400 an exclusion while its acceptance keeps it a stop, and it stays a stop for H1 (`docs/log/2026-11-27-x20-finding-goal-and-acceptance-disagree.md`): a card after `MERGE=4`. Core should state on each answer whether the grants it shows are all of them (`docs/tasks/backlog.md`, row "Grants shown, stated by core"; `docs/log/2026-11-27-rd1-finding-grants-shown-inferred.md`): after H1. Card E2.21's part 2, the one-year grant cap and first-write rule behind `grants.expiry_cap`: after `MERGE=4`, before E2.15 (`docs/log/2026-11-27-e2-21-decision-split-opt-in.md`).
+
+### What is left
+
+Every card not done, from the original cards, both absorb plans and the gate-work cards, grouped by the phase the week plan places it in, with its week. "Not started" means no pull request for the card has merged. A card whose engineering merged but whose acceptance needs a live run is listed with what is left. The statuses are taken from the merged pull requests (`docs/log/2026-11-28-roadmap-decision-status-from-merged-prs.md`), and the status lines of the card files under `docs/tasks/` are current with them: those that still read "awaiting review" after their pull request merged now name the PR and its merge date (`docs/log/2026-11-28-roadmap-change-card-statuses.md`). Some "Depends on" lines still say "(in flight)" for cards since merged (E8.16 and E2.17 for RD1, E2.19 for E9.9, E2.15 for E2.21); they are left as written (`docs/log/2026-11-28-roadmap-decision-status-lines-only.md`).
+
+| Card | What is left | Status | Depends on, or waits for |
+|---|---|---|---|
+| **Before the tag (W8, by 30 November)** | | | |
+| R1 | v1 tagged and deposited (drafted in #27, answered in #43 and #80) | waiting on the lead | pre-tag conditions 1, 4, 7 and 8 |
+| B1 | the live reference check, Gate B's exception (a) (pipeline merged in #6) | waiting on the lead | the key; pre-tag condition 4 |
+| H5P | the lead's reading of the twenty-two proposed values (drafted, #121) | waiting on the lead | none; before H1's data exist (item 9) |
+| E0.6 | `make lint-docs` checks the absorbed register | not started (planned W8) | none |
+| E0.7 | determinism guards in tests | not started (planned W8) | none |
+| **Phase 2, to Gate C (W9 and W10, 30 November to 13 December)** | | | |
+| X2 | H1 on GateMem, live, 4 shards and `MERGE=4` | not started; ready | the tag and the key; 1 to 8 December |
+| X3 | H1 on MEM-INV-Bench, live | not started; ready | the tag and the key; 1 to 8 December |
+| X4 | H1's read-out and figure (code merged in #26 and #57), with the two readers' UNREAD readings | blocked by X2 and X3 | X2, X3 |
+| E8.16 | cross-surface parity and leak suite (W9) | not started | RD1 (merged, #127) |
+| E1.8 | Quint traces replayed against the Plane (W9) | not started | none |
+| E9.10 | `engram discover` (W9) | not started | none |
+| X22 | the runner enforces the programme-wide spend cap (W10) | after H1's `MERGE=4` | X20 (merged, #122); before any later live run |
+| E2.21 part 2 | the one-year grant cap and first-write rule, opt-in (W10) | after H1's `MERGE=4` | part 1 (merged, #126) |
+| X16 | gate mutation audit (W10) | not started; its MANIFEST row after `MERGE=4` | none |
+| X17 | the results page (W10) | not started; its MANIFEST row after `MERGE=4` | none |
+| E1.7 | erasure: the two gaps the Quint model found (W10) | after H1's `MERGE=4` | E1.8 |
+| E2.14 | the policy schema's new options, `grants.expiry_cap` among them (W10) | after H1's `MERGE=4` | none |
+| E2.15 | provenance across rewrites, closes and imports (W10) | blocked by E2.21 part 2 | E2.21 part 2 |
+| B5 | the ungoverned LongMemEval baseline on M1 (engineering merged in #37) | after H1's `MERGE=4` | the tag, the key, X22 |
+| B6 | the enforced LongMemEval baseline on M1 (engineering merged in #51) | after H1's `MERGE=4` | the tag, the key, X22 |
+| E8.7 | findings view with resolve actions | not started (planned W7) | L1, E8.5 (both merged) |
+| **Phase 3, to Gate D (W11 to W16, 14 December to 24 January)** | | | |
+| X23 | the request-identity check on files, Mem0 and Letta (W11) | after H1's `MERGE=4` | `MERGE=4` |
+| L10 | the contradiction prompt counts a later update (W11) | after H1's `MERGE=4` | R6 (merged, #120) |
+| L3 | the live variance pilot (engineering merged in #45) | blocked by L10 | L10, the key, X22 |
+| X18 | the paired fault-injection check for H3 (W11) | not started | none |
+| X19 | the erasure-residue check (W11) | blocked by E1.7 | E1.7 |
+| E2.16 | the content guards' gaps (W11) | not started | none |
+| E1.9 | the chain on every writer and over attestations; race-free migration (W11) | not started | none |
+| E9.11 | crypto-shredding ADR and key table (W11) | blocked by E1.7 | E1.7, E1.9 |
+| X5 | frontier design (W11) | blocked by X4 | X4, E2.4 (merged) |
+| X6 | frontier run, primary model (W12) | blocked by X5 | X5, A2 (merged) |
+| E9.3 | Knowledge screens (W12) | blocked by E8.7 | E9.1 (merged), E8.7 |
+| L9 | quote-grounding for the model lints (W12) | blocked by E2.14 | E2.14 |
+| D5 | the procedure safety scan (W12) | blocked by E2.14 | E2.14 |
+| A6 | the MCP memory server as a fourth store (W12) | not started | none |
+| E2.17 | why not this item (W12) | not started | RD1 (merged, #127) |
+| E9.12 | do not record (W12) | blocked by E2.14 | E2.14 |
+| E8.17 | Codex under the gate (W12) | not started | none |
+| D4 | drift and retirement (W13) | blocked by E2.14 | E2.14; D3 (merged, #99) |
+| E2.18 | Cedar symbolic proofs (W13) | not started | none |
+| E9.13 | crypto-shredded erasure in offboarding (W13) | blocked by E9.11 and X19 | E9.11, X19 |
+| E2.19 | the approval queue (W13) | blocked by E2.14 | E2.14, E9.9 (merged, #125) |
+| E9.17 | the Knowledge dogfood kit (W13); the members run it in W14 and W15 | not started; runs with E9.5's two weeks | E9.5's kit (merged, #48) |
+| X7 | frontier run, second model, with MERIT (W14) | blocked by X6 | X6, B7 (merged) |
+| E9.5 | the two weeks of twin dogfood (kit merged in #48) (W14) | waiting on the lead's go | the lead's acceptance of the twin profile's values; each member's hook check (`docs/dogfood.md`, "When it starts") |
+| E9.14 | the signed erasure receipt (W14) | blocked by E9.13 | E9.13 |
+| E8.8 | approvals on every surface (W14) | blocked by E2.19 | E2.19 |
+| X8 | frontier run, third model (W15) | blocked by X7 | X7 |
+| B8 | HaluMem harness (W15) | blocked: HaluMem is unregistered, CC-BY-NC-ND-4.0 (`docs/log/2026-11-19-lead-decision-halumem-unregistered.md`) | a decision to register it |
+| E8.10 | diff view (W15; on the kill list) | not started | E1.3, E8.5 (both merged) |
+| E2.20 | `engram policy test` and `policy diff` (W15) | not started | none |
+| E9.15 | the signed audit report (W15) | not started | none |
+| X9 | H2 and H4 analysis, frontier figure (W16) | blocked by X6 to X8 | X6, X7, X8 |
+| E9.16 | subject access export and Article 30 record (W16) | not started | none |
+| **Phase 4 (W17 to W21, 25 January to 28 February)** | | | |
+| X10 | H3 recovery (W17) | blocked by L10 and X22; its HaluMem half by B8 | L4 (merged), B8 |
+| E9.6 | Procedures screens (W18) | blocked by E8.8 | D3 (merged), E8.8 |
+| X11 | H5's runs (W19) | blocked by H5P's approval and by an H5 harness card not yet written | D3 (merged), H5P approved |
+| B9 | MemoryAgentBench forgetting split (W20; item 1 of the proposed kill list) | not started | E2.4 (merged) |
+| X12 | failure analysis (W20) | blocked by X9, X10 and X11 | X9, X10, X11 |
+| **Phase 5 (W22 to W26, 1 March to 4 April)** | | | |
+| X13 | the reproduction script from a fresh clone (W22) | blocked by every X card | all X |
+| **Not scheduled** | | | |
+| B2 | MPBench pin | backlogged by the lead on 2026-10-22; MEM-INV-Bench runs in its place (ADR 0029) | an MPBench release |
+| BF1 | MPBench fallback | backlogged by the lead on 2026-10-22; MEM-INV-Bench runs in its place (ADR 0029) | none |
+| RN2 | the durable runner behind `ENGRAM_RUNNER=durable` | not started; no week | RN1 (merged, #7) |
 
 ## Planning principles
 
@@ -55,7 +157,7 @@ Dates assume a start on Monday 5 October 2026 and submission in the last week of
 
 **Gate D, end of week 16.** Pass if: the frontier figure exists for at least two policy levels on two stores and two models; seeded-fault lint precision and recall are tabulated; Knowledge and Twin profiles run on dogfood data with zero recorded violations. Fail response: kill list items 1 and 2, then 3.
 
-Gate D as answered on 2026-11-20 (`docs/tasks/lead-decisions.md`): "two stores" is met by the request-identity check on files, Mem0 and Letta, not by paid runs on each store (item 20, ADR 0035, decision 3). The Knowledge profile's dogfood runs beside the twin dogfood, by a card not yet written (item 28). "Zero recorded violations" is measured on the plane, with members' Claude Code auto memory off and the native memory path stated as outside it (item 33; `docs/dogfood.md`). The fail response's kill list is being rewritten, since its items 1 and 3 are done (item 26, under the kill list).
+Gate D as answered on 2026-11-20 (`docs/tasks/lead-decisions.md`): "two stores" is met by the request-identity check on files, Mem0 and Letta, not by paid runs on each store (item 20, ADR 0035, decision 3). The Knowledge profile's dogfood runs beside the twin dogfood, by card E9.17 (item 28; written by the gate-work cards, #116, `docs/tasks/E9.17.md`). "Zero recorded violations" is measured on the plane, with members' Claude Code auto memory off and the native memory path stated as outside it (item 33; `docs/dogfood.md`). The fail response's kill list is being rewritten, since its items 1 and 3 are done (item 26, under the kill list).
 
 ## Timeline at a glance
 
@@ -214,7 +316,7 @@ Friday demonstrations the plan adds: W8, the counterexample tests' findings and 
 
 ### The second absorb plan in the week plan
 
-Added on 2026-11-25 (`docs/tasks/absorb-plan-2.md`). Before the tag only test tooling merges; during H1's runs (1 to 8 December) only tests, specs, research scripts and new read-only commands; core changes, new configs and new MANIFEST rows resume after H1's `MERGE=4`. Card E2.21 (ADR 0034's grant cap, in flight on its own branch) builds its part 2 after `MERGE=4`, before E2.15.
+Added on 2026-11-25 (`docs/tasks/absorb-plan-2.md`). Before the tag only test tooling merges; during H1's runs (1 to 8 December) only tests, specs, research scripts and new read-only commands; core changes, new configs and new MANIFEST rows resume after H1's `MERGE=4`. Card E2.21 (ADR 0034's grant cap; part 1, the tests, merged as #126 on 2026-11-27) builds its part 2 after `MERGE=4`, before E2.15.
 
 | Week | Dates | Research lane | Product lane |
 |---|---|---|---|
