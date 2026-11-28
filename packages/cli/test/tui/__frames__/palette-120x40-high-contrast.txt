@@ -2,37 +2,37 @@
 ┌─ Actions ────────────────────────────────────────────────────────────┐┌─ Selected ───────────────────────────────────┐
 │ 1 Memory                                                             ││ Read and explain                             │
 │ > [r] Read and explain                engram read [query]            ││                                              │
-│   [o] Read one item                   engram read --item <id>        ││ Read through the plane and explain every     │
-│   [w] Write a memo┌─ Commands ───────────────────────────────────────────────────────────────────┐                   │
-│   [C] Check a writ│ > prom                                                                       │                   │
-│   [p] Promote an i│                                                                              │he log; as its     │
-│   [S] Supersede   │ > Promote an item             engram promote <itemId>                        │xpired items. Asks │
-│   [g] Grants on an│   Harness memory              engram discover                                │                   │
-│   [E] Explain a re│   Export an audit report      engram audit export                            │                   │
-│   [n] Who can read│   Check a write               engram check                                   │r: a log it cannot │
-│   [u] Scopes you c│   Write a memory              engram write                                   │t answer; 2 usage: │
-│ 2 Policy          │   Grants on an item           engram grants <itemId>                         │ a 501 naming a    │
-│   [t] Retention sw│   Read one item               engram read --item <id>                        │                   │
-│   [l] Lint a scope│   Who can read                engram who-can-read                            │                   │
-│   [s] Simulate a p│   Retention sweep             engram retain                                  │                   │
-│   [y] Policy in fo│   Read and explain            engram read [query]                            │                   │
-│ 3 Audit           │   Export a bundle             engram export                                  │d                  │
-│   [e] Events      │   MCP server                  engram mcp                                     │                   │
-│   [f] Verify the l│   Explain a read              engram explain <readId>                        │                   │
+│   [o] Read one ite┌─ Commands ───────────────────────────────────────────────────────────────────┐ explain every     │
+│   [w] Write a memo│ > prom                                                                       │                   │
+│   [C] Check a writ│                                                                              │                   │
+│   [p] Promote an i│ > Promote an item             engram promote <itemId>                        │he log; as its     │
+│   [S] Supersede   │   Harness memory              engram discover                                │xpired items. Asks │
+│   [g] Grants on an│   Export an audit report      engram audit export                            │                   │
+│   [E] Explain a re│   Check a write               engram check                                   │                   │
+│   [n] Who can read│   Write a memory              engram write                                   │r: a log it cannot │
+│   [u] Scopes you c│   Grants on an item           engram grants <itemId>                         │t answer; 2 usage: │
+│ 2 Policy          │   Read one item               engram read --item <id>                        │ a 501 naming a    │
+│   [t] Retention sw│   Who can read                engram who-can-read                            │                   │
+│   [l] Lint a scope│   Retention sweep             engram retain                                  │                   │
+│   [s] Simulate a p│   Read and explain            engram read [query]                            │                   │
+│   [y] Policy in fo│   Export a bundle             engram export                                  │                   │
+│ 3 Audit           │   MCP server                  engram mcp                                     │d                  │
+│   [e] Events      │   Explain a read              engram explain <readId>                        │                   │
+│   [f] Verify the l│   Subject access export       engram export --subject <person>               │                   │
 │   [F] Checkpoint t│   Lint a scope                engram lint                                    │                   │
 │ 4 Data            │   Supersede                   engram supersede <itemId>                      │                   │
 │   [x] Export a bun│   Install a hook              engram hook install <harness>                  │                   │
 │   [i] Import a bun│   Serve the API and inspector engram serve                                   │                   │
 │ 5 Surfaces        │   Import a bundle             engram import <bundle>                         │                   │
-│   [h] Serve the AP│   Scopes you can see          engram scopes                                  │                   │
-│   [m] MCP server  │   Events                      engram events                                  │                   │
-│   [b] Claude Code │   Verify an audit report      engram audit verify                            │                   │
-│   [a] Create a key│   Why not this item           engram explain --absent <id> [query]           │                   │
-│   [A] List keys   │   Simulate a policy           engram simulate                                │                   │
-│   [R] Revoke a key│                                                                              │                   │
-│ 6 Machine         │ enter open   tab fill   esc close                                            │                   │
-│   [d] Doctor      └──────────────────────────────────────────────────────────────────────────────┘                   │
-│   [D] Harness memory                  engram discover        E9.10   ││                                              │
+│   [h] Serve the AP│   Record of processing        engram audit ropa                              │                   │
+│   [m] MCP server  │   Scopes you can see          engram scopes                                  │                   │
+│   [b] Claude Code │   Events                      engram events                                  │                   │
+│   [a] Create a key│   Verify an audit report      engram audit verify                            │                   │
+│   [A] List keys   │   Why not this item           engram explain --absent <id> [query]           │                   │
+│   [R] Revoke a key│   Simulate a policy           engram simulate                                │                   │
+│ 6 Machine         │                                                                              │                   │
+│   [d] Doctor      │ enter open   tab fill   esc close                                            │                   │
+│   [D] Harness memo└──────────────────────────────────────────────────────────────────────────────┘                   │
 └──────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────┘
  · doctor not run this session: d   log engram.db   policy preset.medium v1
  store files mem    owner dana    member of the actor's own scope    workspace not saved    decision export off
@@ -41,5 +41,5 @@ $ engram read --db engram.db --owner dana --root mem
 --- styles
 r0 c0-119 inverse
 r3 c1-70 inverse
-r6 c28-28 inverse
-r8 c21-98 inverse
+r5 c28-28 inverse
+r7 c21-98 inverse
