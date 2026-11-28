@@ -426,7 +426,11 @@ export function subjectAccessReport(
   const sortedOps: Record<string, Record<string, number>> = {};
   for (const op of Object.keys(byOp).sort()) {
     const d = byOp[op] as Record<string, number>;
-    sortedOps[op] = Object.fromEntries(Object.keys(d).sort().map((k) => [k, d[k] as number]));
+    sortedOps[op] = Object.fromEntries(
+      Object.keys(d)
+        .sort()
+        .map((k) => [k, d[k] as number]),
+    );
   }
   return {
     format: SUBJECT_ACCESS_FORMAT,
