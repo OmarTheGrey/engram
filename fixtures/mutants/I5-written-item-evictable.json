@@ -1,0 +1,9 @@
+{
+  "id": "I5-written-item-evictable",
+  "invariant": "I5",
+  "area": "retention",
+  "file": "packages/core/src/policy/retention.ts",
+  "find": "active.filter((i) => i.id !== options.protect && mayEvict(i));",
+  "replace": "active.filter((i) => mayEvict(i));",
+  "what": "the item just written may be its own write's eviction victim"
+}

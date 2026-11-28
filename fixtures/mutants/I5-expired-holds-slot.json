@@ -1,0 +1,9 @@
+{
+  "id": "I5-expired-holds-slot",
+  "invariant": "I5",
+  "area": "retention",
+  "file": "packages/core/src/policy/retention.ts",
+  "find": "own.filter((i) => i.status === \"active\" && !isExpired(policy, i, at));",
+  "replace": "own.filter((i) => i.status === \"active\");",
+  "what": "an item past its ttl still holds a budget slot"
+}

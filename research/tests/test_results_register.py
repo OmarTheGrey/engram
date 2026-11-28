@@ -146,6 +146,13 @@ def test_build_reads_the_value_and_names_the_entry(tmp_path: Path) -> None:
     assert "**No hypothesis has a result yet.** Every committed file is a support artefact." in text
 
 
+def test_a_proof_of_concept_is_a_status_and_no_hypothesis_result(tmp_path: Path) -> None:
+    text = build(_repo(tmp_path), _config(status="proof of concept"))
+    assert "- **Status.** proof of concept: a reproducible demonstration" in text
+    assert "| proof of concept | 1 |" in text
+    assert "**No hypothesis has a result yet.**" in text
+
+
 def test_an_entry_other_than_a_measurement_leaves_the_register_current(tmp_path: Path) -> None:
     root = _repo(tmp_path)
     before = build(root, _config())

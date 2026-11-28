@@ -1,0 +1,9 @@
+{
+  "id": "I8-shield-reversed",
+  "invariant": "I8",
+  "area": "trust floors",
+  "file": "packages/core/src/policy/trust.ts",
+  "find": "lessTrusted(kind, victim.provenance.kind) &&",
+  "replace": "lessTrusted(victim.provenance.kind, kind) &&",
+  "what": "protect_trusted shields the less trusted item from the more trusted source"
+}

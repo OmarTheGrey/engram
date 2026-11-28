@@ -1,0 +1,9 @@
+{
+  "id": "I1H-store-delete-skipped",
+  "invariant": "I1H",
+  "area": "offboarding",
+  "file": "packages/core/src/plane/offboard.ts",
+  "find": "      await adapter.delete(ref);\n      deleted.push(ref);",
+  "replace": "      deleted.push(ref);",
+  "what": "offboarding erases an item from the log but never deletes its record from the store"
+}
