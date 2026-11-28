@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui tui-screens bench run h1-table h1-figure l3-variance h3-lint-delta nli-scores nli-determinism h3-lint-nli fixtures fault-workspace gitleaks-rules thesis results-register engram dogfood-report verify-spec verify-policy perf-budget redteam
+.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui tui-screens bench run h1-table h1-figure l3-variance h3-lint-delta nli-scores nli-determinism h3-lint-nli fixtures fault-workspace gitleaks-rules thesis results-register results-page engram dogfood-report verify-spec verify-policy perf-budget redteam
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -53,8 +53,9 @@ ui: ## build the inspector (Vite and React) into packages/ui/dist, which engram 
 tui-screens: ## TUI screenshots for docs; needs `pnpm exec playwright install chromium`: docs/design/screens/<name>.png, .ansi and .html, and index.md
 	ENGRAM_OFFLINE=1 node packages/cli/scripts/tui-screens.ts
 
-test-repro: ## layer 8: rerun every row of research/results/MANIFEST.md and fail on a sha256 that differs; may fetch pinned benchmark data into .engram/upstream
+test-repro: ## layer 8: rerun every row of research/results/MANIFEST.md and fail on a sha256 that differs; then check the results page (make results-page) is current; may fetch pinned benchmark data into .engram/upstream
 	$(UV) run python research/scripts/reproduce.py
+	$(UV) run python research/scripts/results_page.py --config research/configs/results-page.json --out docs/research/results.html --check
 
 api: ## regenerate sdk/schema, sdk/openapi.json, the clients in sdk/ts and packages/ui/src/api, research/engram_types, and the provider key names from pi-ai
 	node packages/core/scripts/export-schema.ts sdk/schema
@@ -157,6 +158,8 @@ RUNNER_FIXTURES += x1-h1-mem-inv
 RUNNER_FIXTURES += b5-longmemeval-plane
 RUNNER_FIXTURES += l3-lint-fixture
 RUNNER_FIXTURES += h3-lint-model-fixture
+# Card L9: quote grounding on card L3's model fault fixtures.
+RUNNER_FIXTURES += l9-grounding-fixture
 RUNNER_FIXTURES += d2-induce-fixture
 # After D2: card D3 replays the candidates D2's cassette induces.
 RUNNER_FIXTURES += d3-validate-fixture
@@ -199,6 +202,9 @@ thesis: ## consolidate docs/log into research/thesis/drafts; ROOT= and OUT= to r
 
 results-register: ## docs/research/results.md, the results register, from research/configs/results-register.json, the MANIFEST, the results files and docs/log; every value read from its file; CHECK=1 fails if the committed register is stale
 	$(UV) run python research/scripts/results_register.py --config research/configs/results-register.json --out docs/research/results.md $(if $(filter 1,$(CHECK)),--check)
+
+results-page: ## card X17: docs/research/results.html, one self-contained page (inline CSS and SVG, light and dark) from the results register's config, research/configs/results-page.json, the MANIFEST and the results files: per hypothesis its result or what it still needs, the proofs of concept apart, every row with its sha256, command and cost; CHECK=1 fails if the committed page is stale
+	$(UV) run python research/scripts/results_page.py --config research/configs/results-page.json --out docs/research/results.html $(if $(filter 1,$(CHECK)),--check)
 
 fault-workspace: ## a SQLite log and policy from one fault fixture, to lint with the CLI: make fault-workspace FAULT=orphan.flag
 	@[ -n "$(FAULT)" ] || { echo "fault-workspace: give FAULT=<name> from fixtures/faults"; exit 2; }

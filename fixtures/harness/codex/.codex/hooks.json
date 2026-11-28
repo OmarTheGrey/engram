@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "engram hook codex --root memory --as person:dana",
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
+  }
+}

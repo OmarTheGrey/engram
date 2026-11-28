@@ -164,7 +164,9 @@ const NOT_ENFORCED_YET = {
 
 // The options card E2.14 of the second absorb plan added, which nothing
 // builds yet, are refused by `notBuiltOptions` (policy/options.ts), the check
-// Plane.simulate and exportCedar share with this loader.
+// Plane.simulate and exportCedar share with this loader. Built so far:
+// `lints.model.evidence`, quote grounding of the model lints (card L9,
+// lint/evidence.ts), loaded as written, "off" and absent alike.
 
 /** The blocks whose options are words, where YAML 1.1 may read a bare on or off as a boolean. */
 const OPTION_BLOCKS: readonly (readonly string[])[] = [

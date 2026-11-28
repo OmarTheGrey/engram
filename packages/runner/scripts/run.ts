@@ -470,7 +470,9 @@ async function runLint(path: string, out: string, flags: Flags): Promise<Outcome
     runFooter(
       config.kind,
       named,
-      "the fixtures' labels, read only by research/scripts/l3_variance.py",
+      config.evidence === "on"
+        ? "the fixtures' labels, read only by research/scripts/l9_grounding.py"
+        : "the fixtures' labels, read only by research/scripts/l3_variance.py",
     ),
     `written to ${out}`,
   ];
