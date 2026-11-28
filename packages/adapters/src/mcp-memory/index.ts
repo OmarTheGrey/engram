@@ -39,11 +39,13 @@
 //   server; editing the text is a new observation (and adoption retracts the
 //   old one). The server stores an observation once per entity, so one key is
 //   one observation; a repeat written by hand lists once. The item's id is a
-//   UUIDv7 derived from the file's identity and the key (`importedItemId`).
+//   UUIDv7 derived from the file's identity and the key (`importedRecordId`).
 // - Writing an item replaces its own line in place, keeping every member the
 //   adapter does not write (the observations a client added, a `createdAt`,
-//   their order), and every other line byte for byte. Deleting removes its
-//   line and nothing else. Lines the adapter cannot read are kept and
+//   their order), and every other line byte for byte (invalid UTF-8 and a
+//   missing final newline included). Deleting removes its line, or, when a
+//   client added observations or fields to it, only its `engram` member, so
+//   the client's records stay. Lines the adapter cannot read are kept and
 //   reported through `diagnostics()`.
 //
 // Lock and refusal rules follow the files adapter's (card A3, ../lock.ts):
@@ -123,6 +125,7 @@ export class UnsafeMemoryFileError extends NotDeletableError {
   }
 }
 
+const NEWLINE = Buffer.from("\n");
 const KEY = /^(?:item\/[0-9a-f-]{36}|observation\/[0-9a-f]{32}|relation\/[0-9a-f]{32})$/;
 
 const hex32 = (parts: readonly string[]) =>
@@ -166,8 +169,12 @@ export function importedRecordId(file: string, key: string): string {
 const isStrings = (v: unknown): v is string[] =>
   Array.isArray(v) && v.every((s) => typeof s === "string");
 
-/** One line of the file as the adapter reads it; `text` is the line exactly as it was. */
-type Line =
+/**
+ * One line of the file as the adapter reads it: `text` decoded for parsing,
+ * `raw` its bytes exactly as they were (invalid UTF-8 included), written back
+ * unchanged; a line the adapter writes has no `raw`.
+ */
+type Line = { raw?: Buffer } & (
   | { text: string; kind: "item"; id: string; record: Record<string, unknown>; item: MemoryItem }
   /**
    * An entity named for an Engram item that is not that item's first valid
@@ -179,21 +186,37 @@ type Line =
   | { text: string; kind: "entity"; name: string; entityType: string; observations: string[] }
   | { text: string; kind: "relation"; from: string; to: string; relationType: string }
   /** Any other line, kept byte for byte; `entity` is its entity name when it has one. */
-  | { text: string; kind: "kept"; entity?: string };
+  | { text: string; kind: "kept"; entity?: string }
+);
 
 interface Graph {
   lines: Line[];
   diagnostics: StoreDiagnostic[];
   mtime: Date | undefined;
+  /** The file ends with a newline, or is empty or missing (the server always ends one). */
+  trailing: boolean;
 }
 
 /** Splits the file's text into lines, keeping each line's bytes (a `\r` included). */
-function splitLines(text: string): string[] {
-  if (text === "") return [];
-  const lines = text.split("\n");
-  if (lines.at(-1) === "") lines.pop();
-  return lines;
+function splitLines(bytes: Buffer): { lines: Buffer[]; trailing: boolean } {
+  if (bytes.length === 0) return { lines: [], trailing: true };
+  const lines: Buffer[] = [];
+  let start = 0;
+  for (let at = bytes.indexOf(0x0a); at !== -1; at = bytes.indexOf(0x0a, start)) {
+    lines.push(bytes.subarray(start, at));
+    start = at + 1;
+  }
+  const trailing = start === bytes.length;
+  if (!trailing) lines.push(bytes.subarray(start));
+  return { lines, trailing };
 }
+
+/** The members of an entity line the adapter does not write: its observations, or any other client field. */
+const holdsOthers = (record: Record<string, unknown>) =>
+  (Array.isArray(record.observations) && record.observations.length > 0) ||
+  Object.keys(record).some(
+    (k) => !["type", "name", "entityType", "observations", "engram"].includes(k),
+  );
 
 export function createMcpMemoryAdapter(options: McpMemoryAdapterOptions): McpMemoryAdapter {
   const name = options.name ?? "mcp-memory";
@@ -253,7 +276,7 @@ export function createMcpMemoryAdapter(options: McpMemoryAdapterOptions): McpMem
   };
 
   /** The file's text and mode, or undefined while it does not exist; refuses anything but a regular file with one name. */
-  async function readText(): Promise<{ text: string; mtime: Date; mode: number } | undefined> {
+  async function readBytes(): Promise<{ bytes: Buffer; mtime: Date; mode: number } | undefined> {
     let info: Awaited<ReturnType<typeof lstat>>;
     try {
       info = await lstat(file);
@@ -271,14 +294,14 @@ export function createMcpMemoryAdapter(options: McpMemoryAdapterOptions): McpMem
         file,
         "is a hard link (the file has more than one name) and is never read or replaced",
       );
-    let text: string;
+    let bytes: Buffer;
     try {
-      text = await readFile(file, "utf8");
+      bytes = await readFile(file);
     } catch (e) {
       if (isMissing(e)) return undefined;
       throw e;
     }
-    return { text, mtime: info.mtime, mode: info.mode & 0o777 };
+    return { bytes, mtime: info.mtime, mode: info.mode & 0o777 };
   }
 
   /** Classifies one line; a line the adapter cannot read is kept, with a diagnostic when it looks broken. */
@@ -298,7 +321,11 @@ export function createMcpMemoryAdapter(options: McpMemoryAdapterOptions): McpMem
     if (value.type === "entity") {
       const { name: entity, entityType, observations } = value;
       if (typeof entity !== "string" || typeof entityType !== "string" || !isStrings(observations))
-        return broken(`line/${n + 1}`, "is an entity the server would not read");
+        return broken(
+          `line/${n + 1}`,
+          "is an entity the server would not read",
+          typeof entity === "string" ? entity : undefined,
+        );
       if (Object.hasOwn(value, "engram")) {
         const engram = value.engram;
         const id = isRecord(engram) && typeof engram.id === "string" ? engram.id : undefined;
@@ -335,9 +362,15 @@ export function createMcpMemoryAdapter(options: McpMemoryAdapterOptions): McpMem
   }
 
   async function loadGraph(): Promise<Graph & { mode: number | undefined }> {
-    const read = await readText();
+    const read = await readBytes();
     const diagnostics: StoreDiagnostic[] = [];
-    const lines = splitLines(read?.text ?? "").map((t, n) => classify(t, n, diagnostics));
+    const split = splitLines(read?.bytes ?? Buffer.alloc(0));
+    const lines = split.lines.map(
+      (raw, n): Line => ({
+        ...classify(raw.toString("utf8"), n, diagnostics),
+        raw,
+      }),
+    );
     // One id lists once: a later line repeating an item is reported, never read.
     const seen = new Set<string>();
     for (const [n, line] of lines.entries()) {
@@ -347,10 +380,22 @@ export function createMcpMemoryAdapter(options: McpMemoryAdapterOptions): McpMem
           key: `line/${n + 1}`,
           reason: `line ${n + 1} repeats Engram item ${line.id}; the first line is read`,
         });
-        lines[n] = { text: line.text, kind: "copy", id: line.id, record: line.record };
+        lines[n] = {
+          text: line.text,
+          raw: line.raw,
+          kind: "copy",
+          id: line.id,
+          record: line.record,
+        };
       } else seen.add(line.id);
     }
-    return { lines, diagnostics, mtime: read?.mtime, mode: read?.mode };
+    return {
+      lines,
+      diagnostics,
+      mtime: read?.mtime,
+      mode: read?.mode,
+      trailing: split.trailing,
+    };
   }
 
   function imported(
@@ -438,7 +483,8 @@ export function createMcpMemoryAdapter(options: McpMemoryAdapterOptions): McpMem
   }
 
   /** Rewrites the file from `lines`, atomically, keeping its permission bits, as the server saves it. */
-  async function save(lines: Line[], mode: number | undefined): Promise<void> {
+  async function save(lines: Line[], graph: Graph & { mode: number | undefined }): Promise<void> {
+    const { mode } = graph;
     if (mode !== undefined) {
       try {
         await access(file, constants.W_OK);
@@ -450,17 +496,25 @@ export function createMcpMemoryAdapter(options: McpMemoryAdapterOptions): McpMem
           );
       }
     }
-    const text = lines.length === 0 ? "" : `${lines.map((l) => l.text).join("\n")}\n`;
-    await atomicWrite(file, dir, base, text, mode);
+    // Every line as it was read, the adapter's own as written; a final newline
+    // only where the file had one, or where it was empty (as the server ends it).
+    const parts: Buffer[] = [];
+    for (const [n, l] of lines.entries()) {
+      if (n > 0) parts.push(NEWLINE);
+      parts.push(l.raw ?? Buffer.from(l.text, "utf8"));
+    }
+    if (lines.length > 0 && graph.trailing) parts.push(NEWLINE);
+    await atomicWrite(file, dir, base, Buffer.concat(parts), mode);
   }
 
   /** The line of an imported record or a foreign entity an item's write or delete would collide with. */
   function collision(graph: Graph, id: string): string | undefined {
     const own = `${NAME_PREFIX}${id}`;
+    const valid = graph.lines.some((l) => l.kind === "item" && l.id === id);
     for (const line of graph.lines)
       if (
         (line.kind === "entity" && line.name === own) ||
-        (line.kind === "kept" && line.entity === own)
+        (line.kind === "kept" && line.entity === own && !valid)
       )
         return `the entity ${JSON.stringify(own)}`;
     for (const item of itemsOf(graph))
@@ -520,7 +574,7 @@ export function createMcpMemoryAdapter(options: McpMemoryAdapterOptions): McpMem
             });
             lines.push({ text, kind: "kept" });
           }
-          await save(lines, graph.mode);
+          await save(lines, graph);
           return ref;
         }),
       );
@@ -542,11 +596,23 @@ export function createMcpMemoryAdapter(options: McpMemoryAdapterOptions): McpMem
             return;
           }
           const id = key.slice("item/".length);
-          const kept = graph.lines.filter(
-            (l) => !((l.kind === "item" || l.kind === "copy") && l.id === id),
-          );
-          if (kept.length === graph.lines.length) return;
-          await save(kept, graph.mode);
+          let changed = false;
+          const kept: Line[] = [];
+          for (const line of graph.lines) {
+            if (!((line.kind === "item" || line.kind === "copy") && line.id === id)) {
+              kept.push(line);
+              continue;
+            }
+            changed = true;
+            // Observations a client added and its own fields are records of
+            // their own: only the item leaves, as its `engram` member.
+            if (holdsOthers(line.record)) {
+              const { engram: _item, ...rest } = line.record;
+              kept.push({ text: JSON.stringify(rest), kind: "kept" });
+            }
+          }
+          if (!changed) return;
+          await save(kept, graph);
         }),
       );
     },

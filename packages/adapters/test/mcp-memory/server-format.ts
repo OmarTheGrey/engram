@@ -4,7 +4,7 @@
 //
 // Ported from modelcontextprotocol/servers, src/memory/index.ts
 // (KnowledgeGraphManager.loadGraphWithUnreadable, keepExtraFields, saveGraph
-// and addObservations), version 2.2.1 at
+// and addObservations, and isLockOwnerDead), version 2.2.1 at
 // c799c8552b0f27b7a33a7b9233773da144dddcf5, licence in transition from MIT to
 // Apache-2.0: the rules rewritten here, no code copied. What it keeps of the
 // server: blank lines dropped; an entity needs a string name and entityType
@@ -15,6 +15,7 @@
 // out the server's lock, limits and atomic rename, which the adapter's own
 // tests cover.
 import { readFile, writeFile } from "node:fs/promises";
+import { hostname } from "node:os";
 
 interface Entity {
   name: string;
@@ -121,4 +122,26 @@ export function addObservations(graph: ServerGraph, entity: string, contents: st
   const e = graph.entities.find((x) => x.name === entity);
   if (!e) throw new Error(`Entity with name ${entity} not found`);
   for (const c of contents) if (!e.observations.includes(c)) e.observations.push(c);
+}
+
+/**
+ * The server's isLockOwnerDead: a lock record whose pid is a number and whose
+ * `hostname` is this host is dead when that process is gone; any other record
+ * is judged by its age instead (false here).
+ */
+export function serverJudgesOwnerDead(contents: string): boolean {
+  let owner: unknown;
+  try {
+    owner = JSON.parse(contents);
+  } catch {
+    return false;
+  }
+  const { pid, hostname: host } = (owner ?? {}) as Record<string, unknown>;
+  if (typeof pid !== "number" || host !== hostname()) return false;
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ESRCH";
+  }
 }

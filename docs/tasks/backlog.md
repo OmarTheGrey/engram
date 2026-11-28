@@ -336,3 +336,13 @@ Found while selecting `docs/tasks/absorb-plan-2.md`. None is absorb work, so the
 | item | what is left | where it is recorded |
 |---|---|---|
 | H1's table in the register | card X4 writes `research/results/h1-table.json`, the first hypothesis result; `research/scripts/results_register.py` refuses its MANIFEST row until X4's PR adds the row's section to `research/configs/results-register.json`, adds a status for a hypothesis result to `STATUSES` and `HYPOTHESIS_RESULTS`, and rewrites the config's dated intro paragraph about H1's live runs | `research/scripts/results_register.py` (docstring), `docs/conventions/documentation.md` rule 3, `docs/log/2026-11-28-rr-decision-register-staleness.md` |
+
+## Follow-ups from card A6 (2026-11-28)
+
+Found by card A6's review (the mcp-memory adapter, second absorb plan). The lead's orchestrator decided on 2026-11-28 to backlog the first and to fix the cheap ones of the rest in the card.
+
+| item | what is left | where it is recorded |
+|---|---|---|
+| Store loss | a store can lose an item the plane wrote with no event: the MCP memory server's `delete_entities` on an `engram:<id>` entity, a file deleted by hand, a Letta commit reverted. Adoption retracts only what it adopts in the owner's person scope, so an item in a team, role or org scope stays active in the log while reads no longer return it. Record an event (a retirement with a reason, or a lint finding) when a store no longer holds an item the plane wrote, in any scope. It changes read or adoption behaviour for every store, so it is its own card after H1's runs; the hook's rule on the server's delete tools is a partial layer until then | `docs/log/2026-11-28-a6-server-tools-bypass-scope.md`, `packages/core/src/no-bypass.ts` (`memoryServerToolBypass`) |
+| Lock break by rename | `packages/adapters/src/lock.ts` breaks a stale lock by re-reading its text and removing the path, so a holder that releases and a successor that re-takes in between lose the successor's lock; the MCP memory server fixed the same race (its #5560) by renaming the lock aside and comparing the file's device and inode. With the server now a co-writer of an mcp-memory file the window is a lost update; the fix changes the files and Letta locks too, so it is its own card | `docs/log/2026-11-28-a6-review-fixes.md` |
+| A heartbeat for Engram's lock | Engram's lock has no heartbeat, so a write longer than the 30 s bound shared with the server could be broken by it; Engram's writes take well under a second, so none is added | `packages/adapters/src/lock.ts` header |
