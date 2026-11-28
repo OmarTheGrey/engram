@@ -51,6 +51,10 @@
 //     item (lint/procedural.ts), which the export does not model; the read
 //     and write gates it exports are the same with the scan off, report or
 //     hold, so a policy setting it exports the same text as without it;
+//   - `procedures.drift` (card D4): a lifecycle outside the gate, like
+//     promotion and retention sweeps. Plane.revalidate's events set an
+//     item's status, which the exported status rule judges, so a policy that
+//     sets it exports the same rules as one that does not, faithfully;
 //   - the lints (`lints`, `lints.model.evidence` of card L9 included): a
 //     lint decides no read or write, so the export is the same with or
 //     without them, and a policy turning quote grounding on is exported as

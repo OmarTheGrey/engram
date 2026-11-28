@@ -133,9 +133,13 @@ import {
 import { SESSION_RETRY } from "../src/model/retry.ts";
 import {
   countReplayConfig,
+  isDriftConfig,
   isReplayConfig,
+  readDriftConfig,
   readReplayConfig,
+  runDriftConfig,
   runReplayConfig,
+  writeDriftResult,
   writeReplayResult,
 } from "../src/replay-validate.ts";
 import { EVENTS_FILE, type RunnerOptions, runConfig } from "../src/run.ts";
@@ -669,10 +673,58 @@ async function runReplay(path: string, out: string, flags: Flags): Promise<Outco
   };
 }
 
+/**
+ * A drift config (card D4): D3's admitted procedure re-validated on a changed
+ * pool, then on D3's, through Plane.revalidate. Pipeline only; a recording
+ * (make fixtures) also writes the core fixture the config names. Exits 1
+ * when a status after a re-validation is not the fixture's label.
+ */
+async function runDrift(path: string, out: string, flags: Flags): Promise<Outcome> {
+  const config = readDriftConfig(path);
+  if (
+    flags.live ||
+    flags.replay ||
+    flags.resume ||
+    flags.shard ||
+    flags.count ||
+    flags.merge !== undefined
+  ) {
+    console.error(
+      `run.ts: ${config.name} is a drift pipeline config: it replays its cassettes or records them (make fixtures); LIVE=, REPLAY=, RESUME=, SHARD=, MERGE= and COUNT= do not apply`,
+    );
+    return FAILED;
+  }
+  // A recording is replayed at once from what it recorded, and the core
+  // fixture is written from that replay: its calls are a replay's, none new.
+  const recorded = flags.record ? await runDriftConfig(config, { offline: false }) : undefined;
+  const result = await runDriftConfig(config, { offline: true });
+  if (result.calls.new !== 0)
+    throw new Error(`${config.name}: a replay made ${result.calls.new} new calls`);
+  writeDriftResult(result, out, flags.record ? config.fixture : undefined);
+  if (recorded !== undefined) console.log(`recorded: ${recorded.calls.new} new calls`);
+  const lines = [
+    `${config.name}: ${result.candidate} re-validated on ${result.held_out.length} held-out tasks, ${result.changed.length} changed (${result.changed.join(", ")})`,
+    `model calls: ${result.calls.new} new, ${result.calls.cached} from cassettes (D3's admission rerun included)`,
+    ...result.phases.map(
+      (p) =>
+        `  ${p.name}: ${p.outcome} (${p.event.op} ${p.event.decision}, ${p.event.policy_id}): ${p.status}`,
+    ),
+    ...result.mismatches.map((m) => `MISMATCH: ${m}`),
+    `written to ${out}`,
+  ];
+  console.log(lines.join("\n"));
+  return {
+    code: result.mismatches.length > 0 ? 1 : 0,
+    sessions: result.rows.length,
+    calls: result.calls,
+  };
+}
+
 /** Run, replay, record or count one config into `out`. */
 async function runOne(path: string, out: string, flags: Flags): Promise<Outcome> {
   if (isInduceConfig(path)) return runInduce(path, out, flags);
   if (isReplayConfig(path)) return runReplay(path, out, flags);
+  if (isDriftConfig(path)) return runDrift(path, out, flags);
   if (isLongMemEvalConfig(path)) return runLongMemEval(path, out, flags);
   if (
     (flags.shard || flags.merge !== undefined) &&

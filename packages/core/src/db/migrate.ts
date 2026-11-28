@@ -257,25 +257,46 @@ export const MIGRATIONS: readonly Migration[] = [
   },
 ];
 
-/** Applies pending migrations in id order; returns the ids it applied. */
+/**
+ * Applies pending migrations in id order; returns the ids it applied.
+ *
+ * Safe when several processes open one fresh log at once (card E1.9): the
+ * migrations table is created, and each migration re-read and applied, inside
+ * a transaction, which holds the log's lock (SQLite: BEGIN IMMEDIATE;
+ * Postgres: the log's advisory lock, transaction.ts). A migration another
+ * process applied after this one first read the table is skipped, not
+ * applied twice, and is not in the ids returned. Every call takes the lock
+ * once, for the table's creation, even on an up-to-date log; the first read
+ * of the table, outside any transaction, spares such a log a lock per
+ * migration. The wait is bounded: a racer behind a migration slower than the
+ * busy timeout (SQLite, 5 s) or the statement timeout (Postgres) fails rather
+ * than waits.
+ */
 export function migrate(db: Db, migrations: readonly Migration[] = MIGRATIONS): number[] {
-  db.exec(
-    "CREATE TABLE IF NOT EXISTS schema_migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
-  );
-  const done = new Set(
-    db
-      .prepare("SELECT id FROM schema_migrations")
-      .all()
-      .map((r) => r.id),
-  );
+  const create =
+    "CREATE TABLE IF NOT EXISTS schema_migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL)";
+  const ids = () =>
+    new Set(
+      db
+        .prepare("SELECT id FROM schema_migrations")
+        .all()
+        .map((r) => Number(r.id)),
+    );
+  // Two concurrent CREATE TABLE IF NOT EXISTS can both find the table absent
+  // on Postgres, and the second then fails on the catalogue; under the lock
+  // the second finds it.
+  db.transaction(() => db.exec(create));
+  const seen = ids();
   const applied: number[] = [];
   for (const m of [...migrations].sort((a, b) => a.id - b.id)) {
-    if (done.has(m.id)) continue;
-    db.transaction(() => {
+    if (seen.has(m.id)) continue;
+    const ran = db.transaction(() => {
+      if (ids().has(m.id)) return false;
       db.exec(migrationText(m, db.dialect));
       db.prepare("INSERT INTO schema_migrations (id, name) VALUES (?, ?)").run(m.id, m.name);
+      return true;
     });
-    applied.push(m.id);
+    if (ran) applied.push(m.id);
   }
   return applied;
 }

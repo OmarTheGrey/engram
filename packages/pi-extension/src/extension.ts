@@ -51,7 +51,7 @@
 // that name carries the schema object this extension registered (review fix
 // pass, RV5-1). The sweeps before
 // each prompt are core's syncBeforeRead, at this process's clock (RV-SRF-1).
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
@@ -60,15 +60,19 @@ import {
   type Adapter,
   BYPASS_ID,
   type Bypass,
+  chainTables,
   shellBypass as coreShellBypass,
   createPlane,
   type Db,
+  keepChain,
+  keepsChain,
   loadPreset,
   type MemoryEvent,
   type MemoryItem,
   type Plane,
   type Policy,
   type ReadResult,
+  readGenesis,
   STORE_COMMANDS,
   syncBeforeRead,
   toolBypass,
@@ -219,6 +223,22 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
   const protect = options.protect ?? [];
   const protectBelow = options.protectBelow ?? [];
   const { db, adapter } = options;
+  // The hash chain (card E1.9, ADR 0038): a log another writer chained is
+  // kept on this handle too, with salts from node:crypto, so the agent's
+  // writes are chained and the log still verifies. A log with no chain, as
+  // a research run's scratch log is, begins none here. Checked when the
+  // extension is built and again before every Plane call that may append,
+  // so a chain another process begins mid-session is followed from the next
+  // call (review of card E1.9, finding 2); two reads, none once the handle
+  // keeps the chain. What is left: a chain begun between that check and the
+  // append it precedes leaves that one event unchained, and the log verifies
+  // FAILED at it. A caller that opens through openWorkspace keeps the chain
+  // from the start and has no such window.
+  const followChain = () => {
+    if (!keepsChain(db) && chainTables(db) && readGenesis(db) !== undefined)
+      keepChain(db, { salt: () => randomBytes(32) });
+  };
+  followChain();
   const actor = options.actor;
   /** The actor of the agent's tool calls: what it writes is model content (decision D4). */
   const agent: Actor = { ...actor, source: "model" };
@@ -266,6 +286,7 @@ export function createEngramExtension(options: EngramExtensionOptions): Extensio
      * throws (a store failure appends its event and rethrows).
      */
     async function planeCall<T>(run: () => Promise<T>): Promise<T> {
+      followChain();
       const before = plane.events().length;
       try {
         return await run();

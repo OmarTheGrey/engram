@@ -593,6 +593,62 @@ describe("acceptance (card D5): procedures.safety_scan at admission", () => {
   });
 });
 
+// The coordinator's note on merging card D4: a drift restore goes through
+// the promotion gate (plane/promote.ts restoreRetired), so it meets the safety
+// scan as any admission does. Plane.revalidate carries no release, so a held
+// restore stays retired; releasing one needs revalidate to carry a release.
+describe("acceptance (card D5): a drift restore meets the safety scan", () => {
+  const DRIFT_HOLD: Policy = {
+    ...withMode("hold"),
+    lints: {
+      enabled: [],
+      thresholds: { "replay-drift.success-floor": 0.7, "replay-drift.min-trials": 10 },
+    },
+    procedures: { safety_scan: "hold", drift: { environment_change: "on" } },
+  };
+  const changed = { validated: `sha256:${"a".repeat(64)}`, current: `sha256:${"b".repeat(64)}` };
+  const failing: ReplayEvidence = {
+    ...replayOf(UNSAFE),
+    outcomes: replayOf(UNSAFE).outcomes.map((o) => ({ ...o, with: 0 })),
+  };
+
+  test("a drift-retired procedure with a critical finding is held, not restored, and stays retired", async () => {
+    const { plane, db } = await candidate(UNSAFE, DRIFT_HOLD);
+    // Admitted by its owner in their own person scope, with a release.
+    const admitted = await plane.promote(omar, id(1), "person:omar", AT, {
+      replay: replayOf(UNSAFE),
+      release: "our own installer, reviewed",
+    });
+    expect(admitted.decision).toBe("allow");
+    const retired = await plane.revalidate(omar, id(1), AT, {
+      replay: failing,
+      environment: changed,
+    });
+    expect(retired.outcome).toBe("retired");
+    expect(itemById(db, id(1))?.status).toBe("retired");
+    const back = await plane.revalidate(omar, id(1), AT, { replay: replayOf(UNSAFE) });
+    expect(back.outcome).toBe("refused");
+    expect(back.event).toMatchObject({ op: "gate", decision: "ask", policy_id: SAFETY_SCAN_ID });
+    expect(back.event.reason).toMatch(
+      /^drift restore of item .*; held, not admitted: the procedure safety scan/,
+    );
+    expect(itemById(db, id(1))?.status).toBe("retired");
+  });
+
+  test("a clean procedure is restored under hold as before", async () => {
+    const { plane, db } = await candidate(CLEAN, DRIFT_HOLD);
+    expect(
+      (await plane.promote(omar, id(1), "person:omar", AT, { replay: replayOf(CLEAN) })).decision,
+    ).toBe("allow");
+    const failingClean = { ...failing, content_hash: replayOf(CLEAN).content_hash };
+    await plane.revalidate(omar, id(1), AT, { replay: failingClean, environment: changed });
+    const back = await plane.revalidate(omar, id(1), AT, { replay: replayOf(CLEAN) });
+    expect(back.outcome).toBe("restored");
+    expect(back.event.reason).toContain("found nothing");
+    expect(itemById(db, id(1))?.status).toBe("active");
+  });
+});
+
 describe("acceptance (card D5): the option is built, and off everywhere registered", () => {
   test("the loader takes every value, and no reader refuses it", () => {
     const medium = loadPreset("medium");
