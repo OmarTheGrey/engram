@@ -125,9 +125,10 @@ function blank(src: string): string {
       let inClass = false;
       while (j < src.length && src[j] !== "\n") {
         if (src[j] === "\\") j += 2;
-        else if (src[j] === "[") (inClass = true), j++;
-        else if (src[j] === "]") (inClass = false), j++;
-        else if (src[j] === "/" && !inClass) break;
+        else if (src[j] === "[" || src[j] === "]") {
+          inClass = src[j] === "[";
+          j++;
+        } else if (src[j] === "/" && !inClass) break;
         else j++;
       }
       j++;
@@ -208,7 +209,9 @@ const REFUSED_PROBES: ReadonlyArray<readonly [string, string]> = [
   ["performance.now", "export const t = performance.now();\n"],
   ["process.hrtime", "export const t = process.hrtime.bigint();\n"],
   ["Math.random", "export const r = Math.random();\n"],
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: probe source text, not a template
   ["Math.random", "export const s = `${Math.random()}`;\n"],
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: probe source text, not a template
   ["Math.random", "export const s = `a${`b${Math.random()}`}c`;\n"],
   ["crypto random", 'import { randomUUID } from "node:crypto";\nexport const id = randomUUID();\n'],
   ["crypto random", "export const b = crypto.getRandomValues(new Uint8Array(4));\n"],
@@ -224,6 +227,7 @@ const PASSING_PROBES: readonly string[] = [
   "/* performance.now() */ export {};\n",
   'export const s = "Date.now() Math.random() new Date()";\n',
   "export const s = 'Date.now()';\n",
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: probe source text, not a template
   "export const s = `Date.now() and ${1 + 1} new Date()`;\n",
   "export const r = /Date\\.now\\(\\)|Math.random/;\n",
   "export const d = (at: string) => new Date(at);\n",
@@ -246,6 +250,7 @@ describe("the core determinism rule", () => {
   });
 
   test("blanking keeps the length and every line break, so a finding's line is the source's", () => {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: probe source text, not a template
     const src = "// a\nconst x = `t\n${Date.now()}`; /* b\n c */ 'd';\n";
     const code = blank(src);
     expect(code).toHaveLength(src.length);
@@ -254,6 +259,7 @@ describe("the core determinism rule", () => {
   });
 
   test("a template expression is code, a regular expression inside it included", () => {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: probe source text, not a template
     expect(findings("export const s = `${/x/.test(y) ? Date.now() : 0}`;\n")).toEqual([
       { rule: "Date.now", line: 1 },
     ]);
