@@ -1,7 +1,7 @@
-# ADR XXXX: Crypto-shredded erasure: a data key per person scope, wrapped under an operator key behind an injected provider; shredding adds to redaction and replaces nothing
+# ADR 0051: Crypto-shredded erasure: a data key per person scope, wrapped under an operator key behind an injected provider; shredding adds to redaction and replaces nothing
 
-Status: proposed, 2026-11-28
-Deciders: drafted by card E9.11 of the second absorb plan; for the lead's acceptance
+Status: accepted, 2026-11-29, under the lead's delegation of 2026-11-28 (`docs/tasks/lead-decisions.md`, "The lead's answers, 2026-11-28": new ADRs as needed, none contradicting the set); the lead may overturn it
+Deciders: the orchestrating session, under the lead's delegation of 2026-11-28; drafted by card E9.11 of the second absorb plan
 Supersedes: nothing. It builds on ADR 0010 (erasure, with every amendment through card E1.7's of 2026-11-28), ADR 0038 (the chain, with card E1.9's chain version 2), ADR 0021 (person and role scopes), ADR 0024 (one migration list for both backends) and card E2.14's policy option `erasure.mode`. It amends none of them.
 
 ## Context

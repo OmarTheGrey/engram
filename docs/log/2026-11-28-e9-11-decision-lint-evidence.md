@@ -7,7 +7,7 @@ chapter: design
 pillar: twin
 hypothesis: none
 evidence:
-  - docs/decisions/XXXX-crypto-shredded-erasure.md
+  - docs/decisions/0051-crypto-shredded-erasure.md
 supersedes: none
 ---
 
@@ -15,6 +15,6 @@ supersedes: none
 
 **Why.** Model lints quote item text in their evidence, so leaving it plaintext keeps a copy of content shredding is meant to reach; the provenance ref and hashes are store keys and hashes the plane matches on, so they stay plaintext and are stated.
 
-**Result.** ADR XXXX decision 4 and "What is not protected".
+**Result.** ADR 0051 decision 4 and "What is not protected".
 
 **Consequence.** If wrong, E9.13 drops the evidence seal and the limit stands as stated.

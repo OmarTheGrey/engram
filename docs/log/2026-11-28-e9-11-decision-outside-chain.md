@@ -7,7 +7,7 @@ chapter: design
 pillar: twin
 hypothesis: none
 evidence:
-  - docs/decisions/XXXX-crypto-shredded-erasure.md
+  - docs/decisions/0051-crypto-shredded-erasure.md
 supersedes: none
 ---
 
@@ -15,6 +15,6 @@ supersedes: none
 
 **Why.** Chained rows would have to tolerate their own deletion; authenticated wrapping with the scope and version as associated data already detects an edit, and the report event names the versions shredded, so a key gone with no report is visible. No stored parameters means Compartment's edited-header attack has nothing to edit.
 
-**Result.** ADR XXXX decisions 3 and 7.
+**Result.** ADR 0051 decisions 3 and 7.
 
 **Consequence.** If wrong, a deleted key row is found by E9.13's check, not by `engram log verify`.

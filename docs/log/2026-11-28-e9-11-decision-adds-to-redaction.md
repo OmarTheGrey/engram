@@ -7,7 +7,7 @@ chapter: design
 pillar: twin
 hypothesis: none
 evidence:
-  - docs/decisions/XXXX-crypto-shredded-erasure.md
+  - docs/decisions/0051-crypto-shredded-erasure.md
 supersedes: none
 ---
 
@@ -15,6 +15,6 @@ supersedes: none
 
 **Why.** Dropping the rewrite would change ADR 0038's verifier rule and the one rewrite of the append-only log that ADR 0010 allows against ADR 0003, which this card may not contradict. Shredding's gain is reach: copies the rewrite never saw (native store history, mirrored pi session entries, exports, pages, backups) stop opening.
 
-**Result.** ADR XXXX decisions 5 and 6.
+**Result.** ADR 0051 decisions 5 and 6.
 
 **Consequence.** If wrong, the log is rewritten under shred as well, and a strictly append-only log waits for a later ADR.

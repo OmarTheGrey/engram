@@ -9,7 +9,7 @@ hypothesis: none
 evidence:
   - packages/core/src/crypto/keys.ts
   - packages/core/test/unit/crypto/keys.test.ts
-  - docs/decisions/XXXX-crypto-shredded-erasure.md
+  - docs/decisions/0051-crypto-shredded-erasure.md
 supersedes: none
 ---
 
