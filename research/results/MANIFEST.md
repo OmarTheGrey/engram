@@ -36,3 +36,4 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h1-drift-fixture.json | research/configs/drift-fixture.json | research/scripts/drift_fixture.py | 2c3503b9 | 579fa43dffc7ca6123e2b9812a6f22886c1581a70dfd59e561f20ee62e6abb71 | none |
 | research/results/h5-procedure-scan.json | research/configs/procedure-scan.json | research/scripts/procedure_scan.py | b297e5b6 | 0ac5428238ea46f52fbd3d152f649f370935ebef2bee4a7ba95fb03e296cc39f | none |
 | research/results/h1-audit-report.json | research/configs/audit-report.json | research/scripts/audit_report.py | aeb88f23 | d503840658800b3cd4318fe4f660df3fe49ae89c5f3bec16f07a2b4714840c5e | none |
+| research/results/h1-consent-gate.json | research/configs/consent-gate.json | research/scripts/consent_gate.py | 5efb38da | 3b0a06f43051c2594424e348d503a8764b8ec31d2023e70c6e87b5896d48ec14 | none |

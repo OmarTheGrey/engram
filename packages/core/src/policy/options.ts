@@ -16,7 +16,6 @@ import type { Policy } from "../schema.ts";
  * deletes its own row when it lands, with a loader test.
  */
 export const NOT_BUILT_YET: readonly { path: readonly string[]; card: string }[] = [
-  { path: ["consent"], card: "E9.12" },
   { path: ["erasure", "mode"], card: "E9.13" },
   { path: ["approval"], card: "E2.19" },
 ];

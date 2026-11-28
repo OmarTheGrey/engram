@@ -23,6 +23,7 @@ import { driftThresholdProblem } from "../distill/drift.ts";
 import { NLI_LINT_ID, nliThresholdProblems } from "../lint/nli.ts";
 import { LIFECYCLE_TRIGGERS, LINT_IDS, LINT_THRESHOLD_KEYS } from "../lint.ts";
 import { Policy, ScopeLevel } from "../schema.ts";
+import { consentProblems } from "./consent.ts";
 import { notBuiltOptions } from "./options.ts";
 
 export type PolicyPath = (string | number)[];
@@ -167,6 +168,8 @@ const NOT_ENFORCED_YET = {
 // Plane.simulate and exportCedar share with this loader. Built so far:
 // `lints.model.evidence`, quote grounding of the model lints (card L9,
 // lint/evidence.ts), loaded as written, "off" and absent alike.
+// `consent` is built too (card E9.12, policy/consent.ts); consentProblems
+// below reports an opt-out that could never cover a write.
 
 /** The blocks whose options are words, where YAML 1.1 may read a bare on or off as a boolean. */
 const OPTION_BLOCKS: readonly (readonly string[])[] = [
@@ -295,6 +298,8 @@ function semanticProblems(policy: Policy): Located[] {
     }
   }
   for (const { path, message } of notBuiltOptions(policy)) out.push({ path, atKey: true, message });
+  // Card E9.12: an opt-out that could never cover a write.
+  for (const problem of consentProblems(policy)) out.push(problem);
   // Card D4: drift retires on ADR 0011's two thresholds, so a policy that
   // turns it on must set both. A policy without procedures.drift (every
   // registered preset) is not judged by this rule.

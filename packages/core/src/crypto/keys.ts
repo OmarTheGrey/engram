@@ -1,4 +1,4 @@
-// Per-person data keys for crypto-shredded erasure (card E9.11, ADR XXXX).
+// Per-person data keys for crypto-shredded erasure (card E9.11, ADR 0051).
 //
 // Each person scope may hold one live data key, a 256-bit key that card
 // E9.13 seals that scope's content under. The key is stored only wrapped,
@@ -267,7 +267,7 @@ export function shredDataKeys(db: Db, scope: string, at: string): number[] {
  * in one transaction, and returns the keys rewrapped, by scope and version.
  * Run after a shred and followed by destroying `from`'s operator key, it
  * leaves a shredded key's wrapped copy in a backup or in a database page
- * unopenable (ADR XXXX). The data keys themselves do not change, so content
+ * unopenable (ADR 0051). The data keys themselves do not change, so content
  * sealed under them still opens.
  */
 export function rewrapDataKeys(

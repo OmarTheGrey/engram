@@ -16,9 +16,9 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | cost estimate | 4 | dollars and calls estimated from token counts and prices; no model called |
 | power computation | 2 | a simulation of the registered test that sets or checks a sample size |
 | engineering check | 4 | a check of a component's behaviour or speed that decides no hypothesis |
-| proof of concept | 9 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
+| proof of concept | 10 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
 
-33 results in all, one per MANIFEST row.
+34 results in all, one per MANIFEST row.
 
 ## What each hypothesis still needs
 
@@ -632,3 +632,21 @@ Recorded by [`docs/log/2026-11-28-d5-measurement-procedure-scan-limits.md`](../l
 | envelope bytes | 3,351 | `envelope.bytes` |
 
 Recorded by [`docs/log/2026-11-28-e9-15-measurement-audit-report-chain-v2.md`](../log/2026-11-28-e9-15-measurement-audit-report-chain-v2.md).
+
+### `research/results/h1-consent-gate.json`
+
+- **Question.** With a person's opt-outs of their own person scope (a topic, a source with a carve-out, an Incognito window with a carve-out), does the write gate refuse exactly the writes they cover, each refusal naming its opt-out and none repeating the refused content, while the same workload under the twin profile without them is allowed as before?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. Card E9.12, by engram simulate on a fixture workload (fixtures/workloads/e9-12-consent.json); consent is absent in every registered preset and in the twin profile. The file is under `h1-` for the results glob only.
+- **Made by.** `research/scripts/consent_gate.py` from `research/configs/consent-gate.json`, MANIFEST commit `5efb38da`, sha256 `3b0a06f43051c2594424e348d503a8764b8ec31d2023e70c6e87b5896d48ec14`.
+
+| value | reads | key path |
+|---|---|---|
+| writes | 15 | `candidate.writes` |
+| allowed without opt-outs | 15 | `baseline.writes_allowed` |
+| allowed with opt-outs | 8 | `candidate.writes_allowed` |
+| consent refusals | 7 | `candidate.consent_refusals` |
+| refusals naming their opt-out | 7 | `candidate.consent_refusals_naming_their_opt_out` |
+| refusals repeating the content | 0 | `candidate.consent_refusals_repeating_content` |
+
+Recorded by [`docs/log/2026-11-28-e9-12-measurement-consent-gate-limits.md`](../log/2026-11-28-e9-12-measurement-consent-gate-limits.md).

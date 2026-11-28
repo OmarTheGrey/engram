@@ -1,4 +1,4 @@
-// Card E9.11, ADR XXXX: the side table of per-person data keys (migration 7)
+// Card E9.11, ADR 0051: the side table of per-person data keys (migration 7)
 // and the injected key provider, on SQLite and on embedded Postgres. Core
 // draws no randomness and reads no clock: the fake provider's bytes are
 // seeded and every time is passed in.
@@ -38,7 +38,7 @@ test("the wrap's associated data names the scope and the version, so a row moved
 });
 
 test("the fake provider draws a fresh nonce per wrap: two wraps of one key differ", () => {
-  // What ADR XXXX decision 3 asks of every nonce-based provider (E9.13's too).
+  // What ADR 0051 decision 3 asks of every nonce-based provider (E9.13's too).
   const p = fakeKeyProvider();
   const key = new Uint8Array(32).fill(7);
   const aad = dataKeyAad(ALICE, 1);
