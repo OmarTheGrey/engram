@@ -1282,6 +1282,49 @@
           "path": ["calls", "grounded", "new"]
         }
       ]
+    },
+    {
+      "file": "research/results/h1-drift-fixture.json",
+      "hypothesis": "none",
+      "status": "proof of concept",
+      "prereg": null,
+      "title": "Drift: a procedure retired on a changed task, then restored",
+      "question": "When one held-out task of an admitted procedure changes under it, does a re-validation replayed from cassettes detect the drift and retire the procedure by a governed event, and does a re-validation on the environment put back restore the retired version?",
+      "headline": [
+        {
+          "label": "re-validations",
+          "path": ["counts", "revalidations"]
+        },
+        {
+          "label": "retired",
+          "path": ["counts", "retired"]
+        },
+        {
+          "label": "restored",
+          "path": ["counts", "restored"]
+        },
+        {
+          "label": "the held-out task changed",
+          "path": ["changed_tasks", 0]
+        },
+        {
+          "label": "success rate after the change",
+          "path": ["revalidations", 0, "rate"]
+        },
+        {
+          "label": "success floor (medium)",
+          "path": ["floor"]
+        },
+        {
+          "label": "model calls from cassettes",
+          "path": ["calls", "cached"]
+        },
+        {
+          "label": "new model calls",
+          "path": ["calls", "new"]
+        }
+      ],
+      "note": "Card D4 on fixtures and a scripted model: card D3's admitted procedure under medium with `procedures.drift` on, which no registered preset or config sets. H5 registers admission, not retirement, so this is an engineering check, not an H5 result. The file is under `h1-` for the results glob only."
     }
   ]
 }
