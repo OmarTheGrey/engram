@@ -23,12 +23,25 @@
 // protected instead of the real one. `--protect <file>` names it (and any
 // other file to guard), with the same SQLite companions; docs/dogfood.md has
 // members pass the log `engram serve --db` names.
+//
+// `engram hook codex` (card E8.17) is the same hook for Codex, with Codex's
+// reading of the input (packages/mcp/src/hook.ts) and Codex's paths: Codex
+// starts a hook in the session's folder and exports no project variable, so
+// `--root` and a relative `--db` resolve against the hook's own cwd. The
+// protected files are the log, the project's `.codex/config.toml` (the MCP
+// server's launch identity) and `.codex/hooks.json` (this hook), and the
+// Codex home's `config.toml` and `hooks.json` (`$CODEX_HOME`, else
+// `~/.codex`, by core's location table: codexHomeOf), with any folder holding
+// one strictly inside the project or the home. Its default actor is
+// `agent:codex`. `engram hook install` is ./hook-install.ts.
 import { join, resolve } from "node:path";
+import { codexHomeOf } from "@engram/core";
 import {
-  claudeCodeHook,
-  hookBypass,
+  type HookHarness,
+  harnessBypass,
+  harnessHook,
   hookDeny,
-  isHookInput,
+  isHarnessInput,
   type PreToolUseInput,
 } from "@engram/mcp";
 import { parse } from "./commands.ts";
@@ -38,7 +51,58 @@ import type { Io } from "./run.ts";
 import { buildActor, dbTarget, MEMORY_DB, UsageError } from "./setup.ts";
 
 /** The harnesses a hook exists for. */
-const HARNESSES = ["claude-code"] as const;
+export const HARNESSES = ["claude-code", "codex"] as const satisfies readonly HookHarness[];
+
+/** The actor each harness's block events are recorded as when no --as is given. */
+export const HOOK_AGENT: Readonly<Record<HookHarness, string>> = {
+  "claude-code": "agent:claude-code",
+  codex: "agent:codex",
+};
+
+/** The Codex home: $CODEX_HOME against the cwd, else <home>/.codex (core's codexHomeOf). */
+export const codexHome = (io: Pick<Io, "cwd" | "home" | "env">): string =>
+  resolve(
+    codexHomeOf(
+      io.home,
+      io.env.CODEX_HOME ? { codexHome: resolve(io.cwd, io.env.CODEX_HOME) } : {},
+    ),
+  );
+
+/** The project a harness's hook runs for: Claude Code's CLAUDE_PROJECT_DIR, Codex's session folder. */
+export const hookProject = (
+  harness: HookHarness,
+  io: Pick<Io, "cwd" | "env">,
+  input: { cwd?: string } = {},
+): string =>
+  harness === "codex"
+    ? resolve(io.cwd)
+    : resolve(io.cwd, io.env.CLAUDE_PROJECT_DIR || input.cwd || ".");
+
+/** The files that govern a harness's session, beside the log: its MCP launch and its hook. */
+export function governingFiles(
+  harness: HookHarness,
+  project: string,
+  io: Pick<Io, "cwd" | "home" | "env">,
+): string[] {
+  if (harness === "codex") {
+    const home = codexHome(io);
+    return [
+      join(project, ".codex", "config.toml"),
+      join(project, ".codex", "hooks.json"),
+      join(home, "config.toml"),
+      join(home, "hooks.json"),
+    ];
+  }
+  return [
+    join(project, ".mcp.json"),
+    join(project, ".claude", "settings.json"),
+    join(project, ".claude", "settings.local.json"),
+    // User-level settings can switch every hook off (disableAllHooks, R3-14).
+    join(io.home, ".claude", "settings.json"),
+    join(io.home, ".claude", "settings.local.json"),
+    join(io.home, ".claude.json"),
+  ];
+}
 
 async function readAll(stream: NodeJS.ReadableStream): Promise<string> {
   let text = "";
@@ -49,21 +113,20 @@ async function readAll(stream: NodeJS.ReadableStream): Promise<string> {
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export async function hookCommand(args: string[], io: Io): Promise<number> {
+  if (args[0] === "install")
+    return (await import("./hook-install.ts")).installCommand(args.slice(1), io);
   const { values, positionals } = parse(args, OPTIONS.hook, true);
-  const [harness, ...rest] = positionals;
-  if (
-    harness === undefined ||
-    rest.length > 0 ||
-    !(HARNESSES as readonly string[]).includes(harness)
-  )
-    throw new UsageError(`give the harness: engram hook ${HARNESSES.join(" | ")}`);
+  const [named, ...rest] = positionals;
+  if (named === undefined || rest.length > 0 || !(HARNESSES as readonly string[]).includes(named))
+    throw new UsageError(`give the harness: engram hook ${HARNESSES.join(" | ")} | install`);
+  const harness = named as HookHarness;
   if (io.stdin === undefined) throw new UsageError("engram hook reads the hook's JSON on stdin");
   const print = (deny: ReturnType<typeof hookDeny>) => io.out(`${JSON.stringify(deny)}\n`);
 
   let input: PreToolUseInput;
   try {
     const parsed: unknown = JSON.parse(await readAll(io.stdin));
-    if (!isHookInput(parsed)) {
+    if (!isHarnessInput(harness, parsed)) {
       print(hookDeny("engram: the hook input is not a PreToolUse object"));
       return 0;
     }
@@ -74,27 +137,17 @@ export async function hookCommand(args: string[], io: Io): Promise<number> {
   }
 
   try {
-    const project = resolve(io.cwd, io.env.CLAUDE_PROJECT_DIR || input.cwd || ".");
+    const project = hookProject(harness, io, input);
     const roots = (values.root ?? []).map((r) => resolve(project, r));
     const target = dbTarget(values.db, { cwd: project, home: io.home, env: io.env });
     const sqliteFiles = (path: string) =>
       ["", "-wal", "-shm", "-journal"].map((suffix) => `${path}${suffix}`);
     const log =
       target.backend === "sqlite" && target.path !== MEMORY_DB ? sqliteFiles(target.path) : [];
-    const named = (values.protect ?? []).flatMap((f) => sqliteFiles(resolve(project, f)));
-    const protect = [
-      ...log,
-      ...named,
-      join(project, ".mcp.json"),
-      join(project, ".claude", "settings.json"),
-      join(project, ".claude", "settings.local.json"),
-      // User-level settings can switch every hook off (disableAllHooks, R3-14).
-      join(io.home, ".claude", "settings.json"),
-      join(io.home, ".claude", "settings.local.json"),
-      join(io.home, ".claude.json"),
-    ];
+    const guarded = (values.protect ?? []).flatMap((f) => sqliteFiles(resolve(project, f)));
+    const protect = [...log, ...guarded, ...governingFiles(harness, project, io)];
     const scope = { roots, protect, cwd: project, home: io.home, below: [project, io.home] };
-    const actor = buildActor({ as: values.as ?? "agent:claude-code" }, undefined, "model");
+    const actor = buildActor({ as: values.as ?? HOOK_AGENT[harness] }, undefined, "model");
 
     let conn: ReturnType<typeof connect>;
     try {
@@ -111,7 +164,7 @@ export async function hookCommand(args: string[], io: Io): Promise<number> {
         (ws) => ws.open(),
       );
     } catch (e) {
-      const found = hookBypass(input, scope);
+      const found = harnessBypass(harness, input, scope);
       if (found !== undefined)
         print(
           hookDeny(
@@ -122,7 +175,7 @@ export async function hookCommand(args: string[], io: Io): Promise<number> {
       return 0;
     }
     try {
-      const decision = await claudeCodeHook(input, {
+      const decision = await harnessHook(harness, input, {
         ...scope,
         client: conn.client,
         actor,
