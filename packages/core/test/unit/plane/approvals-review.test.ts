@@ -408,3 +408,59 @@ describe("F4: a drift restore in a scope that requires review waits for a routed
     expect(itemById(db, FIXTURE.item.id)?.status).toBe("active");
   });
 });
+
+// Ported from obsidian-wiki's tests/test_staging.py (MIT, Ar9av/obsidian-wiki
+// at 7da8def05ab46a68d4240201e898258a32312c60): the cases of its stale-base
+// refusal that apply to a version-keyed queue, rewritten for the plane.
+describe("ported: obsidian-wiki's staging tests", () => {
+  test("promotion refuses when the staged item moved on (test_promotion_refuses_when_the_staged_file_moved_on)", async () => {
+    const { plane, db } = fresh(routed(LEADS));
+    await plane.write(omar, item(1), AT);
+    const reviewed = (await plane.approvals(ada, AT))[0]?.version;
+    await plane.write(
+      omar,
+      item(1, { version: 2, content: "restaged", status: "candidate" }),
+      later(1),
+    );
+    const r = await plane.promote(ada, id(1), "team:platform", later(2), {
+      review: true,
+      reviewedVersion: reviewed,
+    });
+    expect(r.event.policy_id).toBe(APPROVAL_STALE_ID);
+    expect(r.event.reason).toContain("changed since it was reviewed");
+    expect(itemById(db, id(1))).toMatchObject({ status: "candidate", content: "restaged" });
+  });
+
+  test("matching revisions promote normally (test_matching_revisions_promote_normally)", async () => {
+    const { plane, db } = fresh(routed(LEADS));
+    await plane.write(omar, item(1), AT);
+    const [listed] = await plane.approvals(ada, AT);
+    const r = await plane.promote(ada, id(1), listed?.target as string, later(1), {
+      review: true,
+      reviewedVersion: listed?.version,
+    });
+    expect(r.decision).toBe("allow");
+    expect(itemById(db, id(1))?.status).toBe("active");
+  });
+
+  test("a second refusal does not clobber the first (test_a_second_rejection_does_not_clobber_the_first)", async () => {
+    const policy = routed(LEADS);
+    const { plane } = fresh(policy);
+    await plane.write(omar, item(1, { scope: "role:lead" }), AT);
+    await plane.promote(omar, id(1), "team:platform", AT);
+    const first = await plane.refuse(ada, id(1), "first", later(1), { target: "team:platform" });
+    await plane.write(
+      omar,
+      item(1, { scope: "role:lead", version: 2, content: "second attempt" }),
+      later(2),
+    );
+    await plane.promote(omar, id(1), "team:platform", later(3));
+    const second = await plane.refuse(ada, id(1), "second", later(4), { target: "team:platform" });
+    const q = approvalQueue(policy, plane.events(), later(5));
+    expect(q.map((r) => [r.version, r.state, r.closed_by])).toEqual([
+      [1, "denied", first.event.id],
+      [2, "denied", second.event.id],
+    ]);
+    expect(first.event.reason).toContain(": first");
+  });
+});
