@@ -203,7 +203,7 @@ describe("why not this item, on the simulator's fixtures", () => {
               if (step.op === "write") await plane.write(as, step.item as MemoryItem, step.at);
               else if (step.op === "retain") await plane.retain(as, step.scope, step.at);
               else if (step.op === "promote")
-                await plane.promote(as, step.item_id, step.to, step.at);
+                await plane.promote(as, step.item_id, step.to_scope, step.at);
               else if (step.op === "read")
                 // Every actor of the workload, and one outside it, asks before the read is made.
                 for (const actor of [as, ...actors, outsider])
