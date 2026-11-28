@@ -2788,6 +2788,31 @@ async function planeSurfaceLeaksNothing() {
   const refusedNothing = await plane.refuse(outsider, unknown, "no", at);
   expect(refused.event.reason).toBe(refusedNothing.event.reason.replace(unknown, secret.id));
   leaks("expireRequests", await plane.expireRequests(outsider, "person:s", at));
+  // The same under a policy with an approval block (verification note N7):
+  // past the off refusal, the outsider meets the reach and membership rules.
+  {
+    const routed: Policy = {
+      ...policy,
+      write: policy.write.map((r) => ({ ...r, requires_review: true })),
+      approval: { routes: [{ scope: "person", approvers: ["owner"], expires_after: 60 }] },
+    };
+    const { plane: queue } = freshPlane(routed);
+    const held = { ...secret, status: "candidate" } as MemoryItem;
+    expect((await queue.write(owner, held, at)).item?.status).toBe("candidate");
+    const listed = await queue.approvals(outsider, at);
+    leaks("approvals under a block", listed);
+    expect(listed).toEqual([]);
+    const no = await queue.refuse(outsider, secret.id, "no", at);
+    leaks("refuse under a block", no);
+    expect(no.item).toBeNull();
+    expect([no.event.scope_from, no.event.scope_to]).toEqual([null, null]);
+    const none = await queue.refuse(outsider, unknown, "no", at);
+    expect(no.event.reason).toBe(none.event.reason.replace(unknown, secret.id));
+    const swept = await queue.expireRequests(outsider, "person:s", "2026-10-26T12:00:00Z");
+    leaks("expireRequests under a block", swept);
+    expect(swept.decision).toBe("deny");
+    expect(JSON.stringify(swept)).not.toContain(secret.id);
+  }
   // simulate replays only the workload it is given, on scratch logs and
   // stores (card E8.9): the outsider's own read of the secret's words finds
   // nothing, and the real log gains no event.

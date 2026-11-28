@@ -546,7 +546,10 @@ function atLeastAfter(from: string, at: string, seconds: number): boolean {
  * allowed write or update leaving it a candidate, or the first `gate` ask
  * into the target) has run past the target route's `expires_after`, or an
  * event into that target has recorded it expired or refused. Routes are the
- * policy's now, for past requests too (the plane's reading, card E2.19's ADR). Read from the events with the
+ * policy's now, for past requests too (the plane's reading, card E2.19's ADR).
+ * A card D5 safety-scan release is not judged here (the route is read only
+ * with `review`): the approval property file judges releases with its own
+ * reading (verification note N3). Read from the events with the
  * oracle's own loop, not the plane's projection.
  */
 function approvalAdmits(

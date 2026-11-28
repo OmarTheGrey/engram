@@ -562,7 +562,7 @@ describe("the approval queue's invariant (card E2.19)", () => {
       expect(tally.selfRefusals).toBeGreaterThan(20);
       expect(tally.refusals).toBeGreaterThan(5);
       expect(tally.widenRefusals).toBeGreaterThan(5);
-      expect(tally.closedRefusals).toBeGreaterThan(0);
+      expect(tally.closedRefusals).toBeGreaterThan(5);
       expect(tally.unblockedLandings).toBeGreaterThan(5);
     },
     SLOW,

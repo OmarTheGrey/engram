@@ -537,7 +537,13 @@ export function refuse(
           appendEvent(db, {
             ...base,
             id: newId(),
-            op: policy_id === APPROVAL_EXPIRED_ID ? "promote" : "retire",
+            // A retire only where a refusal would retire: a held candidate in its own scope (N6).
+            op:
+              policy_id !== APPROVAL_EXPIRED_ID &&
+              held.status === "candidate" &&
+              (to ?? held.scope) === held.scope
+                ? "retire"
+                : "promote",
             item_id: held.id,
             scope_from: held.scope,
             scope_to: to,
