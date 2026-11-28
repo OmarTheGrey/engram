@@ -224,8 +224,9 @@ describe("the suite", () => {
 });
 
 // One call's queries on a fresh store of 100 items, on a warm handle. A
-// write: 16 statements in 3 transactions (the decision, the commit, the
-// budget check), reading 305 rows (the projection three times, 101 items
+// write: 17 statements in 3 transactions (the decision, the commit, the
+// budget check; one more since card E1.7, the lookup that refuses a write
+// under an id an offboarding swept), reading 305 rows (the projection three times, 101 items
 // each, and two more); a denied write: 6 statements in 1, 102 rows (the
 // projection once); a read: 16 in 2, 202 rows (the projection twice). The
 // same under every preset. (Card X15's first version counted one statement
@@ -238,7 +239,7 @@ const q = (prepares: number, statements: number, rows: number, transactions: num
   execs: 0,
   transactions,
 });
-const write = q(17, 16, 305, 3);
+const write = q(18, 17, 305, 3);
 const deny = q(7, 6, 102, 1);
 const read = q(7, 16, 202, 2);
 const EXPECTED_100 = Object.fromEntries(
