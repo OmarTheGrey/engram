@@ -17,6 +17,6 @@ supersedes: none
 
 **Why.** The task asks for the new answer in E8.16's leak and parity suites, whose probe records the row counts.
 
-**Result.** Probes 2,188 to 2,636, leaks 0, suite passed; HTTP denied-and-missing comparisons 377 to 428 (alike 275 to 326, the pinned characterisations unchanged), MCP 106 to 157 (alike 102 to 153); parity operations 13 to 14 per surface, all agreeing. The row's sha256 is now 9626af5d68e1774869fa89b0a48e5a9ff721fa5fdc3e18e13c2d7a02172ec145.
+**Result.** Probes 2,188 to 2,636, leaks 0, suite passed; HTTP denied-and-missing comparisons 377 to 428 (alike 275 to 326, the pinned characterisations unchanged), MCP 106 to 157 (alike 102 to 153); parity operations 13 to 14 per surface, all agreeing. After the review's fix pass the CLI and the TUI each add 102 denied-and-missing comparisons through explain --absent, all alike, with no characterisation. The row's sha256 is now a23b1a8478d7904e6e694f8986089b1e54501dd7036221e6ce816a0ff16de119.
 
 **Consequence.** Every other MANIFEST row rerun alone kept its sha256.

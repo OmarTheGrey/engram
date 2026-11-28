@@ -28,7 +28,7 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h3-near-duplicate.json | research/configs/near-duplicate.json | research/scripts/near_duplicate.py | 8387b6a6 | f50c8f465a2479c84894d4a6fd0fcfbd55df71bcdcc7d3559515d9b46e9b8b3b | none |
 | research/results/h3-lint-nli.json | research/configs/h3-lint-nli.json | research/scripts/h3_lint_nli.py | 030a7fba | 22e3c1225171941d7fac6d426942dd0d52634499a6290d709f4f8f47888763db | none |
 | research/results/h3-fault-injection.json | research/configs/h3-fault-injection.json | research/scripts/h3_fault_injection.py | c209dd6c | 6bfb6faab7b74f34d5e474654aa25ec9b04fa74249cf05fc37f9b35dd85c9368 | none |
-| research/results/h1-leakage.json | research/configs/leakage.json | research/scripts/leakage.py | 2ca09d5a | 9626af5d68e1774869fa89b0a48e5a9ff721fa5fdc3e18e13c2d7a02172ec145 | none |
+| research/results/h1-leakage.json | research/configs/leakage.json | research/scripts/leakage.py | 3c0e4280 | a23b1a8478d7904e6e694f8986089b1e54501dd7036221e6ce816a0ff16de119 | none |
 | research/results/h1-quint-trace-replay.json | research/configs/quint-trace-replay.json | research/scripts/quint_trace_replay.py | 13126b4c | 07be0d26f101a9f826fe022835f7869a915c37e4e9567f0c0d7bc8bcc0176a7c | none |
 | research/results/h1-gate-mutation-audit.json | research/configs/gate-mutation-audit.json | research/scripts/gate_mutation_audit.py | 50e3a293 | 842da60481d3b9b0cd630179e20ef72b3200fd64a4e7580f794c499477b50107 | none |
 | research/results/h2-cedar-properties.json | research/configs/h2-cedar-properties.json | research/scripts/h2_cedar_properties.py | 4dd709e1 | 9e6d4084b0e19a6e00c7c1605e73ba808dd552fdd44dd5e67663bffff11f5d86 | none |

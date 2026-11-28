@@ -28,6 +28,11 @@
   },
   "card": "E8.16",
   "denied_and_missing": {
+    "cli": {
+      "alike": 102,
+      "characterised": {},
+      "compared": 102
+    },
     "http": {
       "alike": 326,
       "characterised": {
@@ -44,6 +49,11 @@
         "memory_explain": 4
       },
       "compared": 157
+    },
+    "tui": {
+      "alike": 102,
+      "characterised": {},
+      "compared": 102
     }
   },
   "filed_under": "research/results/h1-* only because research/tests/test_prereg.py maps every MANIFEST file to one hypothesis's results glob; the result decides no hypothesis, as card X14 filed its red-team result",
