@@ -180,6 +180,7 @@ describe("the frame's keys", () => {
         "audit export",
         "audit verify",
         "audit ropa",
+        "export --subject",
       ]).toContain(s.name);
     await wide.quit();
   });
@@ -192,6 +193,7 @@ describe("the frame's keys", () => {
       ["audit export", "Export an audit report"],
       ["audit verify", "Verify an audit report"],
       ["audit ropa", "Record of processing"],
+      ["export --subject", "Subject access export"],
     ] as const) {
       await h.press(";");
       await h.type(typed);

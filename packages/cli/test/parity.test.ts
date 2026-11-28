@@ -581,6 +581,10 @@ const EXEMPT: Record<string, { reason: string; holds?: string[] }> = {
     reason:
       "an operator's signed report of the log on the machine holding it and the key: counts, hashes and seqs only, no content by construction (card E9.15; packages/core/test/unit/audit/report.test.ts and packages/cli/test/audit.test.ts check its bytes for every content, id, actor, scope, grant, lineage and reason)",
   },
+  "export --subject": {
+    reason:
+      "the bundle goes only to the subject, who is the actor (core's subjectRefusal), on this machine; export's probe covers the bundle, and packages/cli/test/subject-export.test.ts checks that the report never names a derived item out of the subject's reach (card E9.16)",
+  },
   "audit ropa": {
     reason:
       "a record of processing from the policy and the projection's counts by level, class and status: no content, id, scope or actor by construction (card E9.16; packages/core/test/unit/audit/ropa.test.ts and packages/cli/test/subject-export.test.ts check its bytes)",
