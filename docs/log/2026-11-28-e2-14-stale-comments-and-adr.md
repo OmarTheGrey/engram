@@ -13,10 +13,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** The `ContentGuards` and `Trust` doc comments now say every option is enforced (E2.9, E2.10, E2.11), and ADR 0002 gains a line naming this card's use of decision D2.
+**What.** The `ContentGuards` and `Trust` doc comments now say every option is enforced (E2.9, E2.10, E2.11), and ADR 0002 gains a dated amendment naming this card's use of decision D2 and correcting D2's list of the policy's readers.
 
 **Why.** The backlog recorded both comments as wrong since those cards merged, and rule 5 left the fix to the next schema pull request, this one.
 
-**Result.** The comments name `policy/secrets.ts`, `policy/injection-screen.ts` and `policy/trust.ts`, which exist. ADR 0002's new paragraph lists the seven options and their cards.
+**Result.** The comments name `policy/secrets.ts`, `policy/injection-screen.ts` and `policy/trust.ts`, which exist. ADR 0002's amendment lists the seven options and their cards, the changed refusal convention (`off` refused too) and the readers D2 missed (the HTTP simulate request, `exportCedar`).
 
 **Consequence.** The backlog row "Stale `ContentGuards` comment in the schema" can be closed at merge.

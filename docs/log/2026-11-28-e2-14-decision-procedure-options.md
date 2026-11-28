@@ -19,4 +19,4 @@ supersedes: none
 
 **Result.** `SafetyScanMode` and `DriftOptions` in `packages/core/src/schema.ts`.
 
-**Consequence.** If D5 or D4 needs another value or field, that is a second schema pull request (the card's stated risk).
+**Consequence.** If D5 or D4 needs another value or field, that is a second schema pull request (the card's stated risk). Whether a re-validated procedure retires is not this option's: D4's "below the admission rule" and ADR 0011's `replay-drift.*` thresholds disagree, for D4 to settle (`docs/log/2026-11-28-e2-14-finding-drift-rule-for-d4.md`).

@@ -7,7 +7,7 @@ chapter: design
 pillar: plane
 hypothesis: none
 evidence:
-  - packages/core/src/policy/load.ts
+  - packages/core/src/policy/options.ts
   - packages/core/test/unit/policy/load-options.test.ts
 supersedes: none
 ---
@@ -16,6 +16,6 @@ supersedes: none
 
 **Why.** The card says absent is the only value the loader accepts, which is stricter than card E2.8's precedent of accepting `off`. An empty container sets nothing, and refusing it would make D5 and D4, who share `procedures`, rewrite a block-level rule instead of deleting their own rows.
 
-**Result.** `NOT_BUILT_YET` in `policy/load.ts` lists one path per option with its card; `consent` and `approval` are refused as whole blocks, since their content is the option.
+**Result.** `NOT_BUILT_YET` (in `policy/options.ts` since the review) lists one path per option with its card; `consent` and `approval` are refused as whole blocks, since their content is the option. A written empty container changes the parsed JSON, and so C3 and C4 prompts, so a registered preset must never carry one.
 
 **Consequence.** If wrong, a later card accepts `off` by deleting its row; nothing registered sets any option.
