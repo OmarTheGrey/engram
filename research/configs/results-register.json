@@ -1089,6 +1089,40 @@
           "path": ["totals", "diverged_by_finding", "unexplained"]
         }
       ]
+    },
+    {
+      "file": "research/results/h1-gate-mutation-audit.json",
+      "hypothesis": "none",
+      "status": "proof of concept",
+      "prereg": null,
+      "question": "Do the invariants' property tests kill hand-written mutants of the write gate, the read filter, retention, promotion, adoption, offboarding, the trust floors and the log's chain, and which mutants survive?",
+      "note": "A proof of concept on the code's own tests (card X16); the file is under `h1-` for the results glob only.",
+      "headline": [
+        {
+          "label": "mutants",
+          "path": ["totals", "mutants"]
+        },
+        {
+          "label": "killed",
+          "path": ["totals", "killed"]
+        },
+        {
+          "label": "survived",
+          "path": ["totals", "survived"]
+        },
+        {
+          "label": "kill rate",
+          "path": ["totals", "kill_rate"]
+        },
+        {
+          "label": "two-handle offboarding walk, killed",
+          "path": ["per_invariant", "I1H", "killed"]
+        },
+        {
+          "label": "log chain, killed",
+          "path": ["per_invariant", "I9", "killed"]
+        }
+      ]
     }
   ]
 }

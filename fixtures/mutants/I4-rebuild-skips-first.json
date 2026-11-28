@@ -1,0 +1,9 @@
+{
+  "id": "I4-rebuild-skips-first",
+  "invariant": "I4",
+  "area": "replay",
+  "file": "packages/core/src/events.ts",
+  "find": "for (const event of allEvents(db)) project(db, event);",
+  "replace": "for (const event of allEvents(db).slice(1)) project(db, event);",
+  "what": "rebuilding the projection skips the log's first event"
+}

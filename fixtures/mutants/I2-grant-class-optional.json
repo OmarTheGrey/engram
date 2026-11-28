@@ -1,0 +1,9 @@
+{
+  "id": "I2-grant-class-optional",
+  "invariant": "I2",
+  "area": "write gate",
+  "file": "packages/core/src/policy/evaluate.ts",
+  "find": "if (grant.class === undefined) return",
+  "replace": "if (false) return",
+  "what": "a grant naming no class is accepted"
+}
