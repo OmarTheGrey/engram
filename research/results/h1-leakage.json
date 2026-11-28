@@ -115,19 +115,9 @@
   },
   "positive_control": {
     "cli": [
-      "adopted",
-      "dana-person",
       "dana-team",
-      "denied-team",
-      "expired-eve-grant",
-      "expired-eve-write",
-      "fred-person",
       "fred-team",
-      "granted-sam",
-      "imported",
-      "lee-team",
-      "superseded-new",
-      "superseded-old"
+      "lee-team"
     ],
     "http": [
       "dana-team",
@@ -145,19 +135,9 @@
       "lee-team"
     ],
     "tui": [
-      "adopted",
-      "dana-person",
       "dana-team",
-      "denied-team",
-      "expired-eve-grant",
-      "expired-eve-write",
-      "fred-person",
       "fred-team",
-      "granted-sam",
-      "imported",
-      "lee-team",
-      "superseded-new",
-      "superseded-old"
+      "lee-team"
     ]
   },
   "probe_actors": [
