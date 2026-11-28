@@ -23,8 +23,9 @@
 //
 // With the policy's approval block (card E2.19, plane/approvals.ts) a
 // review is approved only by an approver the target's route names, and a
-// request that expired unanswered closes its version: the evaluator refuses
-// it under engram/approval/expired, and that deny event records the expiry.
+// request that expired unanswered or that an approver refused closes its
+// version: the evaluator refuses it under engram/approval/expired (that deny
+// event records the expiry when no sweep has) or engram/approval/refused.
 //
 // On allow, a status-only change rewrites the item in place (same id,
 // version plus one); a class or scope change writes a new version under a
@@ -69,7 +70,7 @@ import {
 } from "../policy/promotion.ts";
 import { Id, type MemoryEvent, type MemoryItem, Scope } from "../schema.ts";
 import { disclosedEvent, disclosedItem } from "../visible.ts";
-import { expiredRequestOf } from "./approvals.ts";
+import { closedRequestOf } from "./approvals.ts";
 import {
   basisNow,
   ERASING_ID,
@@ -240,9 +241,9 @@ async function decideAndCommit(
       // from the caller (card D3, ADR 0046 proposed), and the replay is
       // checked against the item: its id, content and distill ref (D3-3).
       ...(options.replay === undefined ? {} : replayEvidence(deps, item, options.replay)),
-      // An expired approval request closes this version (card E2.19); only
-      // gathered when the policy has an approval block.
-      ...expiredRequestOf(deps, item, at),
+      // An approval request that expired or was refused closes this version
+      // (card E2.19); only gathered when the policy has an approval block.
+      ...closedRequestOf(deps, item, at),
     },
     retiredContent(db, toScope),
   );

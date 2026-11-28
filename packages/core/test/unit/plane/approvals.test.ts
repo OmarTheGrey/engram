@@ -362,6 +362,13 @@ describe("refusal is an event with the approver's reason", () => {
     });
     expect(currentItems(db)[0]?.status).toBe("active");
     expect(approvalQueue(policy, plane.events(), later(1))[0]?.state).toBe("denied");
+    // A refused version is closed: no approver promotes it, and no ask reopens it.
+    const again = await plane.promote(ada, id(1), "team:platform", later(2), { review: true });
+    expect(again.event.policy_id).toBe(APPROVAL_REFUSED_ID);
+    expect((await plane.promote(omar, id(1), "team:platform", later(3))).event.policy_id).toBe(
+      APPROVAL_REFUSED_ID,
+    );
+    expect(approvalQueue(policy, plane.events(), later(3))).toHaveLength(1);
   });
 
   test("a widening approved by a routed approver closes it as approved", async () => {

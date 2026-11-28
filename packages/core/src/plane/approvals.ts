@@ -10,7 +10,8 @@
 //   - a `gate` event with decision `ask` that Plane.promote appends when a
 //     promotion waits for a reviewer; its target is the event's `scope_to`.
 // A later ask on the same version joins the open request and does not
-// reopen or extend it. It closes at the first of:
+// reopen or extend it, and a version whose request expired or was refused
+// is closed for good: no ask reopens it. It closes at the first of:
 //   approved  an allowed `promote` of the item (in place, or a new version
 //             whose lineage starts at it);
 //   expired   a `promote` deny under `engram/approval/expired`: the sweep
@@ -39,12 +40,14 @@ import type { GateResult, PlaneDeps } from "../plane.ts";
 import { readableScope } from "../policy/evaluate.ts";
 import {
   APPROVAL_EXPIRED_ID,
+  APPROVAL_REFUSED_ID,
   APPROVAL_ROUTE_ID,
   approverNames,
   canReach,
   ownCandidate,
   PROMOTE_MEMBERSHIP_ID,
   PROMOTE_REVIEWER_ID,
+  type PromotionEvidence,
   reviewerProblem,
   routeFor,
   routeText,
@@ -54,9 +57,7 @@ import { addSeconds, compareTimestamps } from "../time.ts";
 import { authorsOf } from "./promote.ts";
 import { inWriteQueue } from "./queue.ts";
 
-export { APPROVAL_EXPIRED_ID, APPROVAL_ROUTE_ID };
-/** An approver's refusal of a request (card E2.19). */
-export const APPROVAL_REFUSED_ID = "engram/approval/refused";
+export { APPROVAL_EXPIRED_ID, APPROVAL_REFUSED_ID, APPROVAL_ROUTE_ID };
 /** A refusal asked for an item version with no pending request. */
 export const APPROVAL_NO_REQUEST_ID = "engram/approval/no-request";
 /** A sweep of a scope's requests by an actor who is not a member of it. */
@@ -146,6 +147,8 @@ export function approvalQueue(
 ): ApprovalRequest[] {
   const items = new Map<string, MemoryItem>();
   const open = new Map<string, ApprovalRequest>();
+  // Versions whose request expired or was refused: closed for good.
+  const decided = new Set<string>();
   const out: ApprovalRequest[] = [];
   for (const e of events) {
     for (const [id, r] of open) {
@@ -158,6 +161,8 @@ export function approvalQueue(
         closed_under: e.policy_id,
         closer: e.actor,
       });
+      if (state === "expired" || e.policy_id === APPROVAL_REFUSED_ID)
+        decided.add(`${id}@${r.version}`);
       open.delete(id);
     }
     if (e.item_id !== null) {
@@ -175,7 +180,7 @@ export function approvalQueue(
     if (!held && !asked) continue;
     const id = e.item_id as string;
     const item = items.get(id);
-    if (!item || open.has(id)) continue;
+    if (!item || open.has(id) || decided.has(`${id}@${item.version}`)) continue;
     const r = opened(policy, e, item, held ? item.scope : (e.scope_to ?? item.scope));
     open.set(id, r);
     out.push(r);
@@ -186,22 +191,41 @@ export function approvalQueue(
 }
 
 /**
- * The expired request of `item`'s current version at `at`, for the
- * promotion evaluator's evidence (`expiredRequest`): closed as expired, or
- * pending and due. Undefined when the policy has no approval block, so a
- * policy without one gathers nothing and decides as before.
+ * The closed request of `item`'s current version at `at`, for the
+ * promotion evaluator's evidence (`closedRequest`): expired (recorded, or
+ * pending and due) or refused by an approver. Nothing when the policy has no
+ * approval block, so a policy without one gathers nothing and decides as
+ * before.
  */
-export function expiredRequestOf(
+export function closedRequestOf(
   deps: PlaneDeps,
   item: MemoryItem,
   at: string,
-): { expiredRequest: { expires_at: string; opened_by: string } } | Record<string, never> {
+): { closedRequest: NonNullable<PromotionEvidence["closedRequest"]> } | Record<string, never> {
   if (deps.policy.approval === undefined) return {};
-  const r = approvalQueue(deps.policy, allEvents(deps.db), at).find(
+  const r = approvalQueue(deps.policy, allEvents(deps.db), at).findLast(
     (q) => q.item_id === item.id && q.version === item.version,
   );
-  if (!r || r.expires_at === null || !(r.state === "expired" || r.due)) return {};
-  return { expiredRequest: { expires_at: r.expires_at, opened_by: r.opened_by } };
+  if (!r) return {};
+  if (r.due || r.state === "expired")
+    return {
+      closedRequest: {
+        state: "expired",
+        at: r.expires_at as string,
+        by: r.closed_by ?? r.opened_by,
+        opened_by: r.opened_by,
+      },
+    };
+  if (r.state === "denied" && r.closed_under === APPROVAL_REFUSED_ID)
+    return {
+      closedRequest: {
+        state: "refused",
+        at: r.closed_at as string,
+        by: r.closed_by as string,
+        opened_by: r.opened_by,
+      },
+    };
+  return {};
 }
 
 /** The pending request on `item`'s current version, if any. */

@@ -31,6 +31,8 @@
 //                                                does not name (card E2.19): a route narrows who may approve
 //   engram/approval/expired                      the request for this version of the item expired
 //                                                unanswered (card E2.19); a new version is a new request
+//   engram/approval/refused                      an approver refused the request for this version
+//                                                (card E2.19, Plane.refuse); a new version is a new request
 // A promotion the target's write rule refuses is denied under that rule's own
 // id (`<policy id>/write/<level>`, `engram/write/membership`, ...), since a
 // promotion is evaluated as a write into the target scope (ADR 0026, item 5).
@@ -95,6 +97,8 @@ export const PROMOTE_REPLAY_ITEM_ID = "engram/promote/replay-item";
 export const PROMOTE_REPLAY_SPLIT_ID = "engram/promote/replay-split";
 export const APPROVAL_ROUTE_ID = "engram/approval/route";
 export const APPROVAL_EXPIRED_ID = "engram/approval/expired";
+/** An approver's refusal of a request (card E2.19, Plane.refuse). */
+export const APPROVAL_REFUSED_ID = "engram/approval/refused";
 
 /** One route of the policy's approval block (card E2.19). */
 type ApprovalRoute = NonNullable<Policy["approval"]>["routes"][number];
@@ -246,11 +250,17 @@ export interface PromotionEvidence {
    */
   replayProblem?: { policy_id: string; reason: string };
   /**
-   * The request for this version of the item expired unanswered (card
-   * E2.19, plane/approvals.ts): when, and the event that opened it. Gathered
-   * by the plane only when the policy has an approval block.
+   * The request for this version of the item is closed (card E2.19,
+   * plane/approvals.ts): it expired unanswered, or an approver refused it.
+   * When, by which event, and the event that opened it. Gathered by the
+   * plane only when the policy has an approval block.
    */
-  expiredRequest?: { expires_at: string; opened_by: string };
+  closedRequest?: {
+    state: "expired" | "refused";
+    at: string;
+    by: string;
+    opened_by: string;
+  };
 }
 
 export type PromotionCheck =
@@ -514,12 +524,13 @@ export function evaluatePromotion(
       `item ${item.id} is past its ttl: expired at ${expiry.at} (${expiry.policy_id})`,
       PROMOTE_EXPIRED_ID,
     );
-  // A request the approval queue let expire closes this version (card E2.19).
-  if (evidence.expiredRequest !== undefined)
+  // A request that expired or was refused closes this version (card E2.19).
+  const closed = evidence.closedRequest;
+  if (closed !== undefined)
     return deny(
       "approval",
-      `the request for item ${item.id} at version ${item.version}, opened by event ${evidence.expiredRequest.opened_by}, expired at ${evidence.expiredRequest.expires_at} with no approver's decision; this version is not promoted, and a new version is a new request`,
-      APPROVAL_EXPIRED_ID,
+      `the request for item ${item.id} at version ${item.version}, opened by event ${closed.opened_by}, ${closed.state === "expired" ? `expired at ${closed.at} with no approver's decision` : `was refused at ${closed.at} by event ${closed.by}`}; this version is not promoted, and a new version is a new request`,
+      closed.state === "expired" ? APPROVAL_EXPIRED_ID : APPROVAL_REFUSED_ID,
     );
   const hidden = hiddenCharacters(item.content);
   if (hidden > 0)
