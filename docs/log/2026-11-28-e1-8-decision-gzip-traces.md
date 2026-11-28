@@ -16,6 +16,6 @@ supersedes: none
 
 **Why.** Each ITF state repeats the whole log: 200 traces of 60 steps are about 36 MB as JSON and 0.8 MB gzipped.
 
-**Result.** The reader decompresses by extension; the packer writes level 9 with no name or time in the header, so the bytes depend on the trace alone.
+**Result.** The packer writes level 9 with no name, time 0 and the OS byte set to 255, so the header is the same on every platform (Node writes 0x0a on Windows, 0x03 elsewhere). The result's `traces_sha256` is over the decompressed JSON, so another zlib's deflate stream leaves it as it is.
 
 **Consequence.** Cost if wrong: the files are not readable in a diff; `zcat` reads them.

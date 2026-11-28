@@ -14,10 +14,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** E18-F1: adoption retires a projected item the store no longer lists (or whose record it refused), and does so while the item's person scope is being erased.
+**What.** E18-F1: adoption retires a projected item the store no longer lists (or whose record it refused), and does so even while the item's person scope is being erased.
 
-**Why.** Found by the replay: 12 of 200 traces diverge after such a retraction; scenario `e18RetractionWhileErasingTest` diverges at step 13.
+**Why.** Found by the replay. With status compared, 51 of the 200 traces first diverge where an F1 mark (a retraction) names the diverging item, at or before that step; scenario `e18RetractionWhileErasingTest` diverges at step 12.
 
-**Result.** The retirement is an allowed change, so a stale writer's settle goes round again where the model appends its deny. The closing transaction of `adoptStoreItems` checks staleness but not `erasureOpen`, against the header's rule that adoption into an erasing scope is refused.
+**Result.** The model has no retraction: the item stays live there and is retired in the code, and the retirement is an allowed change that sends other handles' settles round again. The closing transaction of `adoptStoreItems` checks staleness but not `erasureOpen`, against the header's rule that adoption into an erasing scope is refused.
 
-**Consequence.** For card E1.7 or the lead: refuse the retraction while the scope is erasing, or model retraction.
+**Consequence.** For card E1.7 or the lead: refuse the retraction while the scope is erasing, and model retraction.
