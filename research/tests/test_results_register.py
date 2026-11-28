@@ -9,7 +9,16 @@ from typing import Any
 
 import pytest
 
-from scripts.results_register import RegisterError, build, main, path_text, resolve, value_text
+from scripts.results_register import (
+    HYPOTHESIS_RESULTS,
+    STATUSES,
+    RegisterError,
+    build,
+    main,
+    path_text,
+    resolve,
+    value_text,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 CONFIG = REPO / "research" / "configs" / "results-register.json"
@@ -146,9 +155,10 @@ def test_build_reads_the_value_and_names_the_entry(tmp_path: Path) -> None:
     assert "**No hypothesis has a result yet.** Every committed file is a support artefact." in text
 
 
-def test_a_proof_of_concept_is_a_status_and_no_hypothesis_result(tmp_path: Path) -> None:
+def test_a_proof_of_concept_is_a_status_that_decides_no_hypothesis(tmp_path: Path) -> None:
+    assert "proof of concept" in STATUSES
+    assert "proof of concept" not in HYPOTHESIS_RESULTS
     text = build(_repo(tmp_path), _config(status="proof of concept"))
-    assert "- **Status.** proof of concept: a reproducible demonstration" in text
     assert "| proof of concept | 1 |" in text
     assert "**No hypothesis has a result yet.**" in text
 
@@ -207,3 +217,11 @@ def test_check_fails_on_a_stale_register(tmp_path: Path) -> None:
     assert main(args) == 0
     assert main([*args, "--check"]) == 0
     assert b"\r\n" not in out.read_bytes()
+
+
+def test_proof_of_concept_is_a_status_that_decides_no_hypothesis() -> None:
+    # The lead's request of 2026-11-28: a count that shows the system working
+    # on fixtures (card E8.16's zero-leak count first) is registered as such.
+    assert "proof of concept" in STATUSES
+    assert "decides no hypothesis" in STATUSES["proof of concept"]
+    assert "proof of concept" not in HYPOTHESIS_RESULTS
