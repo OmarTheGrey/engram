@@ -433,7 +433,7 @@ Recorded by [`docs/log/2026-11-21-x14-measurement-redteam.md`](../log/2026-11-21
 - **Question.** Of the plane's governance claims mapped to EU AI Act and GDPR obligations, how many does a test in the repository evidence?
 - **Status.** support artefact: an input a registered analysis uses (a list, a draw, a mapping), not a measurement of any hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. Evidence for `docs/compliance/`, not compliance; filed under `h1-` by `docs/log/2026-11-21-r4-decision-result-under-h1.md`.
-- **Made by.** `research/scripts/crosswalk.py` from `research/configs/crosswalk.json`, MANIFEST commit `4207427`, sha256 `8fad8887689f03215a3327475415bcd2cfedfc8f68aa8d184b27af96954434ac`.
+- **Made by.** `research/scripts/crosswalk.py` from `research/configs/crosswalk.json`, MANIFEST commit `2c3503b9`, sha256 `8fad8887689f03215a3327475415bcd2cfedfc8f68aa8d184b27af96954434ac`.
 
 | value | reads | key path |
 |---|---|---|
@@ -582,7 +582,7 @@ Recorded by [`docs/log/2026-11-28-l9-measurement-grounding-after-review.md`](../
 - **Question.** When one held-out task of an admitted procedure changes under it, does a re-validation replayed from cassettes detect the drift and retire the procedure by a governed event, and does a re-validation on the environment put back restore the retired version?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. Card D4 on fixtures and a scripted model: card D3's admitted procedure under medium with `procedures.drift` on, which no registered preset or config sets. H5 registers admission, not retirement, so this is an engineering check, not an H5 result. The file is under `h1-` for the results glob only.
-- **Made by.** `research/scripts/drift_fixture.py` from `research/configs/drift-fixture.json`, MANIFEST commit `e22c4ad`, sha256 `579fa43dffc7ca6123e2b9812a6f22886c1581a70dfd59e561f20ee62e6abb71`.
+- **Made by.** `research/scripts/drift_fixture.py` from `research/configs/drift-fixture.json`, MANIFEST commit `2c3503b9`, sha256 `579fa43dffc7ca6123e2b9812a6f22886c1581a70dfd59e561f20ee62e6abb71`.
 
 | value | reads | key path |
 |---|---|---|
