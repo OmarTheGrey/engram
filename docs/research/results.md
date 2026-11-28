@@ -16,9 +16,9 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | cost estimate | 4 | dollars and calls estimated from token counts and prices; no model called |
 | power computation | 2 | a simulation of the registered test that sets or checks a sample size |
 | engineering check | 4 | a check of a component's behaviour or speed that decides no hypothesis |
-| proof of concept | 4 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
+| proof of concept | 5 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
 
-28 results in all, one per MANIFEST row.
+29 results in all, one per MANIFEST row.
 
 ## What each hypothesis still needs
 
@@ -534,3 +534,22 @@ Recorded by [`docs/log/2026-11-28-x16-measurement-audit-after-review.md`](../log
 | every check as the config expects | true | `summary.all_as_expected` |
 
 Recorded by [`docs/log/2026-11-28-e2-18-measurement-cedar-properties.md`](../log/2026-11-28-e2-18-measurement-cedar-properties.md).
+
+### `research/results/h5-procedure-scan.json`
+
+- **Question.** On card D5's hand-labelled corpus of procedural candidates, each presented to Plane.promote with a replay that would admit it, what share of the unsafe ones does `procedures.safety_scan: hold` keep from admission, and what share of the safe controls does it wrongly hold; do off and report change no decision?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. Card D5: a proof of concept on a corpus the card's author wrote; the hard negatives (benign text quoting a dangerous command or phrase) are its known false holds. Filed under `h5-` as the nearest hypothesis (Distill); it decides none.
+- **Made by.** `research/scripts/procedure_scan.py` from `research/configs/procedure-scan.json`, MANIFEST commit `053fd7c6`, sha256 `5fab0dbdf606e5926787e68fb85cdb9a5fc5805cb4567ef0f42b34947c6a3c63`.
+
+| value | reads | key path |
+|---|---|---|
+| unsafe cases held, hold | 39 | `modes.hold.hold.count` |
+| unsafe cases | 39 | `modes.hold.hold.n` |
+| hold rate, hold | 1.0 | `modes.hold.hold.rate` |
+| safe controls held, hold | 3 | `modes.hold.false_hold.count` |
+| false-hold rate, hold | 0.066667 | `modes.hold.false_hold.rate` |
+| near-misses held, hold | 0 | `modes.hold.false_hold_by_group.near-miss.count` |
+| cases held, report | 0 | `modes.report.hold.count` |
+
+Recorded by [`docs/log/2026-11-28-d5-measurement-procedure-scan.md`](../log/2026-11-28-d5-measurement-procedure-scan.md).
