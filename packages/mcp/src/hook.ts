@@ -148,7 +148,10 @@ export function isCodexHookInput(value: unknown): value is PreToolUseInput {
 /** The file paths an apply_patch text names: its Add, Update and Delete headers and Move to lines. */
 export function patchPaths(patch: string): string[] {
   const out: string[] = [];
-  for (const m of patch.matchAll(/^\*\*\* (?:(?:Add|Update|Delete) File|Move to): *(.+?)\s*$/gm))
+  // Codex trims a line before it reads a header (codex-rs/apply-patch/src/streaming_parser.rs).
+  for (const m of patch.matchAll(
+    /^[ \t]*\*\*\* (?:(?:Add|Update|Delete) File|Move to): *(.+?)\s*$/gm,
+  ))
     out.push(m[1] as string);
   return [...new Set(out)];
 }

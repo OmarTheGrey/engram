@@ -82,6 +82,14 @@ describe("which Codex calls the hook blocks", () => {
       { command: patch("*** Update File: .codex/hooks.json", "@@", "-a", "+b") },
       "engram",
     ],
+    // Codex trims each line before it reads a header (codex-rs/apply-patch/src/streaming_parser.rs).
+    ["apply_patch", { command: patch("  *** Add File: memory/x.md", "+hi") }, "files"],
+    ["apply_patch", { command: patch("\t*** Delete File: .codex/hooks.json") }, "engram"],
+    [
+      "apply_patch",
+      { command: patch("*** Update File: a.md", "  *** Move to: memory/y.md") },
+      "files",
+    ],
     // A patch applied through the shell names its files in the heredoc.
     [
       "Bash",
