@@ -38,6 +38,12 @@ Amendment made by card E2.8, 2026-11-21 (branch `e2-8-policy-schema`), accepted 
 - Cost. Code built before the change rejects a policy file that uses the new blocks, since the policy is a strict object. Every reader (core, the generated clients, the Python types) is in this repository and ships in the same PR.
 - Checked by `packages/core/test/unit/policy/presets.test.ts`: each registered preset parses to the sha256 it had before the change.
 
+Amendment made by card E2.14 of the second absorb plan, 2026-11-28 (branch `a2-e2-14`), under decision D2:
+
+- The policy gains the optional `lints.model` (`evidence`), `procedures` (`safety_scan`, `drift`), `consent`, `erasure` (`mode`), `approval` and `grants` (`expiry_cap`) blocks, each option without a default, so `schema_version` stays 1 and every registered preset parses to the same sha256 (`packages/core/test/unit/policy/load-options.test.ts`).
+- The refusal convention changes for these options. Card E2.8's options were refused for any value but `off`; these are refused for every present value, `off` included, naming the card that builds each (L9, D5, D4, E9.12, E9.13, E2.19, E2.21). Each card lifts its own refusal. An empty container (`procedures: {}`) loads, since it sets nothing; it does change the parsed JSON, so a registered preset never carries one.
+- D2's sentence that the policy "is parsed only by `parsePolicy` ... and by the fault set's `readSetPolicy`" is corrected: since card E8.9 the HTTP simulate route's `SimulateRequest` (`packages/server/src/contract.ts`) also validates a candidate policy with the schema alone, and `exportCedar` takes a policy object. The refusal therefore lives in one pure function, `notBuiltOptions` (`packages/core/src/policy/options.ts`), applied by the loader, by `Plane.simulate` to its candidate (so the route answers 400) and by `exportCedar`. `readSetPolicy` stays schema only; its input is pinned by hash and sets no option.
+
 ## Alternatives considered
 
 (a) Zod 4 as the single source, JSON Schema via `z.toJSONSchema`, Python types generated from the JSON Schema. (b) JSON Schema hand-written, codegen both ways. (c) TypeBox.

@@ -19,6 +19,7 @@ import { migrate } from "../db/migrate.ts";
 import { openSqlite } from "../db/sqlite.ts";
 import { allEvents, currentItems } from "../events.ts";
 import type { PlaneDeps } from "../plane.ts";
+import { notBuiltOptions } from "../policy/options.ts";
 import type { MemoryEvent, MemoryItem, Policy } from "../schema.ts";
 import {
   type Decision,
@@ -321,6 +322,15 @@ export async function simulate(
   candidate: Policy,
 ): Promise<SimReport> {
   const workload = checkWorkload(input);
+  // The candidate may come from a request body that never met the loader
+  // (the HTTP simulate route), so it is held to the loader's refusal of the
+  // options nothing builds yet (card E2.14): a report would otherwise show
+  // "no change" for an option the plane silently ignored.
+  const unbuilt = notBuiltOptions(candidate);
+  if (unbuilt.length > 0)
+    throw new InvalidCallError(
+      `Plane.simulate: candidate policy ${candidate.id}: ${unbuilt.map((o) => o.message).join("; ")}`,
+    );
   const baseline = await runWorkload(workload, deps.policy, deps.retrieval);
   const replayed = await runWorkload(workload, candidate, deps.retrieval);
   const changed: StepChange[] = baseline.outcomes.flatMap((b, i) => {

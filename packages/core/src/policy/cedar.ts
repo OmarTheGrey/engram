@@ -78,6 +78,7 @@ import {
   WRITE_MOVE_ID,
   WRITE_VERSION_ID,
 } from "./evaluate.ts";
+import { notBuiltOptions } from "./options.ts";
 
 /** The Cedar namespace every exported type and action lives in. */
 export const CEDAR_NAMESPACE = "Engram";
@@ -264,6 +265,11 @@ function refuseUntranslatable(policy: Policy): void {
     throw new CedarExportError(
       `policy ${policy.id} sets ${on.join(", ")}; the Cedar export does not translate content guards or trust options, and refuses rather than export a gate that disagrees with the evaluator`,
     );
+  // Card E2.14: an option nothing builds yet is refused as the loader refuses
+  // it; the card that builds one decides whether the export translates it.
+  const unbuilt = notBuiltOptions(policy);
+  if (unbuilt.length > 0)
+    throw new CedarExportError(`policy ${policy.id}: ${unbuilt.map((o) => o.message).join("; ")}`);
 }
 
 /**
