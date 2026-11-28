@@ -638,7 +638,7 @@ Recorded by [`docs/log/2026-11-28-e9-15-measurement-audit-report-chain-v2.md`](.
 - **Question.** With a person's opt-outs of their own person scope (a topic, a source with a carve-out, an Incognito window with a carve-out), does the write gate refuse exactly the writes they cover, each refusal naming its opt-out and none repeating the refused content, while the same workload under the twin profile without them is allowed as before?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. Card E9.12, by engram simulate on a fixture workload (fixtures/workloads/e9-12-consent.json); consent is absent in every registered preset and in the twin profile. The file is under `h1-` for the results glob only.
-- **Made by.** `research/scripts/consent_gate.py` from `research/configs/consent-gate.json`, MANIFEST commit `5efb38da`, sha256 `3b0a06f43051c2594424e348d503a8764b8ec31d2023e70c6e87b5896d48ec14`.
+- **Made by.** `research/scripts/consent_gate.py` from `research/configs/consent-gate.json`, MANIFEST commit `3120749a`, sha256 `3b0a06f43051c2594424e348d503a8764b8ec31d2023e70c6e87b5896d48ec14`.
 
 | value | reads | key path |
 |---|---|---|
