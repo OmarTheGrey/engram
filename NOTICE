@@ -250,3 +250,21 @@ Loom (https://github.com/ClickHouse/loom, commit
   Licensed under the Apache License, Version 2.0. See the LICENSE file.
 
 Modified here: see the header of leakage-kit.ts.
+
+------------------------------------------------------------------------
+Caura, Sentinel scan
+
+packages/core/src/lint/procedural.ts (card D5) ports the scan tables of
+core-api/src/core_api/services/forge/sentinel_scan.py from Caura
+(https://github.com/caura-ai/caura, commit
+8dbb7f40a76cdc75827923f1a82597b4c8393130), whose NOTICE reads:
+
+  Caura
+  Copyright 2026 Caura (https://caura.ai)
+
+  This product is licensed under the Apache License, Version 2.0.
+  See the LICENSE file for the full license text.
+
+  "Caura" is a trademark of Caura. See the README for details.
+
+Modified here: see the header of procedural.ts.

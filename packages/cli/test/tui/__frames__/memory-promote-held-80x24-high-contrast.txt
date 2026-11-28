@@ -1,0 +1,28 @@
+ engram  Promote an item                       in process  person:dana (person)
+   Item         [ 01940000-0000-7000-8000-000000000001   ]  an item id (a UUI...
+   To scope     [ person:dana                            ]  the item's own or...
+   Approve as reviewer [ ] off  approve as a reviewer: a member of the target...
+   ▸ Advanced: id, the test clock and this command's workspace flags
+
+ ◆ ask   exit 1  deny, ask or an error
+ gate 01940000-0000-7000-8000-000000000513 at 2026-10-25T12:00:00.000Z by
+   person:dana
+ ask: held, not admitted: the procedure safety scan (procedures.safety_scan:
+   hold) found 1 critical and 0 warning: critical shell-injection
+   (fetch-pipe-shell) in body at 11 to 51; item
+   01940000-0000-7000-8000-000000000001 stays a candidate until a user-sourced
+   actor presents it again with a reason to release it
+ policy engram/promote/safety-scan
+ log engram.db
+
+ [ Switch to a reviewer and approve ]   [ Edit and retry ]
+ Promotions cannot be undone from here.
+
+   [ Promote ]   ctrl+s from any field
+
+$ engram promote 01940000-0000-7000...er dana --db engram.db --root mem   exit 1
+ ? help  v plain  J json  ctrl+s promote  tab next  ; commands  esc back
+--- styles
+r0 c0-79 inverse
+r6 c1-1 bold
+r17 c1-36 inverse
