@@ -138,7 +138,7 @@ function blank(src: string): string {
       prev = "a";
       prevWord = "";
     } else if (c === "{" && templates.length > 0) {
-      templates[templates.length - 1]++;
+      templates[templates.length - 1] = (templates[templates.length - 1] ?? 0) + 1;
       prev = c;
       prevWord = "";
       i++;
@@ -155,7 +155,8 @@ function blank(src: string): string {
       prev = "a";
       i = j;
     } else {
-      if (c === "}" && templates.length > 0) templates[templates.length - 1]--;
+      if (c === "}" && templates.length > 0)
+        templates[templates.length - 1] = (templates[templates.length - 1] ?? 0) - 1;
       if (!/\s/.test(c)) {
         prev = c === ")" || c === "]" || c === "}" ? "a" : c;
         prevWord = "";

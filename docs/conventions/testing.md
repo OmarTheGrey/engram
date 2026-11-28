@@ -42,6 +42,7 @@ This file is owned by the lead. Changing it needs a second reviewer and a `decis
 - Models are scripted, not mocked: `packages/model/src/scripted.ts` (`scriptedModelCall`, ADR 0033) is a `ModelCall` that answers from a table keyed on a hash of the request, and fails loudly on an unknown key. Real-model tests use the cache as a cassette: the first run records under a seed, later runs replay with zero calls. Cassettes are committed as fixtures under `fixtures/cassettes/` and are the only way a real model enters CI. A runner config's scripted cassettes are recorded only by `make fixtures`, which records them afresh; `make run` replays, and a miss is an error.
 - Time is injected. Nothing in `packages/core` reads the clock; validity and retention tests pass a clock.
   Correction (card R4): the Postgres transport (`packages/core/src/db/postgres.ts`, `postgres-worker.ts`) reads `Date.now()` for its connection and query timeouts; no decision or event time comes from it.
+  `scripts/test/core-determinism-rule.test.ts` (card E0.7) enforces both halves: no `Date.now`, argument-free `new Date`, `Date()`, `performance.now`, `process.hrtime`, `Math.random` or crypto random call in code under `packages/core/src` (comments and strings skipped), the transport's `Date.now` apart.
 - Randomness is seeded. Any test that samples takes its seed from the test name; a failing case prints the seed and the case so it can be rerun by itself.
 
 ## Fixtures
@@ -88,6 +89,7 @@ Reviewers check, in order:
 - Test names state the behaviour and the condition: `denies write of personal class into team scope when policy forbids it`.
 - One assertion subject per test. Several assertions about that subject are fine.
 - No test reads the network. `ENGRAM_OFFLINE=1` is set in CI and the runner refuses any model call that misses the cache.
+  Under `ENGRAM_OFFLINE=1` the offline guard (card E0.7, `scripts/test/offline-guard.ts`, a setup file of every project through `vitest.shared.ts`) makes any `fetch`, socket connection or DNS lookup from a test to a host other than the loopback throw at once, naming the host. The loopback and local sockets stay open (the embedded Postgres, the HTTP and MCP servers); a spawned child process is not patched. The guard is read once per worker, so a test that clears the variable for its own call does not lift it. A test that fetches pinned upstream data at its pinned commit lifts it with `allowPinnedDataFetch(<what>)` and is listed here and in `PINNED_DATA_FETCH_TESTS`; `scripts/test/offline-guard.test.ts` fails on a caller not listed. Listed today: none.
 
 ## Commands
 

@@ -409,17 +409,17 @@ Recorded by [`docs/log/2026-11-21-x14-measurement-redteam.md`](../log/2026-11-21
 - **Question.** Of the plane's governance claims mapped to EU AI Act and GDPR obligations, how many does a test in the repository evidence?
 - **Status.** support artefact: an input a registered analysis uses (a list, a draw, a mapping), not a measurement of any hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. Evidence for `docs/compliance/`, not compliance; filed under `h1-` by `docs/log/2026-11-21-r4-decision-result-under-h1.md`.
-- **Made by.** `research/scripts/crosswalk.py` from `research/configs/crosswalk.json`, MANIFEST commit `a0e7113`, sha256 `e51bbc8567333f320e74cdcc4e6892a32a4d422ae53295d4849833e49ed957c0`.
+- **Made by.** `research/scripts/crosswalk.py` from `research/configs/crosswalk.json`, MANIFEST commit `76b8bb7`, sha256 `03361028b83fbd4e1b316423bbddb041a6f39aea58fe59b9a3fefe5b48bebd4b`.
 
 | value | reads | key path |
 |---|---|---|
 | claims | 50 | `summary.claims` |
-| claims evidenced by a test | 46 | `summary.evidenced` |
-| tests cited | 105 | `summary.tests` |
-| test files cited | 32 | `summary.test_files` |
+| claims evidenced by a test | 47 | `summary.evidenced` |
+| tests cited | 107 | `summary.tests` |
+| test files cited | 33 | `summary.test_files` |
 | obligations | 27 | `summary.obligations` |
 
-Recorded by [`docs/log/2026-11-21-r4-measurement-crosswalk-fix-pass.md`](../log/2026-11-21-r4-measurement-crosswalk-fix-pass.md).
+Recorded by [`docs/log/2026-11-28-e0-7-measurement-crosswalk.md`](../log/2026-11-28-e0-7-measurement-crosswalk.md).
 
 ### `research/results/h2-cost-table.json`
 
