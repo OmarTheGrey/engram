@@ -12,10 +12,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** For the lead: on this branch card X16's unregistered audit row reproduces with a different sha256 (6afe298f... where MANIFEST holds 8e61f235...), so it was not regenerated.
+**What.** For the lead: card X16's unregistered audit row reproduced on this branch with a different sha256 (6afe298f... where MANIFEST held 8e61f235...).
 
-**Why.** The guard lets only a row the card's plan entry names move, and E1.9's names none.
+**Why.** The guard lets only a row the card's plan entry names move, and E1.9's names none, so the change was reported before any regeneration.
 
-**Result.** Every mutant is killed or survives as before; only two `killed_by` messages differ: the I9 lint-evidence kill now lists the `attestations` check among the checks, and the I9 link kill quotes genesis hashes that differ because a new genesis says version 2. Neither mutated line of chain.ts was changed. All other rerun rows are unchanged.
+**Result.** Every verdict was unchanged; only two `killed_by` messages differed, from the new `attestations` check and the version 2 genesis. Neither mutated line of chain.ts was changed.
 
-**Consequence.** The orchestrator decides whether to regenerate the row, with a new sha256 and commit, in this PR or after it.
+**Consequence.** The orchestrator decided to regenerate the row in this PR (docs/log/2026-11-28-e1-9-measurement-gate-mutation-audit.md).
