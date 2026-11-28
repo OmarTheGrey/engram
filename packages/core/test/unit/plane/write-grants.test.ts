@@ -13,24 +13,41 @@
 // (grantDefect): the write gate's grant rule, the item's class (another class
 // could never admit a read), unexpired, and not on the item already. A grant
 // change and a rewrite that changes the grants run all of it; a first write
-// also refuses a grant carried twice. A first write keeps the write gate's
-// grant rule alone for the other two: an already expired grant is one the
-// twin profile's fixture writes on purpose (fixtures/profiles/twin-reads.json,
-// write 4), and a grant of another class is one the read filter's tests write
-// and a promotion's new version may carry from its source.
+// also refuses a grant carried twice. With grants.expiry_cap absent, a first
+// write keeps the write gate's grant rule alone for the other two (`uncapped`,
+// the twin profile without the option): the read filter's tests write a grant
+// of another class on a first write, under testPolicy().
+//
+// Card E2.21, part 2 (ADR 0034, decisions 3 and 6): with grants.expiry_cap on,
+// as the twin profile sets it, a first write is held to the whole of
+// grantDefect, and every grant a write or a grant change adds expires at most
+// 365 days (31,536,000 seconds) after the event's own time, refused under
+// engram/write/grant-expiry-cap and never clamped. A grant a rewrite keeps is
+// not judged again, and a promotion's new version is exempt.
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { allEvents } from "../../../src/events.ts";
 import { itemById } from "../../../src/items.ts";
-import { type Actor, adoptStoreItems, offboard } from "../../../src/plane.ts";
-import { evaluateWrite, WRITE_GRANT_ID, WRITE_MOVE_ID } from "../../../src/policy/evaluate.ts";
+import { type Actor, adoptStoreItems, createPlane, offboard } from "../../../src/plane.ts";
+import {
+  evaluateWrite,
+  GRANT_EXPIRED_ID,
+  GRANT_EXPIRY_CAP_ID,
+  WRITE_GRANT_ID,
+  WRITE_MOVE_ID,
+} from "../../../src/policy/evaluate.ts";
 import { GRANT_OWNER_ID, GRANT_SOURCE_ID, GRANT_UNCHANGED_ID } from "../../../src/policy/grants.ts";
 import { parsePolicy } from "../../../src/policy/load.ts";
-import type { Grant, MemoryItem } from "../../../src/schema.ts";
+import type { Grant, MemoryItem, Policy } from "../../../src/schema.ts";
 import { fresh, id, item, testPolicy } from "./helpers.ts";
 
 const PROFILE = new URL("../../../../pi-package/profiles/twin.yaml", import.meta.url);
 const twin = () => parsePolicy(readFileSync(PROFILE, "utf8"), "twin.yaml");
+/** The twin profile with grants.expiry_cap absent: the gate as it decided before card E2.21. */
+const uncapped = (): Policy => {
+  const { grants: _grants, ...rest } = twin();
+  return rest as Policy;
+};
 
 const AT = "2026-11-19T10:00:00Z";
 const LATER = "2026-11-19T11:00:00Z";
@@ -134,7 +151,7 @@ describe("I1: a rewrite that changes the grants is a grant change", () => {
 
 describe("M1: one rule for what a grant may be, on both paths", () => {
   test("a grant naming another class than the item's is refused by a rewrite adding it and by a grant change", async () => {
-    const env = fresh(twin());
+    const env = fresh(uncapped());
     const wrong = { ...toSam, class: "episodic" as const };
     const own = item(3, { scope: "person:dana", owner: dana.id });
     expect((await env.plane.write(dana, own, AT)).event.decision).toBe("allow");
@@ -144,13 +161,33 @@ describe("M1: one rule for what a grant may be, on both paths", () => {
     const c = await env.plane.changeGrants(dana, id(3), { add: [wrong] }, AT);
     expect(c.event).toMatchObject({ decision: "deny", policy_id: WRITE_GRANT_ID });
     expect(c.event.reason).toContain("never admit a read");
-    // A first write may still carry one: kept as it was (see the header).
+    // With grants.expiry_cap absent, a first write may still carry one (see the header).
     const first = await env.plane.write(
       dana,
       item(6, { scope: "person:dana", owner: dana.id, grants: [wrong] }),
       AT,
     );
     expect(first.event.decision).toBe("allow");
+  });
+
+  test("E2.21: with grants.expiry_cap on, a first write carrying a grant of another class is refused too", async () => {
+    const env = fresh(twin());
+    const wrong = { ...toSam, class: "episodic" as const };
+    const first = await env.plane.write(
+      dana,
+      item(6, { scope: "person:dana", owner: dana.id, grants: [wrong] }),
+      AT,
+    );
+    expect(first.event).toMatchObject({ decision: "deny", policy_id: WRITE_GRANT_ID });
+    expect(first.event.reason).toContain("never admit a read");
+    expect(itemById(env.db, id(6))).toBeUndefined();
+    // Its class's grant lands.
+    const right = await env.plane.write(
+      dana,
+      item(8, { scope: "person:dana", owner: dana.id, grants: [toSam] }),
+      AT,
+    );
+    expect(right.event.decision).toBe("allow");
   });
 
   test("a first write, or a rewrite changing the grants, carrying one grant twice is refused", async () => {
@@ -172,7 +209,8 @@ describe("M1: one rule for what a grant may be, on both paths", () => {
   });
 
   test("a rewrite adding an expired grant is refused; a first write carrying one still lands", async () => {
-    const env = fresh(twin());
+    // grants.expiry_cap absent: the first write lands as it did before card E2.21.
+    const env = fresh(uncapped());
     const expired = { ...toSam, expires: "2026-11-01T00:00:00Z" };
     const first = await env.plane.write(
       dana,
@@ -193,6 +231,203 @@ describe("M1: one rule for what a grant may be, on both paths", () => {
     );
     expect(more.event).toMatchObject({ decision: "deny", policy_id: "engram/grant/expired" });
   });
+
+  test("E2.21: with grants.expiry_cap on, a first write carrying an expired grant is refused", async () => {
+    const env = fresh(twin());
+    const expired = { ...toSam, expires: "2026-11-01T00:00:00Z" };
+    const first = await env.plane.write(
+      dana,
+      item(5, { scope: "person:dana", owner: dana.id, grants: [expired] }),
+      AT,
+    );
+    expect(first.event).toMatchObject({ decision: "deny", policy_id: GRANT_EXPIRED_ID });
+    expect(first.event.reason).toContain("has expired by 2026-11-19T10:00:00Z");
+    expect(itemById(env.db, id(5))).toBeUndefined();
+    // A grant expiring at the write's own instant has expired by it, too.
+    const atNow = await env.plane.write(
+      dana,
+      item(9, { scope: "person:dana", owner: dana.id, grants: [{ ...toSam, expires: AT }] }),
+      AT,
+    );
+    expect(atNow.event).toMatchObject({ decision: "deny", policy_id: GRANT_EXPIRED_ID });
+  });
+});
+
+// Card E2.21, part 2: the cap of ADR 0034, decision 3, behind grants.expiry_cap.
+describe("E2.21: a grant expires at most 365 days after the event that adds it", () => {
+  /** 365 days of 86,400 seconds after AT, 2026-11-19T10:00:00Z: no calendar year, no leap day. */
+  const CAP = "2027-11-19T10:00:00Z";
+  const PAST = "2027-11-19T10:00:01Z";
+  const at = (expires: string): Grant => ({ ...toSam, expires });
+
+  test("a first write: exactly 365 days lands, one second past it is refused, never clamped", async () => {
+    const env = fresh(twin());
+    const ok = await env.plane.write(
+      dana,
+      item(1, { scope: "person:dana", owner: dana.id, grants: [at(CAP)] }),
+      AT,
+    );
+    expect(ok.event.decision).toBe("allow");
+    expect(itemById(env.db, id(1))?.grants).toEqual([at(CAP)]);
+    const past = await env.plane.write(
+      dana,
+      item(2, { scope: "person:dana", owner: dana.id, grants: [at(PAST)] }),
+      AT,
+    );
+    expect(past.event).toMatchObject({ decision: "deny", policy_id: GRANT_EXPIRY_CAP_ID });
+    // The reason names the limit and the grant's expiry.
+    expect(past.event.reason).toContain(`expires ${PAST}`);
+    expect(past.event.reason).toContain(`expires after ${CAP}`);
+    expect(past.event.reason).toContain("365 days");
+    expect(past.event.reason).toContain("not shortened");
+    expect(past.item).toBeNull();
+    expect(itemById(env.db, id(2))).toBeUndefined();
+    expect(await env.adapter.list("person:dana")).toHaveLength(1);
+  });
+
+  test("the limit keeps the write time's fraction: a nanosecond past it is refused", async () => {
+    const env = fresh(twin());
+    const t = "2026-11-19T10:00:00.000000500Z";
+    const exact = await env.plane.write(
+      dana,
+      item(1, {
+        scope: "person:dana",
+        owner: dana.id,
+        grants: [at("2027-11-19T10:00:00.0000005Z")],
+      }),
+      t,
+    );
+    expect(exact.event.decision).toBe("allow");
+    const over = await env.plane.write(
+      dana,
+      item(2, {
+        scope: "person:dana",
+        owner: dana.id,
+        grants: [at("2027-11-19T10:00:00.000000501Z")],
+      }),
+      t,
+    );
+    expect(over.event.policy_id).toBe(GRANT_EXPIRY_CAP_ID);
+  });
+
+  test("a rewrite that adds a grant past the cap is refused; one inside it lands", async () => {
+    const env = fresh(twin());
+    const own = item(3, { scope: "person:dana", owner: dana.id, grants: [toSam] });
+    expect((await env.plane.write(dana, own, AT)).event.decision).toBe("allow");
+    const past = await env.plane.write(
+      dana,
+      rewrite(own, { grants: [toSam, { ...at(PAST), to: "person:zed" }] }),
+      AT,
+    );
+    expect(past.event).toMatchObject({ decision: "deny", policy_id: GRANT_EXPIRY_CAP_ID });
+    expect(itemById(env.db, id(3))?.grants).toEqual([toSam]);
+    const inside = await env.plane.write(
+      dana,
+      rewrite(own, { grants: [toSam, { ...at(CAP), to: "person:zed" }] }),
+      AT,
+    );
+    expect(inside.event.decision).toBe("allow");
+  });
+
+  test("a grant change adding a grant past the cap is refused, at the change's own time", async () => {
+    const env = fresh(twin());
+    const own = item(4, { scope: "person:dana", owner: dana.id });
+    expect((await env.plane.write(dana, own, AT)).event.decision).toBe("allow");
+    const past = await env.plane.changeGrants(dana, id(4), { add: [at(PAST)] }, AT);
+    expect(past.event).toMatchObject({ decision: "deny", policy_id: GRANT_EXPIRY_CAP_ID });
+    expect(past.event.reason).toContain(`add[0]: the grant to person:sam`);
+    expect(past.event.reason).toContain(`expires after ${CAP}`);
+    expect(itemById(env.db, id(4))?.grants).toEqual([]);
+    // An hour later the limit is an hour later: the same grant lands.
+    const later = await env.plane.changeGrants(dana, id(4), { add: [at(PAST)] }, LATER);
+    expect(later.event).toMatchObject({ decision: "allow", policy_id: "engram/grant/change" });
+  });
+
+  test("a grant a rewrite keeps is not judged again, past the cap or expired", async () => {
+    // Written before the option was on, then rewritten under it.
+    const before = fresh(uncapped());
+    const far = { ...toSam, expires: "2030-01-01T00:00:00Z" };
+    const own = item(5, { scope: "person:dana", owner: dana.id, grants: [far] });
+    expect((await before.plane.write(dana, own, AT)).event.decision).toBe("allow");
+    const plane = createPlane({ ...before.deps, policy: twin() });
+    const kept = await plane.write(dana, rewrite(own, { content: "Edited." }), LATER);
+    expect(kept.event.decision).toBe("allow");
+    // Changing the grants judges the one it adds, not the one it keeps.
+    const added = await plane.write(
+      dana,
+      rewrite(own, { version: 3, grants: [far, { ...at(PAST), to: "person:zed" }] }),
+      AT,
+    );
+    expect(added.event).toMatchObject({ decision: "deny", policy_id: GRANT_EXPIRY_CAP_ID });
+    expect(added.event.reason).toContain("grants[1]");
+  });
+
+  test("a promotion's new version is exempt: the owner's keeps a grant past the cap", async () => {
+    // Dana's episodic item, granted to Sam until 2030 before the option was on,
+    // confirmed three times, then promoted by her under it (ADR 0034, decision 6).
+    const before = fresh(uncapped());
+    const far = { ...toSam, class: "episodic" as const, expires: "2030-01-01T00:00:00Z" };
+    const content = "Deploys run on Tuesdays.";
+    const own = item(50, {
+      class: "episodic",
+      scope: "person:dana",
+      owner: dana.id,
+      content,
+      grants: [far],
+    } as Partial<MemoryItem>);
+    expect((await before.plane.write(dana, own, AT)).event.decision).toBe("allow");
+    for (const [n, who] of [
+      [51, "person:a"],
+      [52, "person:b"],
+      [53, "person:c"],
+    ] as const) {
+      const writer: Actor = {
+        id: who,
+        level: "person",
+        memberships: ["person:dana"],
+        source: "user",
+      };
+      const confirming = item(n, {
+        class: "episodic",
+        scope: "person:dana",
+        owner: who,
+        content,
+      } as Partial<MemoryItem>);
+      expect((await before.plane.write(writer, confirming, AT)).event.decision).toBe("allow");
+    }
+    const plane = createPlane({ ...before.deps, policy: twin() });
+    const p = await plane.promote(dana, id(50), "person:dana", LATER);
+    expect(p.event.decision).toBe("allow");
+    // A new version of class semantic keeping an episodic grant past the cap:
+    // neither the cap nor the first-write rule judged it.
+    expect(p.item).toMatchObject({ class: "semantic", grants: [far] });
+  });
+
+  test("with the option absent or off, a grant past the cap lands as before", async () => {
+    for (const policy of [uncapped(), { ...twin(), grants: { expiry_cap: "off" as const } }]) {
+      const env = fresh(policy);
+      const w = await env.plane.write(
+        dana,
+        item(6, {
+          scope: "person:dana",
+          owner: dana.id,
+          grants: [{ ...toSam, expires: "9999-12-31T23:59:59Z" }],
+        }),
+        AT,
+      );
+      expect(w.event.decision).toBe("allow");
+      expect(
+        (
+          await env.plane.changeGrants(
+            dana,
+            id(6),
+            { add: [{ ...at(PAST), to: "person:zed" }] },
+            AT,
+          )
+        ).event.decision,
+      ).toBe("allow");
+    }
+  });
 });
 
 // Verification finding V-4 of PR #44: a grant of another class than its item
@@ -207,11 +442,18 @@ describe("V-4: a rewrite that changes the class of an item carrying grants is a 
       content: { body: "Run the release.", tools: [] },
     } as Partial<MemoryItem>);
 
-  /** Dana's role item 8, semantic, carrying `grants`. */
+  /**
+   * Dana's role item 8, semantic, carrying `grants`. Seeded with
+   * grants.expiry_cap absent (card E2.21): under the option a first write may
+   * not carry the dormant grant of another class these tests start from, so
+   * it is the state a log written before the option holds. Every change below
+   * is judged under the twin profile as it stands, the option on.
+   */
   async function roleItem(grants: Grant[]) {
-    const env = fresh(twin());
+    const seed = fresh(uncapped());
     const it = item(8, { scope: ROLE, owner: dana.id, content: "Run the release.", grants });
-    expect((await env.plane.write(dana, it, AT)).event.decision).toBe("allow");
+    expect((await seed.plane.write(dana, it, AT)).event.decision).toBe("allow");
+    const env = { ...seed, plane: createPlane({ ...seed.deps, policy: twin() }) };
     return { env, it: itemById(env.db, id(8)) as MemoryItem };
   }
 
@@ -281,10 +523,13 @@ describe("RV-CORE-1: a rewrite of an item carrying grants is its owner's", () =>
   });
 
   test("a co-holder's rewrite of an item whose grants have all expired is still the owner's", async () => {
-    const env = fresh(twin());
+    // Seeded with grants.expiry_cap absent, as a log written before card E2.21
+    // may hold it; the rewrite is judged under the twin profile, the option on.
+    const seed = fresh(uncapped());
     const old = { ...toSam, expires: "2026-11-01T00:00:00Z" };
     const it = item(9, { scope: ROLE, owner: dana.id, content: "Old.", grants: [old] });
-    expect((await env.plane.write(dana, it, AT)).event.decision).toBe("allow");
+    expect((await seed.plane.write(dana, it, AT)).event.decision).toBe("allow");
+    const env = { ...seed, plane: createPlane({ ...seed.deps, policy: twin() }) };
     const r = await env.plane.write(lee, rewrite(it, { content: "New." }), LATER);
     expect(r.event).toMatchObject({ decision: "deny", policy_id: GRANT_OWNER_ID });
   });

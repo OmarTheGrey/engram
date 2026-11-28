@@ -17,9 +17,11 @@
 //   engram/grant/unchanged   a removal names a grant the item does not carry, or an addition one it does
 //   engram/grant/conflict    the item changed or was erased on another handle of the log before the commit (plane/grants.ts)
 //   engram/write/grant       an added grant the write gate refuses (ADR 0021, decision D4), or of another class than the item's
+//   engram/write/grant-expiry-cap   an added grant expiring more than 365 days after `at`, under grants.expiry_cap (card E2.21)
 import type { Actor } from "../actor.ts";
 import type { Grant, MemoryItem, Policy } from "../schema.ts";
 import {
+  expiryCapOn,
   GRANT_EXPIRED_ID,
   GRANT_OWNER_ID,
   GRANT_SOURCE_ID,
@@ -70,7 +72,8 @@ export interface GrantDecision {
  * and names neither scope nor owner); the actor is user-sourced; the actor is
  * the item's owner; the item is not retired; every removal names a grant the
  * item carries; every addition passes grantDefect (the write gate's grant
- * rule, the item's class, unexpired at `at`, not on the item already). On
+ * rule, the item's class, unexpired at `at`, within 365 days of `at` when
+ * grants.expiry_cap is on, not on the item already). On
  * allow, the grants are the item's without the removed ones, then the added.
  * A grant authorises reads only, whatever its mode (ADR 0006, decision D4).
  */
@@ -112,7 +115,7 @@ export function evaluateGrantChange(
       return deny(GRANT_UNCHANGED_ID, `remove[${i}]: item ${item.id} carries no ${grantText(g)}`);
   const kept = item.grants.filter((h) => !removed.some((g) => sameGrant(g, h)));
   for (const [i, g] of added.entries()) {
-    const defect = grantDefect(g, item, [...kept, ...added.slice(0, i)], at);
+    const defect = grantDefect(g, item, [...kept, ...added.slice(0, i)], at, expiryCapOn(policy));
     if (defect) return deny(defect.policy_id, `add[${i}]: ${defect.problem}`);
   }
 

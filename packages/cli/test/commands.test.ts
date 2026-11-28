@@ -28,11 +28,15 @@ commands:
   serve             serve the HTTP API to authenticated callers, or on loopback with --insecure-loopback
   mcp               the MCP server for Claude Code and Codex, as one fixed actor
   hook claude-code  a Claude Code PreToolUse hook that blocks store bypasses
+  hook codex        a Codex PreToolUse hook that blocks store bypasses
+  hook install <harness>  merge the hook into claude-code's or codex's settings, idempotently, with a backup
   key               create, list or revoke the local API keys a server accepts
   doctor            check the log, policy, store, adapters, provider keys, pins and Node
   discover          count harness memory files outside every store root, never their content
   log verify        verify the event log's hash chain: the first broken link, or OK or UNSIGNED
   log checkpoint    record a checkpoint of the chain's head, signed with --key when given
+  audit export      a signed, content-free report of a window of the log: counts, head, checkpoint
+  audit verify      check a signed audit report against the log: OK, FAILED or UNSIGNED
   tui               the terminal interface; --line or ENGRAM_TUI_LINE=1 for one prompt a line
 
 every command but doctor, serve, mcp, hook, key, log and import is one call to the
@@ -230,6 +234,46 @@ log checkpoint options:
   nothing is signed unless the whole log verifies first, every earlier signature under
   this --key and every --checkpoint given; the key is the operator's to hold, and a
   signature proves only that its holder saw that head
+
+audit export options (card E9.15; on this machine only; never --server):
+  --from <iso> --to <iso>     the window, from <= ts < to, on the events' own times
+  --key <private.pem>         the operator's Ed25519 private key the report is signed with
+  --out <file>                write the report there (default printed)
+  --db <path|url>             the event log (default as above); read only, it must exist
+  --policy <preset|path>      the policy whose sha256 it names and the oracle judges by
+  --as <principal> [--level] [--member <scope>]...   a viewer: only the events it may see
+                              are counted, it is named by its shape, and there is no oracle
+  --declare <actors.json>     the actors (id, level, memberships) the oracle judges readers
+                              as; the oracle's count and the set's sha256 are given only with it
+  a DSSE envelope of an in-toto Statement: counts by decision, operation and rule, the
+  chain head and latest checkpoint, the policy's sha256, the schema version and the
+  oracle's violations; never content, an id, an actor, a scope or a reason. Nothing is
+  signed unless the log verifies first, every stored checkpoint under this --key
+
+audit verify options (card E9.15; on this machine only; never --server):
+  --report <file>             the signed report audit export wrote
+  --key <public.pem>          the operator's Ed25519 public key, pinned
+  --db, --policy, --as, --level, --member, --declare   as the report was exported with
+  --checkpoint <file>         a checkpoint kept outside the log; repeatable; the log must extend it
+  in order: envelope, signature, statement, chain, head, checkpoint, counts; the counts
+  are recomputed from the log to the report's head, so a tampered report fails at its
+  signature and an edited log at the chain, the head or the counts
+  exit 0 OK, 1 FAILED (the failed check is named), 3 UNSIGNED (no --key)
+
+hook codex options (card E8.17): as hook claude-code's, read the way Codex sends them:
+  Bash checked as POSIX and PowerShell, apply_patch by its file headers; --root and a
+  relative --db resolve against the folder Codex starts the hook in; protects the log,
+  .codex/config.toml, .codex/hooks.json and those of $CODEX_HOME (default ~/.codex);
+  --as defaults to agent:codex; a block answers permissionDecision deny with the reason
+
+hook install options (card E8.17): engram hook install claude-code | codex
+  --project <folder>          the project whose .claude/settings.json or .codex/hooks.json
+                              takes the entry (default the current folder)
+  --user                      the user's ~/.claude/settings.json or $CODEX_HOME/hooks.json instead
+  --root, --protect, --as, --server or --db and --policy: written into the entry, paths absolute
+  writes that one file (and its folder), keeping every other entry; an earlier engram hook
+  entry is replaced, never duplicated; a changed file is backed up beside it first; a second
+  run writes nothing; refuses a link or a file that is not JSON, writing nothing
 
 key options:
   create --keys <file> --as <principal> --source <kind> --expires <iso>  [--level] [--member]...

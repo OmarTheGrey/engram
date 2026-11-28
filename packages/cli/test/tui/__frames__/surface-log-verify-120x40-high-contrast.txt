@@ -3,7 +3,7 @@
    Public key       [                                          ]
    Held checkpoints [                                          ]  enter adds
 
- [ Verify ]
+ [ Verify ]  [ Export an audit report ]  [ Verify an audit report ]
 
  ▲ unsigned   exit 3  intact, but no pinned, signed checkpoint covers it
 

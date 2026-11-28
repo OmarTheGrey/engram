@@ -1,5 +1,7 @@
 // The plane: schema, events, policy, lints, explain, distill. No store I/O, no model calls.
 export * from "./adapter.ts";
+export * from "./audit/dsse.ts";
+export * from "./audit/report.ts";
 export * from "./content-hash.ts";
 export * from "./crypto/keys.ts";
 export * from "./db/db.ts";
@@ -29,6 +31,7 @@ export * from "./lint/evidence.ts";
 export * from "./lint/intervals.ts";
 export * from "./lint/model.ts";
 export * from "./lint/nli.ts";
+export { reviewCouldLand, SAFETY_SCAN_ID } from "./lint/procedural.ts";
 export * from "./lint/supersession.ts";
 export * from "./lint.ts";
 export * from "./log/chain.ts";

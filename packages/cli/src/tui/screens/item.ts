@@ -8,6 +8,7 @@
 // never prints an item's lineage itself. Opened by id, with no read of the
 // item in the session, the page runs `engram read --item <id>` first, a read
 // (with a store folder it asks once a session, 8.5).
+import { erases } from "@engram/core";
 import type { MemoryEvent, MemoryItem } from "@engram/sdk";
 import {
   eventFields,
@@ -157,8 +158,9 @@ export class ItemScreen extends RichScreen {
     const events = this.visibleEvents(ctx);
     const id = this.itemId();
     return {
-      graph: provenanceGraph(id, items, events),
-      versions: itemVersions(id, items, events),
+      // Core decides which event erases an item (events.ts erases).
+      graph: provenanceGraph(id, items, events, erases),
+      versions: itemVersions(id, items, events, erases),
       events: itemEvents(id, events),
       items,
     };
