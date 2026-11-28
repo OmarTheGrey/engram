@@ -97,6 +97,10 @@ describe("which Codex calls the hook blocks", () => {
       "files",
     ],
     ["Bash", { command: "rm .codex/config.toml" }, "engram"],
+    // Card E8.17's review: PowerShell's backtick escape inside a path word.
+    ["Bash", { command: "Get-Content mem`ory\\a.md" }, "files"],
+    ["Bash", { command: 'Get-Content "mem`ory\\a.md"' }, "files"],
+    ["Bash", { command: "Remove-Item .co`dex\\hooks.json" }, "engram"],
     // An MCP tool of another server: its path arguments are checked.
     ["mcp__fs__read_file", { path: join(root, "a.md") }, "files"],
   ])("%s %j is a bypass of %s", (tool, input, store) => {
