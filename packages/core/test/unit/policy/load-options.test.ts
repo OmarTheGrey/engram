@@ -143,12 +143,6 @@ const NOT_BUILT: [option: string, card: string, key: string, texts: string[]][] 
     ["off", "on"].map((v) => withLints(`  model:\n    evidence: "${v}"\n`)),
   ],
   [
-    "procedures.safety_scan",
-    "D5",
-    "  safety_scan:",
-    ["off", "report", "hold"].map((v) => withBlocks(`procedures:\n  safety_scan: "${v}"\n`)),
-  ],
-  [
     "procedures.drift",
     "D4",
     "  drift:",
@@ -275,7 +269,6 @@ describe("readers of an already-parsed policy refuse what the loader refuses", (
   /** One policy per option, each setting it, typed as the schema admits it. */
   const SETTING: [option: string, policy: Policy][] = [
     ["lints.model.evidence", { ...medium, lints: { ...medium.lints, model: { evidence: "on" } } }],
-    ["procedures.safety_scan", { ...medium, procedures: { safety_scan: "hold" } }],
     ["procedures.drift", { ...medium, procedures: { drift: { environment_change: "on" } } }],
     ["consent", { ...medium, consent: { opt_outs: [] } }],
     ["erasure.mode", { ...medium, erasure: { mode: "redact" } }],

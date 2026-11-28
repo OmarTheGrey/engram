@@ -5,6 +5,8 @@
 // candidate, which the HTTP simulate route takes from a request body, and
 // exportCedar) refuses it through `notBuiltOptions`, so no path runs or
 // exports an option the plane would silently ignore. Pure: no I/O.
+//
+// Built since: procedures.safety_scan (card D5, lint/procedural.ts).
 import type { Policy } from "../schema.ts";
 
 /**
@@ -15,7 +17,6 @@ import type { Policy } from "../schema.ts";
  */
 export const NOT_BUILT_YET: readonly { path: readonly string[]; card: string }[] = [
   { path: ["lints", "model", "evidence"], card: "L9" },
-  { path: ["procedures", "safety_scan"], card: "D5" },
   { path: ["procedures", "drift"], card: "D4" },
   { path: ["consent"], card: "E9.12" },
   { path: ["erasure", "mode"], card: "E9.13" },

@@ -53,6 +53,7 @@ import {
 } from "../distill/validate.ts";
 import { allEvents, appendEvent, currentItems } from "../events.ts";
 import { itemById, lineage } from "../items.ts";
+import { applySafetyScan, releaseProblem } from "../lint/procedural.ts";
 import type { GateResult, PlaneDeps, PromoteOptions } from "../plane.ts";
 import { readableScope, STORE_FAILURE_ID } from "../policy/evaluate.ts";
 import {
@@ -181,6 +182,8 @@ export function promote(
     const problem = replayProblem(options.replay);
     if (problem) throw new InvalidCallError(`Plane.promote: ${problem}`);
   }
+  const release = releaseProblem(options.release);
+  if (release) throw new InvalidCallError(`Plane.promote: ${release}`);
   return inWriteQueue(deps.db, () => decideAndCommit(deps, actor, itemId, toScope, at, options));
 }
 
@@ -215,27 +218,36 @@ async function decideAndCommit(
     return { decision: "deny", item: null, event, events: [event] };
   }
 
-  const d = evaluatePromotion(
+  // The procedure safety scan (card D5, lint/procedural.ts): off unless the
+  // policy sets procedures.safety_scan; under hold a critical finding holds
+  // an allowed admission as a gate event until a user-sourced release.
+  const d = applySafetyScan(
     policy,
     actor,
     item,
-    { scope: toScope, at },
-    {
-      confirmations: confirmationsOf(deps, item),
-      authors: authorsOf(deps, item),
-      duplicate: duplicateOf(
-        deps,
-        item,
-        toScope,
-        item.class === "episodic" ? "semantic" : item.class,
-      ),
-      review: options.review === true,
-      // The record is derived here from the replay's outcomes, never taken
-      // from the caller (card D3, ADR 0046 proposed), and the replay is
-      // checked against the item: its id, content and distill ref (D3-3).
-      ...(options.replay === undefined ? {} : replayEvidence(deps, item, options.replay)),
-    },
-    retiredContent(db, toScope),
+    evaluatePromotion(
+      policy,
+      actor,
+      item,
+      { scope: toScope, at },
+      {
+        confirmations: confirmationsOf(deps, item),
+        authors: authorsOf(deps, item),
+        duplicate: duplicateOf(
+          deps,
+          item,
+          toScope,
+          item.class === "episodic" ? "semantic" : item.class,
+        ),
+        review: options.review === true,
+        // The record is derived here from the replay's outcomes, never taken
+        // from the caller (card D3, ADR 0046 proposed), and the replay is
+        // checked against the item: its id, content and distill ref (D3-3).
+        ...(options.replay === undefined ? {} : replayEvidence(deps, item, options.replay)),
+      },
+      retiredContent(db, toScope),
+    ),
+    options.release,
   );
   const visible = d.policy_id !== PROMOTE_MEMBERSHIP_ID;
   const common = {
