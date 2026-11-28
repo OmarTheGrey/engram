@@ -1,0 +1,9 @@
+{
+  "id": "I5-utility-order-flipped",
+  "invariant": "I5",
+  "area": "retention",
+  "file": "packages/core/src/policy/retention.ts",
+  "find": ": (a: MemoryItem, b: MemoryItem) => reads(a) - reads(b) || byRecency(a, b);",
+  "replace": ": (a: MemoryItem, b: MemoryItem) => reads(b) - reads(a) || byRecency(a, b);",
+  "what": "a utility budget evicts the most read item, not the least"
+}

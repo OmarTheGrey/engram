@@ -1,0 +1,91 @@
+{
+  "name": "cedar-properties",
+  "kind": "measurement",
+  "hypothesis": "none",
+  "status": "proof of concept",
+  "card": "E2.18",
+  "wording": "properties of the Cedar export of the three registered presets, proved by Cedar's symbolic compiler and cvc5 for every request in the stated domain (scope.domains: every level, status, class, source kind, version, ttl, confidence and instant from 0000 to 9999 that Engram's schema accepts, instants to the nanosecond as the export encodes them), modulo grants (ADR 0041, decision 5); tied to evaluate.ts only by card E2.12's sampled differential test (scope.evaluator); a proof of concept, no hypothesis result, and no registered analysis reads it",
+  "tools": {
+    "symcc": {
+      "manifest": "tools/symcc/Cargo.toml",
+      "crate": "cedar-policy-symcc",
+      "version": "0.8.1",
+      "cedar_policy": "4.14.1"
+    },
+    "cvc5": {
+      "version": "1.4.2",
+      "upstream": ".engram/upstream/cvc5-1.4.2",
+      "release": "https://github.com/cvc5/cvc5/releases/download/cvc5-1.4.2",
+      "assets": {
+        "win32-amd64": {
+          "zip": "cvc5-Win64-x86_64-static.zip",
+          "sha256": "9055de9b724724890ba5a19cfdc98f68a8c0653284afa843096dec432a0f88c3",
+          "exe": "cvc5-Win64-x86_64-static/bin/cvc5.exe"
+        },
+        "linux-x86_64": {
+          "zip": "cvc5-Linux-x86_64-static.zip",
+          "sha256": "7eb18f8c814c36a46c5a7d003983e9cfbc4b0a9828d6dd596239291bd4cc61d8",
+          "exe": "cvc5-Linux-x86_64-static/bin/cvc5"
+        },
+        "darwin-arm64": {
+          "zip": "cvc5-macOS-arm64-static.zip",
+          "sha256": "24397f7d022e755876ca836193d4c5f9c1d4326f0f6c01f7d7fc1ddd6bc5096c",
+          "exe": "cvc5-macOS-arm64-static/bin/cvc5"
+        }
+      }
+    }
+  },
+  "properties": [
+    {
+      "id": "read-monotone",
+      "shape": "monotone",
+      "pairs": [["strict", "medium"], ["medium", "permissive"]],
+      "actions": ["read"],
+      "expect": "holds",
+      "statement": "strict never allows a read medium denies, nor medium one permissive denies"
+    },
+    {
+      "id": "model-write-person-scope",
+      "shape": "invariant",
+      "presets": ["strict", "medium", "permissive"],
+      "expect": "holds",
+      "statement": "a model-sourced write is allowed, with or without review, only into a person scope the writer is a member of"
+    },
+    {
+      "id": "person-read-needs-grant",
+      "shape": "invariant",
+      "presets": ["strict", "medium", "permissive"],
+      "expect": "holds",
+      "statement": "an item in a person scope is read only by a member of that scope, or under a live grant naming the reader"
+    },
+    {
+      "id": "read-monotone-reversed",
+      "shape": "monotone",
+      "pairs": [["medium", "strict"], ["permissive", "medium"]],
+      "actions": ["read"],
+      "expect": "fails",
+      "statement": "the control: the converse of read-monotone, which must be refuted, with a counterexample the evaluator reproduces; it shows the solver is not answering yes to everything and exercises the replay"
+    },
+    {
+      "id": "left-allows-some",
+      "shape": "invariant",
+      "presets": ["strict", "medium", "permissive"],
+      "expect": "fails",
+      "statement": "non-vacuity: each preset's left set, its export with the domain, allows some read, some write and some write without review, so no proof above holds because its left side allows nothing"
+    },
+    {
+      "id": "model-write-reachable",
+      "shape": "invariant",
+      "presets": ["strict", "medium", "permissive"],
+      "expect": "fails",
+      "statement": "non-vacuity: each preset allows some model-sourced write, with and without review, so model-write-person-scope is about writes that happen"
+    },
+    {
+      "id": "person-read-by-non-member-reachable",
+      "shape": "invariant",
+      "presets": ["strict", "medium", "permissive"],
+      "expect": "fails",
+      "statement": "non-vacuity: each preset lets a non-member read some person scope's item, under a grant, so person-read-needs-grant is about reads that happen"
+    }
+  ]
+}

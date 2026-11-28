@@ -29,4 +29,18 @@ export {
   RepositoryBusyError,
   UnsafeLettaPathError,
 } from "./letta/index.ts";
+export {
+  createMcpMemoryAdapter,
+  ENGRAM_ENTITY_TYPE,
+  importedRecordId,
+  MCP_MEMORY_LOCK_STALE_MS,
+  type McpMemoryAdapter,
+  type McpMemoryAdapterOptions,
+  memoryFileIdentity,
+  observationKey,
+  ReadOnlyRecordError,
+  relationKey,
+  UnknownMcpKeyError,
+  UnsafeMemoryFileError,
+} from "./mcp-memory/index.ts";
 export { createMem0Adapter, type Mem0AdapterOptions } from "./mem0/index.ts";

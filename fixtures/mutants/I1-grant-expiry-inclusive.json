@@ -1,0 +1,9 @@
+{
+  "id": "I1-grant-expiry-inclusive",
+  "invariant": "I1",
+  "area": "read filter",
+  "file": "packages/core/src/policy/evaluate.ts",
+  "find": "(g.expires === undefined || compareTimestamps(g.expires, at) > 0)",
+  "replace": "(g.expires === undefined || compareTimestamps(g.expires, at) >= 0)",
+  "what": "a grant still admits a read at the instant it expires"
+}

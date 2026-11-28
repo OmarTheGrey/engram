@@ -1,0 +1,9 @@
+{
+  "id": "I8-owner-any-source",
+  "invariant": "I8",
+  "area": "trust floors",
+  "file": "packages/core/src/policy/trust.ts",
+  "find": "actor.id === item.owner && actor.source === \"user\";",
+  "replace": "actor.id === item.owner;",
+  "what": "the owner is exempt from the floors whatever source it acts with"
+}

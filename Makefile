@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui tui-screens bench run h1-table h1-figure l3-variance h3-lint-delta nli-scores nli-determinism h3-lint-nli fixtures fault-workspace gitleaks-rules thesis results-register engram dogfood-report verify-spec perf-budget redteam
+.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui tui-screens bench run h1-table h1-figure l3-variance h3-lint-delta nli-scores nli-determinism h3-lint-nli fixtures fault-workspace gitleaks-rules thesis results-register engram dogfood-report verify-spec verify-policy perf-budget redteam
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -230,10 +230,17 @@ SPEC_WITNESSES := sawConflict sawWithdrawal sawWriterAcrossErasure sawSwept sawP
 # it can refute within SPEC_DEPTH.
 SPEC_BROKEN_SIM := erasureHolds noWriteWhileErasing noStaleAppend
 SPEC_BROKEN_BMC := noWriteWhileErasing noStaleAppend
+# Card E1.8: the traces of specs/replay.qnt (good under the code's schedule)
+# replayed on real Plane handles. One thread, so a seed gives the same traces.
+SPEC_TRACES := specs/traces
+SPEC_TRACE_SEED ?= 1
+SPEC_TRACE_COUNT ?= 200
+SPEC_TRACE_STEPS ?= 60
 
-verify-spec: ## card E1.5: typecheck and test specs/commit.qnt, simulate the good model, refute the broken one, and (with a JVM) bounded-check both with Apalache; outside make test
+verify-spec: ## card E1.5: typecheck and test specs/commit.qnt, simulate the good model, refute the broken one, regenerate specs/traces/ and replay them on the Plane (card E1.8), and (with a JVM) bounded-check both with Apalache; outside make test
 	@mkdir -p $(SPEC_OUT)
 	$(QUINT) typecheck specs/commit.qnt
+	$(QUINT) typecheck specs/replay.qnt
 	$(QUINT) test specs/commit.qnt --main=good
 	$(QUINT) test specs/commit.qnt --main=broken
 	$(QUINT) test specs/commit.qnt --main=knownGapThreeOffboardings
@@ -253,6 +260,15 @@ verify-spec: ## card E1.5: typecheck and test specs/commit.qnt, simulate the goo
 	    || { cat $$out.txt; echo "verify-spec: the broken run on $$inv failed without a counterexample"; exit 1; }; \
 	  echo "refuted; the trace is in $$out.itf.json"; \
 	done
+	@rm -rf $(SPEC_OUT)/traces && mkdir -p $(SPEC_OUT)/traces
+	@echo "traces for the replay: $(SPEC_TRACE_COUNT) runs of specs/replay.qnt, seed $(SPEC_TRACE_SEED), $(SPEC_TRACE_STEPS) steps"
+	$(QUINT) run specs/replay.qnt --main=replay --step=replayStep --invariant=safety \
+	  --max-samples=$(SPEC_TRACE_COUNT) --n-traces=$(SPEC_TRACE_COUNT) --max-steps=$(SPEC_TRACE_STEPS) \
+	  --seed=$(SPEC_TRACE_SEED) --n-threads=1 --verbosity=1 --out-itf=$(SPEC_OUT)/traces/replay-{seq}.itf.json
+	$(QUINT) test specs/replay.qnt --main=replay --out-itf=$(SPEC_OUT)/traces/{test}.itf.json
+	$(QUINT) test specs/replay.qnt --main=replayThreeOffboardings --out-itf=$(SPEC_OUT)/traces/{test}.itf.json
+	node packages/core/test/model/pack-traces.ts $(SPEC_OUT)/traces $(SPEC_TRACES)
+	$(PNPM) --filter core exec vitest run test/model/trace-replay.test.ts
 	@if ! command -v java > /dev/null; then \
 	  echo "verify-spec: no JVM on the path, so no Apalache: the checking above is randomized simulation only"; exit 0; fi; \
 	cd $(SPEC_OUT) && \
@@ -270,3 +286,23 @@ verify-spec: ## card E1.5: typecheck and test specs/commit.qnt, simulate the goo
 	    || { cat $$out.txt; echo "verify-spec: the Apalache run on $$inv failed without a counterexample"; exit 1; }; \
 	  echo "refuted; the trace is in $(SPEC_OUT)/$$out.itf.json"; \
 	done
+
+POLICY_OUT := .engram/verify-policy
+verify-policy: ## card E2.18: the presets' properties proved by Cedar's symbolic compiler (tools/symcc, cedar-policy-symcc 0.8.1 built with cargo, cvc5 1.4.2) on the Cedar export, each counterexample replayed through Engram's evaluator, into $(POLICY_OUT) and compared with research/results/h2-cedar-properties.json; skips with a message when cargo or cvc5 is missing; outside make test
+	@command -v cargo >/dev/null 2>&1 \
+	  || { echo "verify-policy: skipped: cargo is missing (install Rust with rustup)"; exit 0; }; \
+	mkdir -p $(POLICY_OUT); status=0; \
+	$(UV) run python research/scripts/h2_cedar_properties.py --config research/configs/h2-cedar-properties.json \
+	  --out $(POLICY_OUT)/h2-cedar-properties.json || status=$$?; \
+	if [ $$status -eq 3 ]; then \
+	  echo "verify-policy: skipped: cvc5 1.4.2 is missing (set CVC5, or fetch it with the network: $(UV) run python research/scripts/h2_cedar_properties.py --config research/configs/h2-cedar-properties.json --fetch-only)"; \
+	  exit 0; \
+	fi; \
+	if [ $$status -eq 4 ]; then \
+	  echo "verify-policy: a tool failed (cargo, cvc5 or tools/symcc; see above); no property was decided"; exit 1; \
+	fi; \
+	[ $$status -eq 0 ] \
+	  || { echo "verify-policy: a property is not as research/configs/h2-cedar-properties.json expects (exit $$status)"; exit 1; }; \
+	cmp -s $(POLICY_OUT)/h2-cedar-properties.json research/results/h2-cedar-properties.json \
+	  || { echo "verify-policy: $(POLICY_OUT)/h2-cedar-properties.json differs from research/results/h2-cedar-properties.json"; exit 1; }; \
+	echo "verify-policy: every property as expected, and the result is the committed one"

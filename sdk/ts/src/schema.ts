@@ -503,6 +503,10 @@ export interface components {
                 thresholds: {
                     [key: string]: number;
                 };
+                model?: {
+                    /** @enum {string} */
+                    evidence?: "off" | "on";
+                };
             };
             content_guards?: {
                 /** @enum {string} */
@@ -518,6 +522,43 @@ export interface components {
                 unattested_floor?: "off" | "on";
                 /** @enum {string} */
                 protect_trusted?: "off" | "on";
+            };
+            procedures?: {
+                /** @enum {string} */
+                safety_scan?: "off" | "report" | "hold";
+                drift?: {
+                    /** @enum {string} */
+                    environment_change?: "off" | "on";
+                    period?: number;
+                };
+            };
+            consent?: {
+                opt_outs: {
+                    scope: string;
+                    topic?: string;
+                    /** @enum {string} */
+                    source?: "user" | "document" | "tool" | "model" | "import" | "compaction" | "external";
+                    /** Format: date-time */
+                    since?: string;
+                    /** Format: date-time */
+                    until?: string;
+                    except_topics?: string[];
+                }[];
+            };
+            erasure?: {
+                /** @enum {string} */
+                mode?: "redact" | "shred";
+            };
+            approval?: {
+                routes: {
+                    scope: ("person" | "role" | "team" | "org") | string;
+                    approvers: ("owner" | string)[];
+                    expires_after?: number;
+                }[];
+            };
+            grants?: {
+                /** @enum {string} */
+                expiry_cap?: "off" | "on";
             };
             /** @constant */
             schema_version: 1;

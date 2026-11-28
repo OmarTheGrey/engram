@@ -1,0 +1,9 @@
+{
+  "id": "I3-denial-two-events",
+  "invariant": "I3",
+  "area": "write gate",
+  "file": "packages/core/src/plane/write.ts",
+  "find": "    reason: mark(`${decision.reason}; ${provenanceNote}`),\n    policy_id: decision.policy_id,\n  });\n  return { item: null, event, retention: [] };\n}",
+  "replace": "    reason: mark(`${decision.reason}; ${provenanceNote}`),\n    policy_id: decision.policy_id,\n  });\n  appendEvent(db, { ...base, id: newId(), item_id: item.id, scope_to: item.scope, decision: decision.decision, reason: event.reason, policy_id: event.policy_id });\n  return { item: null, event, retention: [] };\n}",
+  "what": "a write the gate denies appends its deny event twice"
+}

@@ -20,6 +20,7 @@
 // and a lint event about an item the offboarding did not erase, and every
 // tamper, so the property cannot pass vacuously. A failure prints the seed
 // and the case.
+import { createHash } from "node:crypto";
 import { createFakeAdapter } from "@engram/adapters";
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
@@ -32,6 +33,7 @@ import {
   chainCanonical,
   chainLink,
   commitments,
+  eventRecord,
   type Genesis,
   keepChain,
   leafHash,
@@ -126,6 +128,35 @@ interface Seen {
   detected: Record<string, number>;
 }
 
+/**
+ * Each entry's stored hash is SHA-256(0x02 || the previous entry's hash ||
+ * its leaf), the previous of the genesis being CHAIN_SEED, computed here
+ * with node:crypto rather than chainLink (card X16, mutant
+ * I9-link-ignores-previous: a link that left out its predecessor verifies,
+ * since the verifier recomputes it with the same chainLink). Run on a log
+ * of genesis and event entries only, before any offboarding.
+ */
+function linksCoverTheirPredecessors(db: Db, events: readonly MemoryEvent[]) {
+  const bySeq = new Map(events.map((e) => [e.seq, e]));
+  let previous = CHAIN_SEED;
+  for (const row of db.prepare("SELECT pos, kind, seq, data, hash FROM chain ORDER BY pos").all()) {
+    const record =
+      row.kind === "event"
+        ? eventRecord(bySeq.get(Number(row.seq)) as MemoryEvent, JSON.parse(String(row.data)))
+        : String(row.data);
+    const want = createHash("sha256")
+      .update(Uint8Array.of(2))
+      .update(Buffer.from(previous, "hex"))
+      .update(Buffer.from(leafHash(record), "hex"))
+      .digest("hex");
+    expect(
+      String(row.hash),
+      `chain entry ${row.pos} (${row.kind}) does not cover its predecessor`,
+    ).toBe(want);
+    previous = String(row.hash);
+  }
+}
+
 async function run(db: Db, c: Case, seen: Seen) {
   migrate(db);
   const served = attestingHandle(db);
@@ -218,6 +249,7 @@ async function run(db: Db, c: Case, seen: Seen) {
   await plane.lint(DANA, AT, "team:core");
   for (const op of c.before) await apply(op, AT, new Set());
   const before = allEvents(db);
+  linksCoverTheirPredecessors(db, before);
   served.next = undefined;
   const report = await offboard(deps, DANA, LEAVE, LATER);
   expect(report.decision).toBe("allow");

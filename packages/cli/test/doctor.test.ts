@@ -5,12 +5,13 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { cp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createFakeAdapter, createLettaAdapter } from "@engram/adapters";
-import type { Adapter } from "@engram/core";
+import { createFakeAdapter, createLettaAdapter, createMcpMemoryAdapter } from "@engram/adapters";
+import type { Adapter, MemoryItem } from "@engram/core";
 import { describe, expect, it } from "vitest";
 import {
   BENCH_FIXTURES,
   checkLettaAdapter,
+  checkMcpMemoryAdapter,
   checkMem0Adapter,
   DEPS,
   PINS,
@@ -87,6 +88,9 @@ describe("engram doctor on this checkout", () => {
     expect(out).toMatch(
       /^ok\s+adapter letta\s+git version .*a MemFS repository in a temporary folder: a write and a read round-trip through the plane, one commit, and a delete, offline/m,
     );
+    expect(out).toMatch(
+      /^ok\s+adapter mcp-mem\s+the MCP memory server's JSONL file in a temporary folder: a write and a read round-trip through the plane, another client's line kept byte for byte, and a delete, offline/m,
+    );
     expect(out).toMatch(/^ok\s+provider keys\s+none of \d+ key variables for \d+ providers/m);
     expect(out).toMatch(/^ok\s+benchmark pins\s+.*6 benchmarks, 6 pinned; .*gatemem 24 lines/m);
     expect(out).toMatch(/^ok\s+pi pin\s+pi-ai 1\.3\.0, pi-coding-agent 1\.3\.0/m);
@@ -119,6 +123,7 @@ describe("engram doctor on this checkout", () => {
       "adapter files",
       "adapter mem0",
       "adapter letta",
+      "adapter mcp-mem",
       "provider keys",
       "benchmark pins",
       "pi pin",
@@ -267,6 +272,39 @@ describe("engram doctor, each check red", () => {
     );
     expect(status).toBe("fail");
     expect(detail).toContain("0 versions in git");
+  });
+
+  it("adapter mcp-mem: fails when the file keeps an item it was asked to delete", async () => {
+    let n = 0;
+    const [status, detail] = await checkMcpMemoryAdapter(
+      NOW,
+      () => testId(990 + ++n),
+      (file) => {
+        const inner = createMcpMemoryAdapter({ file, owner: "doctor" });
+        return Object.assign(Object.create(inner) as Adapter, { delete: async () => undefined });
+      },
+    );
+    expect(status).toBe("fail");
+    expect(detail).toContain("deleted but a read still returns it");
+  });
+
+  it("adapter mcp-mem: fails when a write drops another client's line", async () => {
+    let n = 0;
+    const [status, detail] = await checkMcpMemoryAdapter(
+      NOW,
+      () => testId(995 + ++n),
+      (file) => {
+        const inner = createMcpMemoryAdapter({ file, owner: "doctor" });
+        return Object.assign(Object.create(inner) as Adapter, {
+          write: async (item: MemoryItem) => {
+            await writeFile(file, "");
+            return inner.write(item);
+          },
+        });
+      },
+    );
+    expect(status).toBe("fail");
+    expect(detail).toContain("did not keep the other client's line byte for byte");
   });
 
   it("provider keys: names a set key and its provider, never its value", async () => {
