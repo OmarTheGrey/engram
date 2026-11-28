@@ -211,6 +211,16 @@ export function laneGroups(lanes: readonly Lane[]): LaneGroup[] {
 export const GRANT_CLASSES = ["episodic", "semantic", "procedural"] as const;
 export const GRANT_MODES = ["read", "read_write"] as const;
 
+/**
+ * What the grants editors say about a grant's expiry (card E2.21): the twin
+ * and knowledge profiles turn ADR 0034's cap on. Words only; the plane
+ * decides, and a refusal is shown as the answer carries it.
+ */
+export const GRANT_EXPIRY_NOTE =
+  "The twin and knowledge profiles take an expiry at most 365 days after the change; a later one is refused, never shortened.";
+/** The same, short enough for the terminal editor's hint. */
+export const GRANT_EXPIRY_HINT = "UTC date or time; twin and knowledge cap it at 365 days";
+
 /** The add-grant form as typed: an empty class or expiry means none. */
 export interface GrantDraft {
   to: string;

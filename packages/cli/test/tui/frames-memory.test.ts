@@ -240,6 +240,32 @@ const GRANTED = ran(
   { decision: "allow", item: item(1, { grants: [GRANT] as never }), event: GRANT_EVENT },
   `update ${GRANT_EVENT.id} at ${AT} by person:dana\nallow: ${GRANT_EVENT.reason}\npolicy fixture/grant/change\nlog engram.db\n`,
 );
+// Card E2.21: a grant past the twin profile's cap, refused with core's reason.
+const CAP_EVENT = event(14, {
+  op: "update",
+  decision: "deny",
+  policy_id: "engram/write/grant-expiry-cap",
+  reason:
+    "add[0]: the grant to person:sam (class semantic, mode read, expires 2028-01-01T00:00:00Z) expires after 2027-10-25T12:00:00.000Z, the limit of 365 days (31,536,000 seconds) after this change at 2026-10-25T12:00:00.000Z; it is refused, not shortened: give it an expiry at or before 2027-10-25T12:00:00.000Z and renew it then",
+});
+const CAPPED = ran(
+  [
+    "grants",
+    id(1),
+    "--add",
+    "person:sam,class=semantic,mode=read,expires=2028-01-01T00:00:00Z",
+    "--owner",
+    "dana",
+    "--db",
+    "engram.db",
+    "--root",
+    "mem",
+  ],
+  "/api/v1/grants",
+  { decision: "deny", item: null, event: CAP_EVENT },
+  `update ${CAP_EVENT.id} at ${AT} by person:dana\ndeny: ${CAP_EVENT.reason}\npolicy engram/write/grant-expiry-cap\nlog engram.db\n`,
+  1,
+);
 const EVENTS = [
   event(1),
   event(2, { item_id: id(2), op: "write" }),
@@ -422,6 +448,13 @@ const SCREENS: Record<string, Build> = {
           { op: "add", spec: "person:sam,class=semantic,mode=read,expires=2026-12-01T00:00:00Z" },
         ],
       },
+      focus: 1,
+    });
+  },
+  "grants-capped": (h) => {
+    h.app.results.push(READ);
+    return set(new GrantsScreen(spec("grants"), h.app, {}, [id(1)]), {
+      result: CAPPED,
       focus: 1,
     });
   },

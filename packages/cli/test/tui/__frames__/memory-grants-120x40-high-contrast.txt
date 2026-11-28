@@ -8,7 +8,7 @@
  Add a grant
  > To             [                                          ]  who it is for, such as person:sam
      Class [ semantic ]   Mode [ read ]   space or left and right choose
-   Expires        [                                          ]  a UTC date or timestamp; empty for none
+   Expires        [                                          ]  UTC date or time; twin and knowledge cap it at 365 days
    [ Add to the change ]   [ Apply the change ]   ctrl+s
    ▸ Advanced: id, the test clock and this command's workspace flags
 
