@@ -617,9 +617,10 @@ async function run(
   // the store-then-log protocol (commit.ts): the log's head is noted before
   // the listing, and if the record's item changed since (a write committed
   // meanwhile, by another handle), the projected item is written back and no
-  // swept event is appended. A store that refuses the delete for good leaves
-  // the record refused while it holds that content, as an erasure's
-  // left-in-store record is (V3-7).
+  // swept event is appended; when the item is gone by then, or its scope is
+  // being erased, the record is deleted instead (card E1.7). A store that
+  // refuses the delete for good leaves the record refused while it holds
+  // that content, as an erasure's left-in-store record is (V3-7).
   let swept = 0;
   let sweepFailed = 0;
   const others = db

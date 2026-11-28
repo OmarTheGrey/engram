@@ -298,7 +298,7 @@ module replay {
       .expect(all { pc.get("h3").tag == "adoptPurge", safety })
 }
 
-// knownGapThreeOffboardings's instance: three offboardings.
+// threeOffboardings's instance: three offboardings.
 module replayThreeOffboardings {
   import commit(
     HANDLES = Set("h1", "h2", "h3"),

@@ -109,6 +109,16 @@
 // A listed record left to the next adoption because the log changed it since
 // the listing is counted under `deferred` (P50-7).
 //
+// Card E1.7. Each purge, a first one or a retry of one an earlier adoption
+// decided, checks under the lock just before its delete that the record's
+// item has not changed, nor an erasure of its scope begun, since the refusal
+// (a retry: since the listing); otherwise the record is left to the next
+// adoption and counted under `deferred`. A new write under a swept id is
+// refused (write.ts planeRefusal), so nothing the plane commits loses its
+// record to a purge. While the scope is being erased nothing is retracted
+// (the erasure takes the item out), and a record refused only because its
+// scope was being erased is gated again once that erasure has completed.
+//
 // Retracted, with one retire event (policy_id engram/adopt/retract): a
 // projected item of this store and scope the store no longer lists, and a
 // projected item whose store version the gate just denied, unless that deny
