@@ -282,7 +282,7 @@ export function ropaText(r: RopaRecord): string {
       lines.push(`  (c) never held: ${l.forbidden_classes.join(", ")}`);
     const readers = l.recipients.reader_levels;
     lines.push(
-      `  (d) recipients: ${readers.length === 0 ? "no reader level" : `members at ${readers.join(", ")} level`}${l.recipients.grants_honoured ? ", and the grantees an item's owner names" : ""}`,
+      `  (d) recipients: ${readers.length === 0 ? "no reader level" : `the members of the scope at a level that reads it (${readers.join(", ")})`}${l.recipients.grants_honoured ? ", and the grantees an item's owner names" : ""}`,
     );
     if (l.time_limits.length === 0)
       lines.push("  (f) time limits: none set; items stay until erased");
