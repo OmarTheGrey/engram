@@ -21,6 +21,11 @@
 // tasks other than its distill ref's, or a replayed induction task) is a deny
 // event under engram/promote/replay-item or replay-split (D3-3).
 //
+// With the policy's approval block (card E2.19, plane/approvals.ts) a
+// review is approved only by an approver the target's route names, and a
+// request that expired unanswered closes its version: the evaluator refuses
+// it under engram/approval/expired, and that deny event records the expiry.
+//
 // On allow, a status-only change rewrites the item in place (same id,
 // version plus one); a class or scope change writes a new version under a
 // fresh id to the store through the adapter, appends its `promote` event and
@@ -64,6 +69,7 @@ import {
 } from "../policy/promotion.ts";
 import { Id, type MemoryEvent, type MemoryItem, Scope } from "../schema.ts";
 import { disclosedEvent, disclosedItem } from "../visible.ts";
+import { expiredRequestOf } from "./approvals.ts";
 import {
   basisNow,
   ERASING_ID,
@@ -234,6 +240,9 @@ async function decideAndCommit(
       // from the caller (card D3, ADR 0046 proposed), and the replay is
       // checked against the item: its id, content and distill ref (D3-3).
       ...(options.replay === undefined ? {} : replayEvidence(deps, item, options.replay)),
+      // An expired approval request closes this version (card E2.19); only
+      // gathered when the policy has an approval block.
+      ...expiredRequestOf(deps, item, at),
     },
     retiredContent(db, toScope),
   );

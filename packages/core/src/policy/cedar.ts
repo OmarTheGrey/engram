@@ -46,6 +46,10 @@
 //     encoder's, so agreement there holds modulo grants;
 //   - content guards and trust options: exportCedar refuses a policy that
 //     turns any on, rather than export a gate that disagrees with it;
+//   - the approval block (card E2.19): it routes who approves a promotion
+//     and expires requests, and the promotion gate is not exported; the read
+//     and write gates are the same with or without it, so a policy that sets
+//     it is exported, with a header line naming its routes as not exported;
 //   - the lints (`lints`, `lints.model.evidence` of card L9 included): a
 //     lint decides no read or write, so the export is the same with or
 //     without them, and a policy turning quote grounding on is exported as
@@ -508,6 +512,14 @@ export function exportCedar(policy: Policy): CedarExport {
     "// Engram's typed evaluator is the authority; this text is for reading and analysis.",
     "// Not exported: the grant rules judged grant by grant (shape, repeats, class, expiry at addition), content guards, trust options.",
     "// Grants are flattened into the request: context.grant on a read; granted, changes_grants and in_place_promotion on a write.",
+    // Card E2.19: the approval block narrows who approves a promotion, which
+    // this export does not cover; the read and write gates it exports are
+    // the same with or without it, so the export stays faithful and says so.
+    ...(policy.approval === undefined
+      ? []
+      : [
+          `// Not exported: the approval block's ${policy.approval.routes.length} route${policy.approval.routes.length === 1 ? "" : "s"} (card E2.19), which narrow who approves a promotion and when a request expires; the promotion gate is not exported, and the read and write rules below are the same without them.`,
+        ]),
   ].join("\n");
   return {
     schema: SCHEMA,

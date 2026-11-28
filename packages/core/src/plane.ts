@@ -30,6 +30,13 @@ export {
   adoptStoreItems,
 } from "./plane/adopt.ts";
 
+import {
+  type ExpiryReport,
+  expireRequests,
+  type QueuedRequest,
+  approvals as queuedRequests,
+  refuse,
+} from "./plane/approvals.ts";
 import { recordBypass } from "./plane/bypass.ts";
 import { type ExportResult, exportBundle } from "./plane/export.ts";
 import { changeGrants } from "./plane/grants.ts";
@@ -56,6 +63,18 @@ export {
   InvalidCallError,
   UnknownReadError,
 } from "./actor.ts";
+export {
+  APPROVAL_EXPIRED_ID,
+  APPROVAL_MEMBERSHIP_ID,
+  APPROVAL_NO_REQUEST_ID,
+  APPROVAL_REFUSED_ID,
+  APPROVAL_ROUTE_ID,
+  type ApprovalRequest,
+  approvalQueue,
+  type ExpiryReport,
+  type QueuedRequest,
+  type RequestState,
+} from "./plane/approvals.ts";
 export {
   type BeforeRead,
   type BeforeReadReport,
@@ -337,6 +356,33 @@ export interface Plane {
    */
   changeGrants(actor: Actor, itemId: string, change: GrantChange, at: string): Promise<GrantResult>;
   /**
+   * The approval queue at `at` as `actor` may see it (card E2.19,
+   * plane/approvals.ts): every request (a held write, or a promotion asked
+   * for that waits for a reviewer) on an item whose scope the actor may read
+   * as a member, keyed by item id and version, with its route, expiry and
+   * state, and whether the actor may decide it now. Approving is
+   * `promote(..., { review: true })` by an approver the policy's route
+   * names. Decides nothing and appends no event. An invalid actor or time is
+   * refused with InvalidCallError.
+   */
+  approvals(actor: Actor, at: string): Promise<QueuedRequest[]>;
+  /**
+   * An approver refuses the pending request on an item's current version,
+   * with a reason (card E2.19): a held candidate is retired under
+   * `engram/approval/refused`; a widening is refused and the item left as
+   * it is. Every outcome is one event. Runs in the write queue. An invalid
+   * actor, time, id or an empty reason is refused with InvalidCallError.
+   */
+  refuse(actor: Actor, itemId: string, reason: string, at: string): Promise<GateResult>;
+  /**
+   * Records each request on an item of `scope` past its route's
+   * `expires_after` at `at` as expired, one `promote` deny event each under
+   * `engram/approval/expired` (card E2.19). The actor must be a member of
+   * the scope, else one deny event (`engram/approval/membership`). Runs in
+   * the write queue; nothing runs on a timer.
+   */
+  expireRequests(actor: Actor, scope: string, at: string): Promise<ExpiryReport>;
+  /**
    * Sweeps one scope (ADR 0025): retires items past their ttl, then evicts
    * any budget overage in the rule's order, each one event; items stay in
    * the store. The actor must be a member of the scope, else one deny event
@@ -494,6 +540,9 @@ export function createPlane(deps: PlaneDeps): Plane {
     lint: async (actor, at, scope, options) => lint(deps, actor, at, scope, options),
     changeGrants: async (actor, itemId, change, at) =>
       changeGrants(deps, actor, itemId, change, at),
+    approvals: (actor, at) => queuedRequests(deps, actor, at),
+    refuse: async (actor, itemId, reason, at) => refuse(deps, actor, itemId, reason, at),
+    expireRequests: async (actor, scope, at) => expireRequests(deps, actor, scope, at),
     simulate: (workload, policy) => simulate(deps, workload, policy),
     distill: async () => {
       // Card D2 built the induction as a Distiller (distill/induce.ts); this
