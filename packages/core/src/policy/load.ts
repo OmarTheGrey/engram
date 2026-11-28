@@ -20,6 +20,7 @@ import {
 } from "yaml";
 import type { z } from "zod";
 import { NLI_LINT_ID, nliThresholdProblems } from "../lint/nli.ts";
+import { driftThresholdProblem } from "../distill/drift.ts";
 import { LIFECYCLE_TRIGGERS, LINT_IDS, LINT_THRESHOLD_KEYS } from "../lint.ts";
 import { Policy, ScopeLevel } from "../schema.ts";
 import { notBuiltOptions } from "./options.ts";
@@ -292,6 +293,11 @@ function semanticProblems(policy: Policy): Located[] {
     }
   }
   for (const { path, message } of notBuiltOptions(policy)) out.push({ path, atKey: true, message });
+  // Card D4: drift retires on ADR 0011's two thresholds, so a policy that
+  // turns it on must set both. A policy without procedures.drift (every
+  // registered preset) is not judged by this rule.
+  const drift = driftThresholdProblem(policy);
+  if (drift !== null) out.push({ path: ["procedures", "drift"], atKey: true, message: drift });
   const { replay_k, replay_n } = policy.promotion.procedural;
   if (replay_k > replay_n)
     out.push({
