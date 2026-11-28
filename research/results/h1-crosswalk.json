@@ -1945,6 +1945,116 @@
       "status": "not evidenced",
       "tests": [],
       "unmapped": null
+    },
+    {
+      "claim": "A subject access export gives a person, and only that person, the items of their person scope and their own items in the other scopes they read, with the decisions on each, as a bundle that imports again; items derived from them that the person may not ask for by id are counted, never named.",
+      "gap": null,
+      "id": "C52",
+      "invariant": null,
+      "limits": "The closure follows lineage only; an item that restates the person's content without naming it in its lineage is not found. A retire event of the person's own item, which the bundle carries, names its successor's id in its reason even where the closure only counts that successor (finding E9.16). The report names no purposes, recipients or source beyond what the log holds.",
+      "obligations": [
+        {
+          "id": "GDPR-15-1",
+          "relation": "bears on",
+          "why": "the plane can tell a person which of their memories it holds and what was decided on each"
+        },
+        {
+          "id": "GDPR-15-3",
+          "relation": "bears on",
+          "why": "the bundle is a copy of the person's memories as the plane holds them"
+        },
+        {
+          "id": "GDPR-15-4",
+          "relation": "bears on",
+          "why": "items of others derived from the person's memories are counted, not handed over"
+        },
+        {
+          "id": "GDPR-20-1",
+          "relation": "bears on",
+          "why": "the bundle is structured JSONL another workspace imports"
+        }
+      ],
+      "source": "docs/tasks/E9.16.md; docs/bundle.md; ADR 0047 (the by-id rule)",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "engram export --subject (card E9.16)"
+          ],
+          "file": "packages/cli/test/subject-export.test.ts",
+          "it": "round-trips: the bundle imports into an empty workspace and exports the same content"
+        },
+        {
+          "describe": [
+            "engram export --subject (card E9.16)"
+          ],
+          "file": "packages/cli/test/subject-export.test.ts",
+          "it": "goes only to the subject, needs --out, and never runs against a server"
+        },
+        {
+          "describe": [
+            "subjectClosure"
+          ],
+          "file": "packages/core/test/unit/subject-access.test.ts",
+          "it": "names a derived item the subject may see and counts the rest, transitively"
+        }
+      ],
+      "unmapped": null
+    },
+    {
+      "claim": "The record of processing is built from the policy per scope level: the categories of data and data subjects, the reader levels and grants, the time limits and the measures turned on, with counts from the log by level, class and status, and no content, id, scope or actor.",
+      "gap": null,
+      "id": "C53",
+      "invariant": null,
+      "limits": "Points (a), (b) and (e) of Article 30(1) are not in a policy and are listed for the controller to state. A ttl retires an item and keeps its bytes (C26), so the time limits given are limits on use, not on erasure.",
+      "obligations": [
+        {
+          "id": "GDPR-30-1-c",
+          "relation": "bears on",
+          "why": "the record states the classes each level may hold and whom its items are about"
+        },
+        {
+          "id": "GDPR-30-1-d",
+          "relation": "bears on",
+          "why": "the record states which reader levels may read each level, and that grants are honoured"
+        },
+        {
+          "id": "GDPR-30-1-f",
+          "relation": "bears on",
+          "why": "in tension as C27 is: the record gives the ttls and budgets, which retire an item and keep its bytes"
+        },
+        {
+          "id": "GDPR-30-1-g",
+          "relation": "bears on",
+          "why": "the record lists the plane's technical measures the policy turns on"
+        }
+      ],
+      "source": "docs/tasks/E9.16.md; packages/core/src/audit/ropa.ts",
+      "status": "evidenced",
+      "tests": [
+        {
+          "describe": [
+            "engram audit ropa (card E9.16)"
+          ],
+          "file": "packages/cli/test/subject-export.test.ts",
+          "it": "over the fixture log matches the record in docs/compliance"
+        },
+        {
+          "describe": [
+            "engram audit ropa (card E9.16)"
+          ],
+          "file": "packages/cli/test/subject-export.test.ts",
+          "it": "holds no content, id, scope or actor, and --json gives the same record"
+        },
+        {
+          "describe": [
+            "ropaRecord"
+          ],
+          "file": "packages/core/test/unit/audit/ropa.test.ts",
+          "it": "gives each level's categories, recipients and time limits from the policy"
+        }
+      ],
+      "unmapped": null
     }
   ],
   "hypothesis": "none",
@@ -2235,6 +2345,42 @@
       "quote": "The data subject shall have the right to withdraw his or her consent at any time."
     },
     {
+      "article": "15",
+      "claims": [
+        "C52"
+      ],
+      "heading": "Right of access by the data subject",
+      "id": "GDPR-15-1",
+      "instrument": "gdpr",
+      "paragraph": "1",
+      "point": null,
+      "quote": "The data subject shall have the right to obtain from the controller confirmation as to whether or not personal data concerning him or her are being processed, and, where that is the case, access to the personal data and the following information:"
+    },
+    {
+      "article": "15",
+      "claims": [
+        "C52"
+      ],
+      "heading": "Right of access by the data subject",
+      "id": "GDPR-15-3",
+      "instrument": "gdpr",
+      "paragraph": "3",
+      "point": null,
+      "quote": "The controller shall provide a copy of the personal data undergoing processing."
+    },
+    {
+      "article": "15",
+      "claims": [
+        "C52"
+      ],
+      "heading": "Right of access by the data subject",
+      "id": "GDPR-15-4",
+      "instrument": "gdpr",
+      "paragraph": "4",
+      "point": null,
+      "quote": "The right to obtain a copy referred to in paragraph 3 shall not adversely affect the rights and freedoms of others."
+    },
+    {
       "article": "17",
       "claims": [
         "C08",
@@ -2248,6 +2394,18 @@
       "paragraph": "1",
       "point": null,
       "quote": "The data subject shall have the right to obtain from the controller the erasure of personal data concerning him or her without undue delay and the controller shall have the obligation to erase personal data without undue delay where one of the following grounds applies:"
+    },
+    {
+      "article": "20",
+      "claims": [
+        "C52"
+      ],
+      "heading": "Right to data portability",
+      "id": "GDPR-20-1",
+      "instrument": "gdpr",
+      "paragraph": "1",
+      "point": null,
+      "quote": "The data subject shall have the right to receive the personal data concerning him or her, which he or she has provided to a controller, in a structured, commonly used and machine-readable format and have the right to transmit those data to another controller without hindrance from the controller to which the personal data have been provided, where:"
     },
     {
       "article": "24",
@@ -2294,7 +2452,32 @@
     {
       "article": "30",
       "claims": [
-        "C27"
+        "C53"
+      ],
+      "heading": "Records of processing activities",
+      "id": "GDPR-30-1-c",
+      "instrument": "gdpr",
+      "paragraph": "1",
+      "point": "c",
+      "quote": "a description of the categories of data subjects and of the categories of personal data;"
+    },
+    {
+      "article": "30",
+      "claims": [
+        "C53"
+      ],
+      "heading": "Records of processing activities",
+      "id": "GDPR-30-1-d",
+      "instrument": "gdpr",
+      "paragraph": "1",
+      "point": "d",
+      "quote": "the categories of recipients to whom the personal data have been or will be disclosed including recipients in third countries or international organisations;"
+    },
+    {
+      "article": "30",
+      "claims": [
+        "C27",
+        "C53"
       ],
       "heading": "Records of processing activities",
       "id": "GDPR-30-1-f",
@@ -2302,6 +2485,18 @@
       "paragraph": "1",
       "point": "f",
       "quote": "where possible, the envisaged time limits for erasure of the different categories of data;"
+    },
+    {
+      "article": "30",
+      "claims": [
+        "C53"
+      ],
+      "heading": "Records of processing activities",
+      "id": "GDPR-30-1-g",
+      "instrument": "gdpr",
+      "paragraph": "1",
+      "point": "g",
+      "quote": "where possible, a general description of the technical and organisational security measures referred to in Article 32(1)."
     },
     {
       "article": "32",
@@ -2367,19 +2562,19 @@
   },
   "statement": "Engram supplies evidence about how a memory control plane behaves: each row names a claim, the test in this repository that proves it, and an article of the EU AI Act or the GDPR the evidence bears on. A row never says that Engram, or a deployment using it, meets an obligation. Whether a deployment is compliant depends on its purpose, its operator and facts the plane cannot see.",
   "summary": {
-    "claims": 51,
+    "claims": 53,
     "claims_unmapped": [
       "C21"
     ],
-    "evidenced": 48,
+    "evidenced": 50,
     "not_evidenced": [
       "C30",
       "C50",
       "C51"
     ],
-    "obligations": 27,
+    "obligations": 34,
     "obligations_without_claim": [],
-    "test_files": 34,
-    "tests": 111
+    "test_files": 37,
+    "tests": 117
   }
 }
