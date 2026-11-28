@@ -11,7 +11,7 @@ evidence:
   - packages/core/src/plane/approvals.ts
   - packages/core/test/unit/plane/approvals-review.test.ts
   - packages/core/test/property/invariants.test.ts
-  - docs/decisions/XXXX-approval-queue-as-a-projection.md
+  - docs/decisions/0053-approval-queue-as-a-projection.md
   - "make test-invariants"
 supersedes: none
 ---

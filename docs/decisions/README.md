@@ -58,6 +58,7 @@ Every ADR, 0001 to 0033, is accepted by the lead, and the lead is its decider. A
 | 0050 | A changed environment hash re-validates an admitted procedure; drift retires on the success floor after min-trials (partly supersedes 0011) | accepted under the lead's delegation, 2026-11-28 (card D4) |
 | 0051 | Crypto-shredded erasure: a data key per person scope, wrapped under an operator key behind an injected provider; shredding adds to redaction and replaces nothing | accepted under the lead's delegation, 2026-11-29 (card E9.11) |
 | 0052 | Consent opt-outs are declared in the policy document and match whole words of the content | accepted under the lead's delegation, 2026-11-29 (card E9.12) |
+| 0053 | The approval queue is a projection over the log; a decided or expired request closes its item's version | accepted under the lead's delegation, 2026-11-29 (card E2.19) |
 
 ---
 

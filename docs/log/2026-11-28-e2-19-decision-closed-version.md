@@ -8,7 +8,7 @@ pillar: govern
 hypothesis: none
 evidence:
   - packages/core/src/plane/approvals.ts
-  - docs/decisions/XXXX-approval-queue-as-a-projection.md
+  - docs/decisions/0053-approval-queue-as-a-projection.md
 supersedes: none
 ---
 

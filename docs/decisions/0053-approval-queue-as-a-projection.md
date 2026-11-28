@@ -1,7 +1,7 @@
-# ADR XXXX: The approval queue is a projection over the log; a decided or expired request closes its item's version
+# ADR 0053: The approval queue is a projection over the log; a decided or expired request closes its item's version
 
-Status: proposed, 2026-11-28
-Deciders: drafted by card E2.19 of the second absorb plan; for the lead's acceptance
+Status: accepted, 2026-11-29, under the lead's delegation of 2026-11-28 (`docs/tasks/lead-decisions.md`, "The lead's answers, 2026-11-28": new ADRs as needed, none contradicting the set); the lead may overturn it
+Deciders: the orchestrating session, under the lead's delegation of 2026-11-28; drafted by card E2.19 of the second absorb plan
 Supersedes: nothing. It builds on ADR 0003 (the log is the source of truth), ADR 0026 (promotion and its reviewers), ADR 0049 (owner acceptance in a person scope), ADR 0041 (the Cedar export) and the plan decision of 2026-11-25 (`docs/log/2026-11-25-ap2-decision-approvals-without-schema.md`); it amends none of them.
 
 ## Context
