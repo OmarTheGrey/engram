@@ -486,19 +486,19 @@ Recorded by [`docs/log/2026-11-28-e8-16-measurement-leak-count-revised.md`](../l
 
 - **Question.** Does the code follow the Quint model of the commit and erasure protocol, step by step, on the model's own traces?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
-- **Serves.** no hypothesis; no pre-registration section. Card E1.8: 200 traces of `specs/replay.qnt` (good under the code's schedule, seed 1) replayed on real Plane handles; a divergence counts only when one of the card's findings explains it. Filed under `h1-` for the results glob only.
-- **Made by.** `research/scripts/quint_trace_replay.py` from `research/configs/quint-trace-replay.json`, MANIFEST commit `5d53e86f`, sha256 `c80cce59149fc69f048e04c14ae36c0815f56cc98008fbc675670ae4bcee4353`.
+- **Serves.** no hypothesis; no pre-registration section. Card E1.8: 200 traces of `specs/replay.qnt` (good under the code's schedule, seed 1) replayed on real Plane handles; a divergence counts only when one of the card's findings explains it. Rerun by card E1.7 after it closed the two erasure gaps and findings E18-F1, E18-F2 and E18-F4 in the code, with the traces regenerated from the changed model. Filed under `h1-` for the results glob only.
+- **Made by.** `research/scripts/quint_trace_replay.py` from `research/configs/quint-trace-replay.json`, MANIFEST commit `73dd0d02`, sha256 `b1ef437de813678751e65ed15533ee598f2b77063e3c20015762a67c0513ab4d`.
 
 | value | reads | key path |
 |---|---|---|
 | traces | 200 | `totals.traces` |
-| replayed to their end | 144 | `totals.replayed` |
-| steps matched | 10,183 | `totals.steps_matched` |
+| replayed to their end | 199 | `totals.replayed` |
+| steps matched | 11,951 | `totals.steps_matched` |
 | steps | 12,000 | `totals.steps` |
-| states compared | 7,783 | `totals.states_compared` |
+| states compared | 9,298 | `totals.states_compared` |
 | diverged, unexplained | 0 | `totals.diverged_by_finding.unexplained` |
 
-Recorded by [`docs/log/2026-11-28-e1-8-measurement-trace-replay-status.md`](../log/2026-11-28-e1-8-measurement-trace-replay-status.md).
+Recorded by [`docs/log/2026-11-28-e1-7-measurement-trace-replay.md`](../log/2026-11-28-e1-7-measurement-trace-replay.md).
 
 ### `research/results/h1-gate-mutation-audit.json`
 
