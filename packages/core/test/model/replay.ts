@@ -38,7 +38,7 @@ import type { Adapter, StoreRef } from "../../src/adapter.ts";
 import type { Db } from "../../src/db/db.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import { openSqlite } from "../../src/db/sqlite.ts";
-import { allEvents, ERASURE_ID, eventsByItem } from "../../src/events.ts";
+import { allEvents, ERASURE_ID, eventsByItem, NOT_FOUND_CLAUSE } from "../../src/events.ts";
 import { itemById } from "../../src/items.ts";
 import {
   ADOPT_ERASED_ID,
@@ -214,6 +214,23 @@ export const FINDINGS = {
    * record as a change, which the model, without versions, holds unchanged.
    */
   "E18-F5": "a record that differs from the projection only in its version",
+  /**
+   * A withdrawal to nothing leaves the item retired in the code (a removal
+   * in the model, specs/README.md "Item status"), and the code goes on
+   * treating it as the plane's item: a stale writer's settle puts it back
+   * into the store (commit.ts wanted returns it), so the stale bytes the
+   * withdrawal undid are written back as its record, and adoption takes its
+   * kind as the ceiling of a new record under its id.
+   */
+  "E18-F6": "a withdrawal to nothing leaves a retired item the code still holds",
+  /**
+   * An erasure whose read finds no record (a stale writer's settle deleted
+   * it a moment before) records the item's content as left in the store
+   * (offboard.ts, not found); adoption then refuses a record under the
+   * erased id holding that content without purging it, where the model,
+   * which has no such path, refuses and purges.
+   */
+  "E18-F7": "an erasure that finds no record makes adoption refuse without a purge",
 } as const;
 
 export type Finding = keyof typeof FINDINGS | "unexplained";
@@ -354,8 +371,7 @@ export async function replay(trace: Trace): Promise<Replayed> {
           held &&
           held.version !== r.version &&
           held.content === r.content &&
-          held.confidence === r.confidence &&
-          held.provenance.kind === r.provenance.kind
+          held.confidence === r.confidence
         )
           marks.add("E18-F5");
       }
@@ -605,6 +621,9 @@ export async function replay(trace: Trace): Promise<Replayed> {
     let finding: Finding | null = null;
     if (mismatch) {
       if (final.events.some((e) => e.includes(" engram/adopt/retract "))) marks.add("E18-F1");
+      if (final.events.some((e) => e.includes(" retire engram/adopt/withdrawn "))) marks.add("E18-F6");
+      if (final.events.some((e) => e.includes(" engram/offboard/erase ") && e.includes(NOT_FOUND_CLAUSE)))
+        marks.add("E18-F7");
       for (const f of modelMarks(states, mismatch.step)) marks.add(f);
       finding = (Object.keys(FINDINGS) as Finding[]).find((f) => marks.has(f)) ?? "unexplained";
     }

@@ -133,6 +133,141 @@ module replay {
         HANDLES.forall(h => pc.get(h).tag == "idle"),
         safety,
       })
+
+  // The findings of card E1.8 (packages/core/test/model/replay.ts FINDINGS):
+  // where the code's state leaves the model's. Each ends in the model's
+  // state; trace-replay.test.ts pins the step the code diverges at.
+
+  // E18-F1. While a is being erased and its record is deleted, an adoption
+  // lists the store; the code retires a (adopt.ts, the store no longer
+  // lists it), an allowed change, so the stale writer's settle goes round
+  // again. The model has no retraction: the writer's deny is appended.
+  run e18RetractionWhileErasingTest =
+    init
+      .then(decide("h1", "a", USER)).then(storeWrite("h1")).then(commit("h1"))
+      .then(decide("h3", "a", USER)).then(storeWrite("h3"))
+      .then(obBegin("h2")).then(obDelete("h2", "a"))
+      .then(commit("h3")).then(settleRead("h3")).then(settleStore("h3"))
+      .then(adoptList("h1")).then(adoptDone("h1"))
+      .then(settleConfirm("h3"))
+      .expect(all {
+        log[log.length() - 1].rule == WRITE_CONFLICT,
+        erasureOpen(log),
+        safety,
+      })
+
+  // E18-F2. A record dropped into the store while the scope is being erased
+  // is refused (engram/offboard/erasing); after the report, the model adopts
+  // it. The code does not: the same bytes were denied before.
+  run e18ErasingRefusalFinalTest =
+    init
+      .then(obBegin("h1")).then(obErase("h1")).then(obSweepList("h1"))
+      .then(outsideEdit("a", USER))
+      .then(adoptList("h2")).then(adoptOne("h2", "a")).then(adoptDone("h2"))
+      .then(obReport("h1"))
+      .then(adoptList("h3")).then(adoptOne("h3", "a")).then(adoptDone("h3"))
+      .expect(all {
+        proj.get("a").live,
+        proj.get("a").kind == IMPORT,
+        safety,
+      })
+
+  // E18-F3. A writer's bytes, their confidence edited by hand, are adopted
+  // before it commits. The model ignores them as the writer's own (content
+  // alike) and commits; the code counts them as a change and settles.
+  run e18OwnBytesEditedTest =
+    init
+      .then(decide("h1", "b", USER)).then(storeWrite("h1")).then(outsideEditMeta("b"))
+      .then(adoptList("h2")).then(adoptOne("h2", "b")).then(adoptDone("h2"))
+      .then(commit("h1"))
+      .expect(all {
+        log[log.length() - 1].rule == GATE_ALLOW,
+        proj.get("b").kind == USER,
+        safety,
+      })
+
+  // E18-F4. Two adoptions list the same record under a swept id; the first
+  // refuses and purges it. The model defers the second (the refusal is a
+  // change since its listing); the code deletes the record again, with no
+  // event and no deferral.
+  run e18RepeatedPurgeTest =
+    init
+      .then(decide("h1", "a", USER)).then(storeWrite("h1"))
+      .then(obBegin("h2")).then(obErase("h2")).then(obSweepList("h2"))
+      .then(obSweepDecide("h2", "a")).then(obSweepDel("h2")).then(obSweepCommit("h2"))
+      .then(obReport("h2"))
+      .then(commit("h1")).then(settleRead("h1")).then(settleStore("h1")).then(settleConfirm("h1"))
+      .then(outsideEdit("a", USER))
+      .then(adoptList("h2")).then(adoptList("h3"))
+      .then(adoptOne("h2", "a")).then(adoptPurge("h2")).then(adoptDone("h2"))
+      .then(adoptOne("h3", "a"))
+      .expect(lastAction.name == "adoptDefer")
+      .then(adoptDone("h3"))
+      .expect(all {
+        not(store.get("a").present),
+        HANDLES.forall(h => pc.get(h).tag == "idle"),
+        safety,
+      })
+
+  // E18-F5, as a sampled trace found it (seed 12, trace 210 of 800): two
+  // stale writers of b settle while adoptions list the store; a settle's
+  // put-back carries a version above the projection's, and the last
+  // adoption here records it as a change, which the model, without
+  // versions, holds unchanged.
+  run e18VersionOnlyTest =
+    init
+      .then(obBegin("h3")).then(obErase("h3")).then(obSweepList("h3")).then(adoptList("h1"))
+      .then(obReport("h3")).then(decide("h3", "b", USER)).then(decide("h2", "b", USER)).then(outsideEdit("a", MODEL))
+      .then(outsideEdit("b", MODEL)).then(storeWrite("h3")).then(adoptDone("h1")).then(storeWrite("h2"))
+      .then(commit("h3")).then(decide("h1", "a", USER)).then(decide("h3", "a", MODEL)).then(commit("h2"))
+      .then(settleRead("h2")).then(storeWrite("h1")).then(storeWrite("h3")).then(commit("h3"))
+      .then(commit("h1")).then(settleRead("h1")).then(adoptList("h3")).then(settleStore("h1"))
+      .then(settleStore("h2")).then(adoptOne("h3", "a")).then(adoptOne("h3", "b")).then(adoptDone("h3"))
+      .then(adoptList("h3")).then(settleConfirm("h2")).then(settleRead("h2")).then(adoptOne("h3", "b"))
+      .then(adoptOne("h3", "a")).then(adoptDone("h3")).then(settleConfirm("h1")).then(settleStore("h2"))
+      .then(settleConfirm("h2")).then(settleRead("h2")).then(adoptList("h1")).then(adoptList("h3"))
+      .then(adoptOne("h3", "b")).then(adoptOne("h3", "a")).then(adoptDone("h3"))
+      .expect(all { lastAction.name == "adoptDone", safety })
+
+  // E18-F6. Two stale writers of a new id: the adoption of h1's bytes (at
+  // model trust) is withdrawn to nothing. A record dropped in by hand under
+  // that id is then adopted at import in the model; the code, which keeps
+  // the withdrawn item as retired, takes its kind, model, as the ceiling.
+  run e18WithdrawnStillHeldTest =
+    init
+      .then(decide("h2", "a", USER)).then(decide("h1", "a", MODEL))
+      .then(storeWrite("h2")).then(storeWrite("h1"))
+      .then(adoptList("h3")).then(adoptOne("h3", "a")).then(adoptDone("h3"))
+      .then(commit("h2")).then(settleRead("h2")).then(settleStore("h2")).then(settleConfirm("h2"))
+      .then(commit("h1")).then(settleRead("h1"))
+      .expect(pc.get("h1").mend)
+      .then(settleStore("h1")).then(settleConfirm("h1"))
+      .expect(not(proj.get("a").live))
+      .then(outsideEdit("a", USER))
+      .then(adoptList("h3")).then(adoptOne("h3", "a")).then(adoptDone("h3"))
+      .expect(all { proj.get("a").kind == IMPORT, safety })
+
+  // E18-F7. A stale writer's settle deletes a's record just before the
+  // erasure reads it, so the erasure records it as not found; another
+  // writer's settle, which read a before the mark, writes a's erased
+  // content back. Both settles are still in flight when an adoption refuses
+  // that record: the model purges it, the code, holding the content as left
+  // in the store, does not.
+  run e18NotFoundNoPurgeTest =
+    init
+      .then(decide("h1", "a", USER)).then(storeWrite("h1")).then(commit("h1"))
+      .then(decide("h2", "a", USER)).then(decide("h1", "a", MODEL))
+      .then(storeWrite("h2")).then(storeWrite("h1")).then(commit("h1"))
+      .then(commit("h2")).then(settleRead("h2"))
+      .then(decide("h1", "a", USER)).then(storeWrite("h1"))
+      .then(obBegin("h3"))
+      .then(commit("h1")).then(settleRead("h1")).then(settleStore("h1"))
+      .then(obDelete("h3", "a")).then(obErase("h3")).then(obSweepList("h3"))
+      .then(settleStore("h2"))
+      .expect(all { erasedIds.contains("a"), erasedContent.contains(store.get("a").content) })
+      .then(obReport("h3"))
+      .then(adoptList("h3")).then(adoptOne("h3", "a"))
+      .expect(all { pc.get("h3").tag == "adoptPurge", safety })
 }
 
 // knownGapThreeOffboardings's instance: three offboardings.
