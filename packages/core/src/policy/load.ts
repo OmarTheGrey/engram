@@ -22,6 +22,7 @@ import type { z } from "zod";
 import { NLI_LINT_ID, nliThresholdProblems } from "../lint/nli.ts";
 import { LIFECYCLE_TRIGGERS, LINT_IDS, LINT_THRESHOLD_KEYS } from "../lint.ts";
 import { Policy, ScopeLevel } from "../schema.ts";
+import { notBuiltOptions } from "./options.ts";
 
 export type PolicyPath = (string | number)[];
 
@@ -160,23 +161,9 @@ const NOT_ENFORCED_YET = {
   trust: {},
 } as const;
 
-/**
- * The options card E2.14 of the second absorb plan added (ADR 0002, decision
- * D2), each with the card that builds it. Absent is the only value the
- * loader accepts until then: every present value is refused, `off` too, so
- * a policy never sets an option the plane silently ignores, and an empty
- * container (`procedures: {}`) holds every option absent. Each card deletes
- * its own row when it lands, with a loader test.
- */
-const NOT_BUILT_YET: readonly { path: readonly string[]; card: string }[] = [
-  { path: ["lints", "model", "evidence"], card: "L9" },
-  { path: ["procedures", "safety_scan"], card: "D5" },
-  { path: ["procedures", "drift"], card: "D4" },
-  { path: ["consent"], card: "E9.12" },
-  { path: ["erasure", "mode"], card: "E9.13" },
-  { path: ["approval"], card: "E2.19" },
-  { path: ["grants", "expiry_cap"], card: "E2.21" },
-];
+// The options card E2.14 of the second absorb plan added, which nothing
+// builds yet, are refused by `notBuiltOptions` (policy/options.ts), the check
+// Plane.simulate and exportCedar share with this loader.
 
 /** The blocks whose options are words, where YAML 1.1 may read a bare on or off as a boolean. */
 const OPTION_BLOCKS: readonly (readonly string[])[] = [
@@ -304,22 +291,7 @@ function semanticProblems(policy: Policy): Located[] {
       });
     }
   }
-  for (const { path, card } of NOT_BUILT_YET) {
-    const value = path.reduce<unknown>(
-      (node, seg) =>
-        node !== null && typeof node === "object"
-          ? (node as Record<string, unknown>)[seg]
-          : undefined,
-      policy,
-    );
-    if (value === undefined) continue;
-    const name = path.join(".");
-    out.push({
-      path: [...path],
-      atKey: true,
-      message: `${name} is not built yet: card ${card} builds it; until then leave it out (absent is today's behaviour)`,
-    });
-  }
+  for (const { path, message } of notBuiltOptions(policy)) out.push({ path, atKey: true, message });
   const { replay_k, replay_n } = policy.promotion.procedural;
   if (replay_k > replay_n)
     out.push({

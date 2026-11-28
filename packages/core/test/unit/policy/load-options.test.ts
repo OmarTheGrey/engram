@@ -11,6 +11,8 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { parse as parseYaml } from "yaml";
+import { InvalidCallError } from "../../../src/plane.ts";
+import { CedarExportError, exportCedar } from "../../../src/policy/cedar.ts";
 import {
   EXTRA_PRESETS,
   loadPreset,
@@ -20,7 +22,9 @@ import {
   type PresetName,
   parsePolicy,
 } from "../../../src/policy/load.ts";
+import { NOT_BUILT_YET, notBuiltOptions } from "../../../src/policy/options.ts";
 import { Policy } from "../../../src/schema.ts";
+import { fresh } from "../plane/helpers.ts";
 
 const VALID = `id: test-policy
 version: 1
@@ -255,5 +259,68 @@ describe("the options' schemas", () => {
       expect(p?.path).toEqual(option.split("."));
       expect(p?.message).toContain("quote the value");
     }
+  });
+});
+
+// The review of 2026-11-28: a policy object that never met the loader (the
+// HTTP simulate route's candidate, a policy built in code handed to
+// exportCedar) is held to the same refusal, through notBuiltOptions.
+describe("readers of an already-parsed policy refuse what the loader refuses", () => {
+  const medium = loadPreset("medium");
+  /** One policy per option, each setting it, typed as the schema admits it. */
+  const SETTING: [option: string, policy: Policy][] = [
+    ["lints.model.evidence", { ...medium, lints: { ...medium.lints, model: { evidence: "on" } } }],
+    ["procedures.safety_scan", { ...medium, procedures: { safety_scan: "hold" } }],
+    ["procedures.drift", { ...medium, procedures: { drift: { environment_change: "on" } } }],
+    ["consent", { ...medium, consent: { opt_outs: [] } }],
+    ["erasure.mode", { ...medium, erasure: { mode: "redact" } }],
+    ["approval", { ...medium, approval: { routes: [] } }],
+    ["grants.expiry_cap", { ...medium, grants: { expiry_cap: "off" } }],
+  ];
+
+  test("the shared table lists exactly the options the loader refuses", () => {
+    expect(NOT_BUILT_YET.map((r) => r.path.join("."))).toEqual(SETTING.map(([o]) => o));
+  });
+
+  test("a registered preset and an empty container set nothing", () => {
+    for (const name of PRESETS) expect(notBuiltOptions(loadPreset(name))).toEqual([]);
+    const empty: Policy = {
+      ...medium,
+      lints: { ...medium.lints, model: {} },
+      procedures: {},
+      erasure: {},
+      grants: {},
+    };
+    expect(notBuiltOptions(empty)).toEqual([]);
+  });
+
+  test.each(SETTING)("%s: notBuiltOptions names it and its card", (option, policy) => {
+    const [o, ...rest] = notBuiltOptions(policy);
+    expect(rest).toEqual([]);
+    expect(o?.path).toEqual(option.split("."));
+    expect(o?.message).toContain(`${option} is not built yet`);
+  });
+
+  test.each(SETTING)("%s: exportCedar refuses it", (option, policy) => {
+    expect(() => exportCedar(policy)).toThrow(CedarExportError);
+    expect(() => exportCedar(policy)).toThrow(`${option} is not built yet`);
+  });
+
+  test.each(SETTING)(
+    "%s: Plane.simulate refuses it as a candidate, logging nothing",
+    async (option, policy) => {
+      const { plane } = fresh(medium);
+      const workload = { id: "w", actors: {}, steps: [] };
+      await expect(plane.simulate(workload, policy)).rejects.toThrow(InvalidCallError);
+      await expect(plane.simulate(workload, policy)).rejects.toThrow(`${option} is not built yet`);
+      expect(plane.events()).toEqual([]);
+    },
+  );
+
+  test("Plane.simulate and exportCedar still take a policy that sets none of them", async () => {
+    const { plane } = fresh(medium);
+    const report = await plane.simulate({ id: "w", actors: {}, steps: [] }, loadPreset("strict"));
+    expect(report.changed).toEqual([]);
+    expect(exportCedar(medium).policies.length).toBeGreaterThan(0);
   });
 });
