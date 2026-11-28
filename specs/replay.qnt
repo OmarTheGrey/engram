@@ -27,6 +27,11 @@
 //
 // An offboarding stops (obStop) only where the code can stop, at a store
 // call, so never inside an atomic continuation.
+//
+// The module `replay` is good's instance under this schedule: the traces of
+// specs/traces/ are its runs, and each is a run of good. Its run
+// `sweptIdPurgeRaceReplayTest`, and `replayThreeOffboardings`'s run, restate the
+// two known gaps' scenario tests in the order the code takes them.
 module replay {
   import commit(
     HANDLES = Set("h1", "h2", "h3"),
@@ -105,4 +110,71 @@ module replay {
         outsideEditMeta(x),
       }
     }
+
+  // good::sweptIdPurgeRaceTest in the order the code takes it: the
+  // offboarding with nothing to erase lists the store at once, and the
+  // stale writer reads what to put back in its commit's stretch. The state
+  // it ends in is the one the model states: b projected, no store record.
+  run sweptIdPurgeRaceReplayTest =
+    init
+      .then(decide("h1", "b", USER)).then(storeWrite("h1"))
+      .then(obBegin("h2")).then(obErase("h2")).then(obSweepList("h2"))
+      .then(obSweepDecide("h2", "b")).then(obSweepDel("h2")).then(obSweepCommit("h2"))
+      .then(obReport("h2"))
+      .then(commit("h1")).then(settleRead("h1")).then(settleStore("h1")).then(settleConfirm("h1"))
+      .then(outsideEdit("b", USER))
+      .then(adoptList("h3")).then(adoptOne("h3", "b"))
+      .expect(pc.get("h3").tag == "adoptPurge")
+      .then(decide("h2", "b", USER)).then(storeWrite("h2")).then(commit("h2"))
+      .then(adoptPurge("h3")).then(adoptDone("h3"))
+      .expect(all {
+        proj.get("b").live,
+        not(store.get("b").present),
+        HANDLES.forall(h => pc.get(h).tag == "idle"),
+        safety,
+      })
+}
+
+// knownGapThreeOffboardings's instance: three offboardings.
+module replayThreeOffboardings {
+  import commit(
+    HANDLES = Set("h1", "h2", "h3"),
+    ITEMS = Set("a", "b"),
+    MAX_CONTENT = 6,
+    MAX_EDITS = 2,
+    MAX_OFFBOARDS = 3,
+    CHECKED = true
+  ).* from "./commit"
+
+  // knownGapThreeOffboardings::putBackAcrossThirdErasureTest in the order
+  // the code takes it: the first two offboardings, with nothing to erase,
+  // list the store at once; the put-back's last read finds b gone and the
+  // first offboarding reports in the same stretch. It ends where the model
+  // says the code ends: b erased, its erased content in the store, every
+  // handle idle.
+  run putBackAcrossThirdErasureReplayTest =
+    init
+      .then(decide("h3", "b", USER)).then(storeWrite("h3"))
+      .then(obBegin("h1")).then(obErase("h1")).then(obSweepList("h1"))
+      .then(obSweepDecide("h1", "b"))
+      .then(commit("h3")).then(settleRead("h3")).then(settleStore("h3")).then(settleConfirm("h3"))
+      .then(obBegin("h2")).then(obErase("h2")).then(obSweepList("h2")).then(obReport("h2"))
+      .then(decide("h2", "b", USER)).then(storeWrite("h2")).then(commit("h2"))
+      .expect(proj.get("b").live)
+      .then(obSweepDel("h1")).then(obSweepCommit("h1"))
+      .expect(pc.get("h1").tag == "obPutBackRead")
+      .then(obPutBackRead("h1"))
+      .then(obBegin("h2")).then(obDelete("h2", "b")).then(obErase("h2")).then(obSweepList("h2"))
+      .then(obPutBackWrite("h1")).then(obPutBackCheck("h1")).then(obPutBackRead("h1"))
+      .then(obReport("h1"))
+      .then(obReport("h2"))
+      .expect(all {
+        erasedIds.contains("b"),
+        store.get("b").present,
+        erasedContent.contains(store.get("b").content),
+        HANDLES.forall(h => pc.get(h).tag == "idle"),
+        noStaleAppend,
+        noWriteWhileErasing,
+        not(erasureHolds),
+      })
 }
