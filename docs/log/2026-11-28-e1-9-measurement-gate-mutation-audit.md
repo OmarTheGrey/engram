@@ -20,4 +20,4 @@ supersedes: docs/log/2026-11-28-x16-measurement-audit-after-review.md
 
 **Result.** Unchanged verdicts: 32 of 34 mutants killed (kill rate 0.941176), survivors `I1-status-ignored` and `I1H-store-delete-skipped`. Two `killed_by` messages moved: `I9-commitment-ignores-value`'s now lists the new `attestations` check among the checks it prints; `I9-link-ignores-previous`'s quotes other genesis hashes, because a new genesis says version 2. Neither mutated line of chain.ts changed.
 
-**Consequence.** The results register and the results page were regenerated.
+**Consequence.** The results register and the results page were regenerated. Rerun once more after the review fix pass and the merge of main at 3de59028: the same bytes, 6afe298f...
