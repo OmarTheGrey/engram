@@ -1,0 +1,450 @@
+{
+  "bases_sha256": "26ef7ec05e6a7de36c015a791e604222d308289cb26a1d8fb014e217668f0eba",
+  "benchmark": "longmemeval",
+  "by_place": {
+    "log": {
+      "change": {
+        "high": 0.690186,
+        "low": 0.642288,
+        "n": 1485,
+        "rate": 0.666667,
+        "successes": 990
+      },
+      "enforced_equals_clean": {
+        "high": 0.357712,
+        "low": 0.309814,
+        "n": 1485,
+        "rate": 0.333333,
+        "successes": 495
+      },
+      "lint_detection": {
+        "high": 0.357712,
+        "low": 0.309814,
+        "n": 1485,
+        "rate": 0.333333,
+        "successes": 495
+      },
+      "new_findings_on_target": {
+        "duplicate": 2,
+        "missing-provenance": 880
+      },
+      "pairs": 1500,
+      "recovery": {
+        "high": 0.003865,
+        "low": 0.0,
+        "n": 990,
+        "rate": 0.0,
+        "successes": 0
+      },
+      "untargeted": 15,
+      "verify_detection": {
+        "high": 1.0,
+        "low": 0.99742,
+        "n": 1485,
+        "rate": 1.0,
+        "successes": 1485
+      },
+      "verify_first_break": {
+        "commitments": 495,
+        "links": 990
+      },
+      "verify_verdicts": {
+        "FAILED": 1485
+      }
+    },
+    "projection": {
+      "change": {
+        "high": 0.690186,
+        "low": 0.642288,
+        "n": 1485,
+        "rate": 0.666667,
+        "successes": 990
+      },
+      "enforced_equals_clean": {
+        "high": 1.0,
+        "low": 0.99742,
+        "n": 1485,
+        "rate": 1.0,
+        "successes": 1485
+      },
+      "lint_detection": {
+        "high": 0.357712,
+        "low": 0.309814,
+        "n": 1485,
+        "rate": 0.333333,
+        "successes": 495
+      },
+      "new_findings_on_target": {
+        "duplicate": 2,
+        "missing-provenance": 880
+      },
+      "pairs": 1500,
+      "recovery": {
+        "high": 1.0,
+        "low": 0.996135,
+        "n": 990,
+        "rate": 1.0,
+        "successes": 990
+      },
+      "untargeted": 15,
+      "verify_detection": {
+        "high": 0.00258,
+        "low": 0.0,
+        "n": 1485,
+        "rate": 0.0,
+        "successes": 0
+      },
+      "verify_first_break": {},
+      "verify_verdicts": {
+        "UNSIGNED": 1485
+      }
+    }
+  },
+  "cells": {
+    "deletion": {
+      "log": {
+        "change": {
+          "high": 1.0,
+          "low": 0.992299,
+          "n": 495,
+          "rate": 1.0,
+          "successes": 495
+        },
+        "enforced_equals_clean": {
+          "high": 0.007701,
+          "low": 0.0,
+          "n": 495,
+          "rate": 0.0,
+          "successes": 0
+        },
+        "lint_detection": {
+          "high": 0.007701,
+          "low": 0.0,
+          "n": 495,
+          "rate": 0.0,
+          "successes": 0
+        },
+        "new_findings_on_target": {},
+        "pairs": 500,
+        "recovery": {
+          "high": 0.007701,
+          "low": 0.0,
+          "n": 495,
+          "rate": 0.0,
+          "successes": 0
+        },
+        "untargeted": 5,
+        "verify_detection": {
+          "high": 1.0,
+          "low": 0.992299,
+          "n": 495,
+          "rate": 1.0,
+          "successes": 495
+        },
+        "verify_first_break": {
+          "links": 495
+        },
+        "verify_verdicts": {
+          "FAILED": 495
+        }
+      },
+      "projection": {
+        "change": {
+          "high": 1.0,
+          "low": 0.992299,
+          "n": 495,
+          "rate": 1.0,
+          "successes": 495
+        },
+        "enforced_equals_clean": {
+          "high": 1.0,
+          "low": 0.992299,
+          "n": 495,
+          "rate": 1.0,
+          "successes": 495
+        },
+        "lint_detection": {
+          "high": 0.007701,
+          "low": 0.0,
+          "n": 495,
+          "rate": 0.0,
+          "successes": 0
+        },
+        "new_findings_on_target": {},
+        "pairs": 500,
+        "recovery": {
+          "high": 1.0,
+          "low": 0.992299,
+          "n": 495,
+          "rate": 1.0,
+          "successes": 495
+        },
+        "untargeted": 5,
+        "verify_detection": {
+          "high": 0.007701,
+          "low": 0.0,
+          "n": 495,
+          "rate": 0.0,
+          "successes": 0
+        },
+        "verify_first_break": {},
+        "verify_verdicts": {
+          "UNSIGNED": 495
+        }
+      }
+    },
+    "missing-metadata": {
+      "log": {
+        "change": {
+          "high": 0.007701,
+          "low": 0.0,
+          "n": 495,
+          "rate": 0.0,
+          "successes": 0
+        },
+        "enforced_equals_clean": {
+          "high": 1.0,
+          "low": 0.992299,
+          "n": 495,
+          "rate": 1.0,
+          "successes": 495
+        },
+        "lint_detection": {
+          "high": 1.0,
+          "low": 0.992299,
+          "n": 495,
+          "rate": 1.0,
+          "successes": 495
+        },
+        "new_findings_on_target": {
+          "missing-provenance": 495
+        },
+        "pairs": 500,
+        "recovery": {
+          "high": null,
+          "low": null,
+          "n": 0,
+          "rate": null,
+          "successes": 0
+        },
+        "untargeted": 5,
+        "verify_detection": {
+          "high": 1.0,
+          "low": 0.992299,
+          "n": 495,
+          "rate": 1.0,
+          "successes": 495
+        },
+        "verify_first_break": {
+          "commitments": 495
+        },
+        "verify_verdicts": {
+          "FAILED": 495
+        }
+      },
+      "projection": {
+        "change": {
+          "high": 0.007701,
+          "low": 0.0,
+          "n": 495,
+          "rate": 0.0,
+          "successes": 0
+        },
+        "enforced_equals_clean": {
+          "high": 1.0,
+          "low": 0.992299,
+          "n": 495,
+          "rate": 1.0,
+          "successes": 495
+        },
+        "lint_detection": {
+          "high": 1.0,
+          "low": 0.992299,
+          "n": 495,
+          "rate": 1.0,
+          "successes": 495
+        },
+        "new_findings_on_target": {
+          "missing-provenance": 495
+        },
+        "pairs": 500,
+        "recovery": {
+          "high": null,
+          "low": null,
+          "n": 0,
+          "rate": null,
+          "successes": 0
+        },
+        "untargeted": 5,
+        "verify_detection": {
+          "high": 0.007701,
+          "low": 0.0,
+          "n": 495,
+          "rate": 0.0,
+          "successes": 0
+        },
+        "verify_first_break": {},
+        "verify_verdicts": {
+          "UNSIGNED": 495
+        }
+      }
+    },
+    "temporal-supersession": {
+      "log": {
+        "change": {
+          "high": 1.0,
+          "low": 0.992299,
+          "n": 495,
+          "rate": 1.0,
+          "successes": 495
+        },
+        "enforced_equals_clean": {
+          "high": 0.007701,
+          "low": 0.0,
+          "n": 495,
+          "rate": 0.0,
+          "successes": 0
+        },
+        "lint_detection": {
+          "high": 0.007701,
+          "low": 0.0,
+          "n": 495,
+          "rate": 0.0,
+          "successes": 0
+        },
+        "new_findings_on_target": {
+          "duplicate": 2,
+          "missing-provenance": 385
+        },
+        "pairs": 500,
+        "recovery": {
+          "high": 0.007701,
+          "low": 0.0,
+          "n": 495,
+          "rate": 0.0,
+          "successes": 0
+        },
+        "untargeted": 5,
+        "verify_detection": {
+          "high": 1.0,
+          "low": 0.992299,
+          "n": 495,
+          "rate": 1.0,
+          "successes": 495
+        },
+        "verify_first_break": {
+          "links": 495
+        },
+        "verify_verdicts": {
+          "FAILED": 495
+        }
+      },
+      "projection": {
+        "change": {
+          "high": 1.0,
+          "low": 0.992299,
+          "n": 495,
+          "rate": 1.0,
+          "successes": 495
+        },
+        "enforced_equals_clean": {
+          "high": 1.0,
+          "low": 0.992299,
+          "n": 495,
+          "rate": 1.0,
+          "successes": 495
+        },
+        "lint_detection": {
+          "high": 0.007701,
+          "low": 0.0,
+          "n": 495,
+          "rate": 0.0,
+          "successes": 0
+        },
+        "new_findings_on_target": {
+          "duplicate": 2,
+          "missing-provenance": 385
+        },
+        "pairs": 500,
+        "recovery": {
+          "high": 1.0,
+          "low": 0.992299,
+          "n": 495,
+          "rate": 1.0,
+          "successes": 495
+        },
+        "untargeted": 5,
+        "verify_detection": {
+          "high": 0.007701,
+          "low": 0.0,
+          "n": 495,
+          "rate": 0.0,
+          "successes": 0
+        },
+        "verify_first_break": {},
+        "verify_verdicts": {
+          "UNSIGNED": 495
+        }
+      }
+    }
+  },
+  "check": "packages/bench/src/governance-faults/inject.ts",
+  "confidence": 0.95,
+  "control": {
+    "bases": 500,
+    "reads_equal_clean": 500,
+    "verify_failed": 0,
+    "verify_verdicts": {
+      "UNSIGNED": 500
+    }
+  },
+  "data": {
+    "file": "longmemeval_s_cleaned.json",
+    "revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
+    "sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442"
+  },
+  "hypothesis": "H3",
+  "limits": [
+    "A proof of concept supporting H3, not H3's test: proposal U6 is not registered, so this decides nothing and adds nothing to Holm. It measures state recovery after corruption, not H3's utility recovery (C6 minus C5 accuracy).",
+    "A projection fault is recovered by replay by construction: the projection is a fold of the log (packages/core/src/replay.ts), and the clean state is defined by the same log, so its recovery rate is a regression check of the replay property, not evidence for H3.",
+    "Every log-fault column is fixed by the fault's shape. The change rate is 1 for deletion and supersession because their targets are drawn from the read, and 0 for missing metadata because the read does not rank on the provenance ref. Recovery is 0 because the deterministic lints report and never rewrite. Verification detects every edit (next limit). Lint detection is 1 for missing metadata, because the missing-provenance lint checks for a blank ref, and 0 for the other two (the limit after next). The one empirical fact is the combination: the only fault a lint sees is the one that never changes the read. The per-place rates are means over the three operators, each exactly 0 or 1, so they are thirds.",
+    "Verification's threat model: the edit rewrites an event body without recomputing the chain, so it fails verifyChain (the check `engram log verify` runs) by construction of the hash chain. An editor with database access who re-chains the log gets UNSIGNED, the verdict every clean control gets here, so detection holds only against an edit that does not re-chain, or against any edit when a checkpoint is held outside the database.",
+    "Supersession's lint detection is 0 by construction: expired-validity fires on a passed valid_to, and both supersession faults reopen the window. Deletion is detected by a new orphan finding on an item that names the deleted id; no B5 item names another by id (its refs name session and turn positions), so deletion's 0 holds by the shape of B5's state.",
+    "The log faults are detected by the hash chain only because the check's logs keep it (card E1.6); B5's own runs keep none, so on B5's logs an edit is invisible to verification.",
+    "The read is C5's read with the question as its query, model-free; B5's model chooses its own query, so the read here is not the read of any recorded session. Accuracy downstream of a corrupted state is not measured.",
+    "B5's state holds no superseded version; the clean state adds one governed close per base, so the clean read is B5's read with that item replaced by the next-ranked one (on the pinned S split every read is still full at 20). The store is not faulted: the read and the lints read only the projection.",
+    "U6's variants not built: missing metadata is a blanked provenance ref only (every B5 item's validity window is already open at its end, and the schema requires its start), and deletion is removal from the projection or a deny in the log, not U6's other variant, an item retired without a governed event.",
+    "On B5's state an assistant turn names no model, so the missing-provenance lint already flags about half the items; a blank ref is a detection only as a finding the clean state lacks."
+  ],
+  "name": "h3-fault-injection",
+  "operators": [
+    "deletion",
+    "temporal-supersession",
+    "missing-metadata"
+  ],
+  "pairs": {
+    "targeted": 2970,
+    "total": 3000
+  },
+  "places": [
+    "projection",
+    "log"
+  ],
+  "preset": "medium",
+  "proposal": "U6",
+  "read_limit": 20,
+  "registered": false,
+  "seed": 20261128,
+  "state": {
+    "b5_read_items": 9900,
+    "bases_with_an_empty_clean_read": 5,
+    "clean_findings": {
+      "duplicate": 869,
+      "expired-validity": 11617,
+      "missing-provenance": 118340
+    },
+    "clean_read_items": 9900,
+    "turns": 246750
+  },
+  "status": "proof of concept"
+}
