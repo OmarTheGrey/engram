@@ -16,6 +16,6 @@ supersedes: none
 
 **Why.** No existing module changes: core gains a new file and one export line (no name clash, checked by grep and tsc), bench gains a new folder not exported from its index, and the Makefile's fixtures target gains one line for new cassettes.
 
-**Result.** No registered row was rerun, as none is reachable; the new row was regenerated twice (the second run's sha256 is in the measurement's review).
+**Result.** No registered row was rerun, as none is reachable; the new row was regenerated twice, after merging main, with identical bytes (sha256 a83e3187...24f5).
 
 **Consequence.** The orchestrator's full `make test-repro` covers the rest.
