@@ -3120,7 +3120,10 @@ async function twoHandleWalk(
             : (held?.grants ?? []),
           version: (held?.version ?? 0) + 1,
           lineage: [],
-          status: "active",
+          // The pool's fourth person item is written as a candidate, so an
+          // offboarding meets an item of the person scope that is not
+          // active and must erase it too (card X16, I1H-erase-active-only).
+          status: op.pick === 3 ? "candidate" : "active",
           store_ref: null,
           schema_version: 1,
         } as MemoryItem,
@@ -3298,6 +3301,33 @@ async function twoHandleWalk(
   };
   // Every offboarding completed, the stopped ones by their rerun (V-1).
   expect(erasureOpen(base, "person:dana"), "an offboarding's mark left open").toBe(false);
+  // Every offboarding erased the whole person scope (card X16, mutant
+  // I1H-erase-active-only): as the log stood at its report, the scope holds
+  // no item, candidates and retired ones included, but those a store failure
+  // kept back (one deny each, offboarding again erases them).
+  for (const r of log.filter(
+    (e) => e.decision === "allow" && e.policy_id === "engram/offboard/report",
+  )) {
+    const keptBack = new Set(
+      log
+        .filter(
+          (e) =>
+            e.seq < r.seq &&
+            e.decision === "deny" &&
+            e.op === "retire" &&
+            e.scope_from === "person:dana" &&
+            e.policy_id === "engram/write/store-failure",
+        )
+        .map((e) => e.item_id),
+    );
+    const left = itemsAt(base, r.seq).filter(
+      (i) => i.scope === "person:dana" && !keptBack.has(i.id),
+    );
+    expect(
+      left.map((i) => `${i.id} (${i.status})`),
+      `the offboarding reported at seq ${r.seq} left items of person:dana`,
+    ).toEqual([]);
+  }
   /**
    * A committed grant removal survives the plane's own recovery (V-2, V-3):
    * for every grant an owner's grant change removed, if the item carries it
