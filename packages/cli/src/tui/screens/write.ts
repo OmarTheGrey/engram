@@ -20,6 +20,7 @@
 // comes from the key or token, not from Acting as.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { reviewCouldLand } from "@engram/core";
 import type { MemoryEvent } from "@engram/sdk";
 import { parseMemberships } from "@engram/view";
 import { type CommandSpec, command, type Values } from "../../registry.ts";
@@ -428,6 +429,18 @@ export class PromoteScreen extends RichScreen {
     return !(ctx.ws.server() !== undefined && ctx.ws.tokenSet());
   }
 
+  /**
+   * Whether a reviewer could land what did not: core decides (reviewCouldLand),
+   * not for the procedure safety scan's hold (card D5).
+   */
+  private reviewHelps(): boolean {
+    for (const call of [...(this.result as RunResult).calls].reverse()) {
+      const event = (call.body as { event?: MemoryEvent } | undefined)?.event;
+      if (event !== undefined) return reviewCouldLand(event);
+    }
+    return true;
+  }
+
   private landed(): boolean {
     return decisionOf(this.result as RunResult) === "allow";
   }
@@ -446,7 +459,7 @@ export class PromoteScreen extends RichScreen {
           { kind: "field", id: "members" },
           { kind: "button", id: "switch", label: "Switch" },
         );
-      else if (this.offered)
+      else if (this.offered && this.reviewHelps())
         out.push({ kind: "button", id: "handoff", label: "Switch to a reviewer and approve" });
       out.push({ kind: "button", id: "retry", label: "Edit and retry" });
     }
@@ -602,6 +615,14 @@ export class PromoteScreen extends RichScreen {
               "Against a server with credentials the identity comes from the key or token, not from Acting as: the reviewer approves in their own session with their own credential.",
               width,
             ),
+          );
+        else if (!this.reviewHelps())
+          out.push(
+            ...para(
+              "A reviewer's approval alone does not land this answer, so no switch is offered here.",
+              width,
+            ),
+            cut(` ${this.button(ctx, "retry", "Edit and retry")}`, width),
           );
         else if (this.asking) {
           out.push(

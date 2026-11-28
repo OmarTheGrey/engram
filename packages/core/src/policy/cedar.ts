@@ -46,6 +46,11 @@
 //     encoder's, so agreement there holds modulo grants;
 //   - content guards and trust options: exportCedar refuses a policy that
 //     turns any on, rather than export a gate that disagrees with it;
+//   - procedures.safety_scan (card D5): exported as if absent, faithfully,
+//     since it acts only on the promotion gate's admission of a procedural
+//     item (lint/procedural.ts), which the export does not model; the read
+//     and write gates it exports are the same with the scan off, report or
+//     hold, so a policy setting it exports the same text as without it;
 //   - grants.expiry_cap (card E2.21): refused when on. The cap and the
 //     first-write rule it turns on judge each grant of a write, grant by
 //     grant, against the event's time, which the export does not model; the

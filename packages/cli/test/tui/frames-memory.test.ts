@@ -212,6 +212,41 @@ const PROMOTED = ran(
   `promote ${PROMOTE_DENY.id} at ${AT} by person:dana\ndeny: ${PROMOTE_DENY.reason}\npolicy fixture/promote/review\nlog engram.db\n`,
   1,
 );
+// Card D5: a procedural candidate the procedure safety scan holds, as the
+// gate event names it; the reason is the plane's, word for word
+// (lint/procedural.ts, applySafetyScan, for this item and a medium-style
+// replay), written out here so a frame never moves with a log. This is a
+// core answer no surface produces yet: no surface carries a replay (ADR 0046,
+// decision 7), so only an in-process Plane.promote reaches it; cards E8.8 and
+// E2.19 build the surface. The frame offers no "Switch to a reviewer and
+// approve", since a review alone only holds it again (reviewCouldLand).
+const PROMOTE_HELD = event(13, {
+  op: "gate",
+  decision: "ask",
+  scope_from: "person:dana",
+  scope_to: "person:dana",
+  policy_id: "engram/promote/safety-scan",
+  reason:
+    "held, not admitted: the procedure safety scan (procedures.safety_scan: hold) found 1 critical and 0 warning: critical shell-injection (fetch-pipe-shell) in body at 11 to 51; item 01940000-0000-7000-8000-000000000001 stays as it is until its owner, acting as user, or a user-sourced member of the scope who neither owns nor wrote it, presents it again with a reason to release it; the gate otherwise allowed it (preset.medium/promotion/procedural): item 01940000-0000-7000-8000-000000000001 becomes active in person:dana: the validation record 5 of 5 held-out tasks pass with the procedure (a mean reward of at least 2/3 over the seeds, and no lower than without it; 0 of 5 reach 2/3 without it) meets 4 of 5; replay sha256:36d96dacea3e498df56c0352d3488c6b787aa2558b8da0e4655648c3b3058bf6; procedural item from source model passes the person write rule",
+});
+const HELD = ran(
+  [
+    "promote",
+    id(1),
+    "--to",
+    "person:dana",
+    "--owner",
+    "dana",
+    "--db",
+    "engram.db",
+    "--root",
+    "mem",
+  ],
+  "/api/v1/promote",
+  { decision: "ask", event: PROMOTE_HELD, events: [PROMOTE_HELD], item: null },
+  `gate ${PROMOTE_HELD.id} at ${AT} by person:dana\nask: ${PROMOTE_HELD.reason}\npolicy engram/promote/safety-scan\nlog engram.db\n`,
+  1,
+);
 const GRANT = {
   to: "person:sam",
   class: "semantic",
@@ -496,6 +531,11 @@ const SCREENS: Record<string, Build> = {
   promote: (h) =>
     set(new PromoteScreen(spec("promote"), h.app, { to: "team:lantern" }, [id(1)]), {
       result: PROMOTED,
+      focus: 4,
+    }),
+  "promote-held": (h) =>
+    set(new PromoteScreen(spec("promote"), h.app, { to: "person:dana" }, [id(1)]), {
+      result: HELD,
       focus: 4,
     }),
   grants: (h) => {
