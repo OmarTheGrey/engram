@@ -1,0 +1,15 @@
+Red fixture NOTICE for card E0.6 (fixtures/ci/absorbed-red/absorbed.md).
+
+------------------------------------------------------------------------
+good-copy
+
+scripts/check-absorbed.ts copies parts of good-copy
+(https://github.com/example-org/good-copy, commit
+0123456789abcdef0123456789abcdef01234567), under the MIT License.
+
+------------------------------------------------------------------------
+notice-elsewhere
+
+scripts/check-log.ts copies parts of notice-elsewhere
+(https://github.com/example-org/notice-elsewhere), under the BSD-3-Clause
+License. This entry names another file than the row's.
