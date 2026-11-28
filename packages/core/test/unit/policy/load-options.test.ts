@@ -135,13 +135,9 @@ describe("absent, every option parses as today", () => {
 // the refusal points at, and the card that builds it. Every value the
 // option's schema admits is listed, so "off" is refused too: absent is the
 // only value accepted (the card's step 2).
+// Card L9 built lints.model.evidence: its loader test is in
+// test/unit/lint/evidence.test.ts.
 const NOT_BUILT: [option: string, card: string, key: string, texts: string[]][] = [
-  [
-    "lints.model.evidence",
-    "L9",
-    "    evidence:",
-    ["off", "on"].map((v) => withLints(`  model:\n    evidence: "${v}"\n`)),
-  ],
   [
     "procedures.drift",
     "D4",
@@ -268,7 +264,6 @@ describe("readers of an already-parsed policy refuse what the loader refuses", (
   const medium = loadPreset("medium");
   /** One policy per option, each setting it, typed as the schema admits it. */
   const SETTING: [option: string, policy: Policy][] = [
-    ["lints.model.evidence", { ...medium, lints: { ...medium.lints, model: { evidence: "on" } } }],
     ["procedures.drift", { ...medium, procedures: { drift: { environment_change: "on" } } }],
     ["consent", { ...medium, consent: { opt_outs: [] } }],
     ["erasure.mode", { ...medium, erasure: { mode: "redact" } }],

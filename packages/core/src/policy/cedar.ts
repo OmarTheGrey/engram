@@ -51,6 +51,10 @@
 //     item (lint/procedural.ts), which the export does not model; the read
 //     and write gates it exports are the same with the scan off, report or
 //     hold, so a policy setting it exports the same text as without it;
+//   - the lints (`lints`, `lints.model.evidence` of card L9 included): a
+//     lint decides no read or write, so the export is the same with or
+//     without them, and a policy turning quote grounding on is exported as
+//     faithfully as one leaving it out;
 //   - instants finer than a nanosecond: an instant is two Longs, epoch seconds
 //     and nanoseconds, and the encoder refuses a finer one.
 //
