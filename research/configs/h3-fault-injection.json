@@ -1,0 +1,28 @@
+{
+  "name": "h3-fault-injection",
+  "kind": "measurement",
+  "hypothesis": "H3",
+  "status": "proof of concept",
+  "proposal": "U6",
+  "benchmark": "longmemeval",
+  "data": {
+    "path": ".engram/upstream/longmemeval/data/longmemeval_s_cleaned.json",
+    "dataset": "https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned",
+    "revision": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
+    "file": "longmemeval_s_cleaned.json",
+    "sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442"
+  },
+  "fetch": true,
+  "seed": 20261128,
+  "confidence": 0.95,
+  "limits": [
+    "A proof of concept supporting H3, not H3's test: proposal U6 is not registered, so this decides nothing and adds nothing to Holm.",
+    "A projection fault is recovered by replay by construction: the projection is a fold of the log (packages/core/src/replay.ts), so its recovery rate is a regression check of the replay property, not evidence for H3.",
+    "A log fault is not repaired by the deterministic lints, which report and never rewrite: its enforced read is its corrupted read. Its information is in the detection columns, the lints' and verifyChain's (the check `engram log verify` runs).",
+    "The log faults are detected by the hash chain only because the check's logs keep it (card E1.6); B5's own runs keep none, so on B5's logs an edit is invisible to verification.",
+    "The read is C5's read with the question as its query, model-free; B5's model chooses its own query, so the read here is not the read of any recorded session. Accuracy downstream of a corrupted state is not measured.",
+    "B5's state holds no superseded version; the clean state adds one governed close per base, so the clean read is B5's read less that item, and the store is not faulted (the read and the lints read only the projection).",
+    "Missing metadata is a blanked provenance ref only: every B5 item's validity window is already open at its end, and the schema requires its start.",
+    "On B5's state an assistant turn names no model, so the missing-provenance lint already flags about half the items; a blank ref is a detection only as a finding the clean state lacks."
+  ]
+}
