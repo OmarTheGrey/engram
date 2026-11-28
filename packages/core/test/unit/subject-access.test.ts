@@ -86,6 +86,11 @@ describe("subjectRefusal", () => {
     expect(subjectRefusal({ ...omar, id: "agent:pi" }, "agent:pi")).toMatch(/a person principal/);
     expect(subjectRefusal(omar, "team:platform")).toMatch(/a person principal/);
   });
+
+  it("takes the export at the person level only", () => {
+    expect(subjectRefusal({ ...omar, level: "team" }, "person:omar")).toMatch(/person level/);
+    expect(subjectRefusal({ ...omar, level: "org" }, "person:omar")).toMatch(/person level/);
+  });
 });
 
 describe("subjectClosure", () => {
@@ -144,6 +149,57 @@ describe("subjectAccessReport", () => {
         AT,
       );
     expect(JSON.stringify(of(a))).toBe(JSON.stringify(of(b)));
+  });
+
+  it("accounts for own items in scopes not read, grants elsewhere and own events, by the by-id rule", async () => {
+    const w = await workload();
+    const inOps = { ...omar, memberships: [...omar.memberships, "team:ops"] };
+    // omar's own item in team:ops, written while a member: not in the bundle he takes without it.
+    await w.plane.write(user(inOps), item(8, { scope: "team:ops", content: `${CANARY} 8` }), AT);
+    // An episodic write the policy forbids: omar's own denied event on no stored item.
+    await w.plane.write(user(omar), item(9, { scope: "person:omar", class: "episodic" }), AT);
+    // sara's item in team:ops with a grant to omar: admitted to him by the read filter.
+    await w.plane.write(
+      user(sara),
+      item(10, {
+        scope: "team:ops",
+        owner: "person:sara",
+        grants: [
+          { to: "person:omar", class: "semantic", mode: "read", expires: "2027-01-01T00:00:00Z" },
+        ],
+      }),
+      AT,
+    );
+    const rows = bundleRows(w.policy, omar, currentItems(w.db), w.plane.events());
+    const report = subjectAccessOf(w.db, w.policy, omar, rows, AT);
+    expect(report.scopes).toEqual({ read: ["person:omar", "team:platform"], not_read: 0 });
+    expect(report.owned_elsewhere).toEqual({ shown: [], withheld: 1 });
+    expect(report.granted).toEqual({ shown: [id(10)], withheld: 0 });
+    expect(report.own_events_elsewhere).toEqual({
+      total: 2,
+      by_op: { write: { allow: 1, deny: 1 } },
+    });
+    expect(JSON.stringify(report)).not.toContain(id(8));
+    expect(JSON.stringify(report)).not.toContain(`${CANARY} 8`);
+    // An export the subject made before is not one of its own events here.
+    await w.plane.export(omar, AT);
+    expect(subjectAccessOf(w.db, w.policy, omar, rows, AT).own_events_elsewhere.total).toBe(2);
+  });
+
+  it("counts the memberships named at a level the matrix does not let the subject read", async () => {
+    const w = await workload();
+    const { items, view: v } = view(w);
+    const policy = testPolicy({
+      read: { matrix: [{ reader: "person", may_read: ["person", "team"] }], honour_grants: true },
+    });
+    const r = subjectAccessReport(
+      policy,
+      { ...omar, memberships: [...omar.memberships, "role:lead"] },
+      [],
+      items,
+      { ...v, policy },
+    );
+    expect(r.scopes).toEqual({ read: ["person:omar", "team:platform"], not_read: 1 });
   });
 
   it("refuses a subject who is not a person", async () => {
