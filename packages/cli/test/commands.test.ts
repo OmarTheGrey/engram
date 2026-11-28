@@ -22,6 +22,7 @@ commands:
   simulate          replay a recorded workload under the policy and a candidate; compare them
   policy            the policy the workspace decides with, and its label
   export            write the actor's memories as a bundle (docs/bundle.md), optionally encrypted
+  export --subject <person>  a person's own bundle, and a report of what was derived from it
   import <bundle>   bring a bundle, or a pasted Claude memory list, in as candidates
   who-can-read      who can read an item or a scope, each reader with the rule or grant admitting it
   scopes            the scopes the actor can see, by membership or through a grant
@@ -37,6 +38,7 @@ commands:
   log checkpoint    record a checkpoint of the chain's head, signed with --key when given
   audit export      a signed, content-free report of a window of the log: counts, head, checkpoint
   audit verify      check a signed audit report against the log: OK, FAILED or UNSIGNED
+  audit ropa        a record of processing per scope level from the policy: counts and categories only
   tui               the terminal interface; --line or ENGRAM_TUI_LINE=1 for one prompt a line
 
 every command but doctor, serve, mcp, hook, key, log and import is one call to the
@@ -161,6 +163,15 @@ engram export options (the bundle format: docs/bundle.md in the repository):
   the bundle holds every item of the actor's own person scope and the actor's own items
   in the other scopes the read matrix lets it read, of every status, each with its events
 
+export --subject options (card E9.16; on this machine only; never --server):
+  --subject person:<id>       the subject, who is also the actor (--as defaults to it); the
+                              export goes to nobody else
+  --out <file>                the bundle, as engram export writes it; required
+  with export's other options; stdout gets the report: the bundle's counts, the decisions
+  on it, and the items derived from it in other scopes, named where the subject may ask
+  for them by id, counted otherwise. Evidence for GDPR Articles 15 and 20, not a
+  certification
+
 engram import options:
   <bundle>                    a bundle engram export wrote, plain or age encrypted
   --claude <file>             instead, a memory list Claude showed you, pasted as text;
@@ -259,6 +270,16 @@ audit verify options (card E9.15; on this machine only; never --server):
   are recomputed from the log to the report's head, so a tampered report fails at its
   signature and an edited log at the chain, the head or the counts
   exit 0 OK, 1 FAILED (the failed check is named), 3 UNSIGNED (no --key)
+
+audit ropa options (card E9.16; on this machine only; never --server):
+  --policy <preset|path>      the policy the record is read from
+  --db <path|url>             a log to count each level's items in, by class and status;
+                              read only, it must exist (default none: the policy only)
+  GDPR Article 30(1)'s fields as far as a policy states them, per scope level: the data
+  subjects and classes, the reader levels and grants, the ttls and budgets, the erasure
+  mode and the measures turned on; the controller, the purposes and transfers are listed
+  as not held. Never content, an id, a scope, an actor or a reason. Evidence for the
+  controller's record, not the record and not a certification
 
 hook codex options (card E8.17): as hook claude-code's, read the way Codex sends them:
   Bash checked as POSIX and PowerShell, apply_patch by its file headers; --root and a

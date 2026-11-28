@@ -1469,7 +1469,7 @@ export const REGISTRY: readonly CommandSpec[] = [
     name: "export --subject",
     title: "Subject access export",
     usage: "export --subject <person>",
-    summary: "a person's own bundle to --out, and a report of it and of the items derived from it",
+    summary: "a person's own bundle, and a report of what was derived from it",
     listed: true,
     // Home at 120x40 is full; the palette reaches it.
     home: false,
