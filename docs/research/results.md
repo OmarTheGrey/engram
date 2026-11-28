@@ -16,9 +16,9 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | cost estimate | 4 | dollars and calls estimated from token counts and prices; no model called |
 | power computation | 2 | a simulation of the registered test that sets or checks a sample size |
 | engineering check | 4 | a check of a component's behaviour or speed that decides no hypothesis |
-| proof of concept | 4 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
+| proof of concept | 5 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
 
-28 results in all, one per MANIFEST row.
+29 results in all, one per MANIFEST row.
 
 ## What each hypothesis still needs
 
@@ -534,3 +534,23 @@ Recorded by [`docs/log/2026-11-28-x16-measurement-audit-after-review.md`](../log
 | every check as the config expects | true | `summary.all_as_expected` |
 
 Recorded by [`docs/log/2026-11-28-e2-18-measurement-cedar-properties.md`](../log/2026-11-28-e2-18-measurement-cedar-properties.md).
+
+### `research/results/h1-drift-fixture.json`
+
+- **Question.** When one held-out task of an admitted procedure changes under it, does a re-validation replayed from cassettes detect the drift and retire the procedure by a governed event, and does a re-validation on the environment put back restore the retired version?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. Card D4 on fixtures and a scripted model: card D3's admitted procedure under medium with `procedures.drift` on, which no registered preset or config sets. H5 registers admission, not retirement, so this is an engineering check, not an H5 result. The file is under `h1-` for the results glob only.
+- **Made by.** `research/scripts/drift_fixture.py` from `research/configs/drift-fixture.json`, MANIFEST commit `e22c4ad`, sha256 `579fa43dffc7ca6123e2b9812a6f22886c1581a70dfd59e561f20ee62e6abb71`.
+
+| value | reads | key path |
+|---|---|---|
+| re-validations | 2 | `counts.revalidations` |
+| retired | 1 | `counts.retired` |
+| restored | 1 | `counts.restored` |
+| the held-out task changed | `synthetic/remove-dead-code-15` | `changed_tasks[0]` |
+| success rate after the change | 0.533333 | `revalidations[0].rate` |
+| success floor (medium) | 0.7 | `floor` |
+| model calls from cassettes | 508 | `calls.cached` |
+| new model calls | 0 | `calls.new` |
+
+Recorded by [`docs/log/2026-11-28-d4-measurement-drift-fixture.md`](../log/2026-11-28-d4-measurement-drift-fixture.md).
