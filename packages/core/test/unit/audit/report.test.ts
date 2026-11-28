@@ -4,7 +4,9 @@
 // DSSE's own test vector, deterministic bytes for a given log, clock and key,
 // no content or name in the bytes (AGENTS.md rule 12), a viewer's report
 // counting only what the viewer may see (RD1), and the refusals.
-import { createPublicKey, verify as cryptoVerify } from "node:crypto";
+import { createHash, createPublicKey, verify as cryptoVerify } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { createFakeAdapter } from "@engram/adapters";
 import { describe, expect, test } from "vitest";
 import type { Actor } from "../../../src/actor.ts";
@@ -477,5 +479,178 @@ describe("DSSE (dsse-lf/dsse at 75a79b6ed61c, protocol.md's test vector)", () =>
     expect(
       parseEnvelope({ payload: "aGVsbG8gd29ybGR=", payloadType: "t", signatures: [sig] }),
     ).toBeTypeOf("string");
+  });
+});
+
+// The proof of concept (research/scripts/audit_report.py into
+// research/results/h1-audit-report.json): every case above at once on the
+// fixture log, each with the verdict and the check it fails at, written to
+// ENGRAM_AUDIT_OUT/records.json when that folder is named.
+type Exported = Awaited<ReturnType<typeof exported>>;
+interface Case {
+  name: string;
+  expect: { verdict: string; failed: string | null };
+  /** Changes the report or the log after the export; the envelope to verify and the options. */
+  make: (
+    db: Db,
+    e: Exported,
+  ) => Promise<{ envelope: unknown; options: Parameters<typeof verifyAuditReport>[2] }>;
+}
+
+const edit = (db: Db) => {
+  setBodyAt(db, 3, { ...bodyAt(db, 3), decision: "allow" });
+  db.prepare("UPDATE events SET decision = 'allow' WHERE seq = 3").run();
+};
+const resigned = (s: AuditStatement, change: (s: AuditStatement) => void, by = signer) => {
+  const copy = structuredClone(s);
+  change(copy);
+  return reparse(envelopeText(signAuditStatement(copy, by)));
+};
+const asIs = (e: Exported) => ({
+  envelope: reparse(e.text),
+  options: { policy: e.policy, ...pinned },
+});
+
+const CASES: Case[] = [
+  {
+    name: "the fixture log, as exported",
+    expect: { verdict: "OK", failed: null },
+    make: async (_db, e) => asIs(e),
+  },
+  {
+    name: "a later write after the export",
+    expect: { verdict: "OK", failed: null },
+    make: async (_db, e) => {
+      await e.plane.write(
+        dana,
+        item(7, { scope: "person:dana", owner: "person:dana" }),
+        "2026-11-01T15:00:00Z",
+      );
+      return asIs(e);
+    },
+  },
+  {
+    name: "a count in the statement changed, not re-signed",
+    expect: { verdict: "FAILED", failed: "signature" },
+    make: async (_db, e) => {
+      const s = JSON.parse(payloadBytes(e.envelope).toString("utf8")) as AuditStatement;
+      s.predicate.by_decision.allow = (s.predicate.by_decision.allow ?? 0) + 1;
+      return {
+        envelope: { ...e.envelope, payload: statementBytes(s).toString("base64") },
+        options: { policy: e.policy, ...pinned },
+      };
+    },
+  },
+  {
+    name: "the statement re-signed under another key",
+    expect: { verdict: "FAILED", failed: "signature" },
+    make: async (_db, e) => ({
+      envelope: resigned(e.statement, () => {}, fixedSigner("someone else")),
+      options: { policy: e.policy, ...pinned },
+    }),
+  },
+  {
+    name: "a false count signed with the operator's key",
+    expect: { verdict: "FAILED", failed: "counts" },
+    make: async (_db, e) => ({
+      envelope: resigned(e.statement, (s) => {
+        s.predicate.by_decision.deny = 0;
+      }),
+      options: { policy: e.policy, ...pinned },
+    }),
+  },
+  {
+    name: "a head beyond the chain, signed with the operator's key",
+    expect: { verdict: "FAILED", failed: "head" },
+    make: async (_db, e) => ({
+      envelope: resigned(e.statement, (s) => {
+        s.predicate.log.head.size += 5;
+      }),
+      options: { policy: e.policy, ...pinned },
+    }),
+  },
+  {
+    name: "an event edited in the log",
+    expect: { verdict: "FAILED", failed: "chain" },
+    make: async (db, e) => {
+      edit(db);
+      return asIs(e);
+    },
+  },
+  {
+    name: "an event edited and the chain rehashed",
+    expect: { verdict: "FAILED", failed: "chain" },
+    make: async (db, e) => {
+      edit(db);
+      rehash(db, 1);
+      return asIs(e);
+    },
+  },
+  {
+    name: "an event edited, the chain rehashed and the checkpoints deleted",
+    expect: { verdict: "FAILED", failed: "head" },
+    make: async (db, e) => {
+      edit(db);
+      rehash(db, 1);
+      db.prepare("DELETE FROM chain_checkpoints").run();
+      return asIs(e);
+    },
+  },
+  {
+    name: "another policy given to verify",
+    expect: { verdict: "FAILED", failed: "counts" },
+    make: async (_db, e) => ({
+      envelope: reparse(e.text),
+      options: { policy: { ...e.policy, id: "another" }, ...pinned },
+    }),
+  },
+  {
+    name: "no public key pinned",
+    expect: { verdict: "UNSIGNED", failed: null },
+    make: async (_db, e) => ({
+      envelope: reparse(e.text),
+      options: { policy: e.policy, verify: ed25519Check },
+    }),
+  },
+];
+
+describe("the proof of concept", () => {
+  test("every case gives its verdict and fails at its check, recorded when ENGRAM_AUDIT_OUT is set", async () => {
+    const rows: Record<string, unknown>[] = [];
+    let first: Exported | undefined;
+    for (const c of CASES) {
+      const db = fresh();
+      const e = await exported(db);
+      first ??= e;
+      const { envelope, options } = await c.make(db, e);
+      const v = verifyAuditReport(db, envelope, options);
+      const failed = v.checks.find((k) => !k.ok)?.name ?? null;
+      expect({ verdict: v.verdict, failed }, c.name).toEqual(c.expect);
+      rows.push({
+        case: c.name,
+        expected: c.expect,
+        verdict: v.verdict,
+        failed_at: failed,
+        checks_passed: v.checks.filter((k) => k.ok).length,
+      });
+    }
+    const out = process.env.ENGRAM_AUDIT_OUT;
+    if (out === undefined || out === "" || first === undefined) return;
+    mkdirSync(out, { recursive: true });
+    const p = first.statement.predicate;
+    const record = {
+      envelope_sha256: createHash("sha256").update(first.text).digest("hex"),
+      envelope_bytes: Buffer.byteLength(first.text, "utf8"),
+      statement: {
+        events_counted: p.events.counted,
+        by_decision: p.by_decision,
+        by_rule: p.by_rule,
+        head_size: p.log.head.size,
+        head_signed: p.log.head_signed,
+        oracle: p.oracle,
+      },
+      cases: rows,
+    };
+    writeFileSync(join(out, "records.json"), `${JSON.stringify(record, null, 2)}\n`);
   });
 });
