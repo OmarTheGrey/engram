@@ -158,6 +158,7 @@
   },
   "hypothesis": "none",
   "name": "l9-grounding",
+  "note": "Scripted model with four planted quotes: the planted quotes produce every change between the two runs, so the precision and recall moves show the check's mechanism, not a real model's behaviour. The check catches invented, paraphrased and short quotes, and a contradiction quoting only what its two items share; it cannot catch a wrong judgment about text that is really there.",
   "plain": {
     "contradiction": {
       "per_seed": {

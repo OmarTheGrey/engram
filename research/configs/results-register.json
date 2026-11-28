@@ -1248,7 +1248,7 @@
       "meter": {
         "part": ["totals", "grounded_findings"],
         "whole": ["totals", "plain_findings"],
-        "label": "card L3's findings kept with their quotes found (scripted, planted quotes)"
+        "label": "findings of card L3's run kept with their quotes found (scripted, planted quotes)"
       },
       "question": "With `lints.model.evidence` on, does the quote check keep a model flag whose quotes are in its items and downgrade one whose quote is invented, paraphrased or too short, on card L3's model fault fixtures, while the option absent leaves card L3's run as it was?",
       "note": "Card L9. A scripted model gives card L3's verdicts with four planted quotes, so the counts show the check working, not how often a real model quotes. Whether quote grounding enters H3's model tier is question 2 of `docs/tasks/absorb-plan-2.md`, the lead's, by an amendment before H3's live run. Filed under `h3-` for the results glob only.",

@@ -28,6 +28,7 @@ import {
   modelLintUnits,
   parseLintReply,
   runModelLints,
+  SHARED_QUOTE_REASON,
 } from "../../../src/lint/model.ts";
 import { MODEL_LINT_IDS } from "../../../src/lint.ts";
 import { createPlane } from "../../../src/plane.ts";
@@ -140,6 +141,16 @@ describe("checkQuote", () => {
       expect(checkQuote(q, NOTE)).toEqual({ found: false, quote: null, reason: "no quote given" });
     expect(checkQuote("   ", NOTE)).toEqual({ found: false, quote: "", reason: "no quote given" });
   });
+  test("typographic quotes and dashes fold to ASCII on both sides (a divergence)", () => {
+    const text = "Dana\u2019s laptop runs Windows \u2014 the \u201cwork\u201d one, re\u2011imaged.";
+    expect(checkQuote('Dana\'s laptop runs Windows - the "work" one', text).found).toBe(true);
+    expect(checkQuote("Dana\u2018s laptop runs Windows", "Dana's laptop runs Windows").found).toBe(
+      true,
+    );
+    expect(checkQuote('the "work" one, re-imaged', text).found).toBe(true);
+    // Case is not folded.
+    expect(checkQuote("dana's laptop runs windows", text).found).toBe(false);
+  });
   test("folding is NFC, every whitespace run one space, trimmed", () => {
     expect(foldQuoteText("  a \t b\r\n\nc ".normalize("NFD"))).toBe("a b c");
     expect(foldQuoteText("é")).toBe("é");
@@ -220,8 +231,8 @@ describe("the option on", () => {
   test("a contradiction's quotes come from A and B, a claim's from the claim alone", () => {
     const [pair, claim] = modelLintUnits(ctx(ITEMS, on), SCOPE, MODEL_LINT_IDS, SETUP);
     expect(pair?.grounding).toEqual([
-      { field: "quote_a", item_id: id(1), text: friday.content },
-      { field: "quote_b", item_id: id(2), text: monday.content },
+      { field: "quote_a", item_id: id(1), text: friday.content, other: monday.content },
+      { field: "quote_b", item_id: id(2), text: monday.content, other: friday.content },
     ]);
     expect(claim?.grounding).toEqual([{ field: "quote", item_id: id(4), text: failover.content }]);
   });
@@ -333,6 +344,65 @@ describe("the option on", () => {
       `quote of ${id(6)}: "Dana's laptop runs Windows"`,
     ]);
     expect(JSON.stringify(own.findings)).not.toContain("Linux");
+  });
+
+  test("a contradiction quoting only what both items share is ungrounded (review L9-1)", async () => {
+    const units = modelLintUnits(ctx([friday, monday], on), SCOPE, ["contradiction"], SETUP);
+    const quoting = (quote_a: string, quote_b: string) =>
+      scriptedLintModel(() => grounded("contradiction", { quote_a, quote_b })).call;
+    // The review's probe: the same shared span for both sides.
+    const same = await runModelLints(
+      units,
+      quoting("The release freeze starts on", "The release freeze starts on"),
+    );
+    expect(same.findings).toEqual([]);
+    expect(same.judgments[0]?.outcome).toBe("ungrounded");
+    expect(same.judgments[0]?.grounding?.map((g) => [g.found, g.reason])).toEqual([
+      [false, SHARED_QUOTE_REASON],
+      [false, SHARED_QUOTE_REASON],
+    ]);
+    // Two different shared spans are no better.
+    const prefix = await runModelLints(
+      units,
+      quoting("release freeze starts", "The release freeze"),
+    );
+    expect(prefix.judgments[0]?.outcome).toBe("ungrounded");
+    // One side the other item lacks grounds the pair.
+    const real = await runModelLints(
+      units,
+      quoting("The release freeze starts on", "freeze starts on Monday"),
+    );
+    expect(real.judgments[0]?.outcome).toBe("flag");
+    expect(real.findings).toHaveLength(1);
+  });
+
+  test('"port 80" against "port 8080" stays a finding, though A\'s quote is in B', async () => {
+    const a = item(8, { content: "The billing service runs on port 80." });
+    const b = item(9, { content: "The billing service runs on port 8080." });
+    const units = modelLintUnits(ctx([a, b], on), SCOPE, ["contradiction"], SETUP);
+    const out = await runModelLints(
+      units,
+      scriptedLintModel(() =>
+        grounded("contradiction", { quote_a: "runs on port 80", quote_b: "runs on port 8080" }),
+      ).call,
+    );
+    expect(out.judgments[0]?.outcome).toBe("flag");
+    expect(out.findings[0]?.evidence.slice(-2)).toEqual([
+      `quote of ${id(8)}: "runs on port 80"`,
+      `quote of ${id(9)}: "runs on port 8080"`,
+    ]);
+  });
+
+  test("a claim's quote is never checked against its source", async () => {
+    const source = item(10, {
+      class: "episodic",
+      content: "The rota changes every Monday at 09:00.",
+    });
+    const claim = derived(11, source, "The rota changes every Monday at 09:00.", {
+      class: "episodic",
+    });
+    const units = modelLintUnits(ctx([source, claim], on), SCOPE, ["unsupported-claim"], SETUP);
+    expect(units[0]?.grounding?.[0]).not.toHaveProperty("other");
   });
 
   test("a pass, a refusal and a malformed reply read as before, with no grounding", async () => {

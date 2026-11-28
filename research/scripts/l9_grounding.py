@@ -183,6 +183,13 @@ def build(config: Mapping[str, Any]) -> dict[str, Any]:
         "hypothesis": "none",
         "status": "proof of concept",
         "registered": False,
+        "note": (
+            "Scripted model with four planted quotes: the planted quotes produce every "
+            "change between the two runs, so the precision and recall moves show the "
+            "check's mechanism, not a real model's behaviour. The check catches invented, "
+            "paraphrased and short quotes, and a contradiction quoting only what its two "
+            "items share; it cannot catch a wrong judgment about text that is really there."
+        ),
         "configs": {"plain": config["plain_config"], "grounded": config["grounded_config"]},
         "seeds": seeds,
         "calls": {"plain": plain_calls, "grounded": grounded_calls},

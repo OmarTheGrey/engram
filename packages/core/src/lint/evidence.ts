@@ -9,21 +9,34 @@
 // whitespace fold; and one quote that fails fails the flag. Its tests that
 // apply here are ported in packages/core/test/unit/lint/evidence.test.ts.
 //
-// Two divergences. The source checks a quote against one line of a note
+// Three divergences. The source checks a quote against one line of a note
 // file named by a path; an item has no lines and no path, so a quote is
 // checked against the item's whole text (structured content as canonical
 // JSON, as the lint sends it), and every whitespace run, line breaks
 // included, folds to one space, where the source folds spaces and tabs and
-// refuses a quote spanning two lines. Pure: no I/O, no clock.
+// refuses a quote spanning two lines. And typographic quotes and dashes
+// fold to their ASCII forms (TYPOGRAPHIC below), on both sides, so a model
+// that writes ' for a curly apostrophe or - for a non-breaking hyphen is not
+// ungrounded for it (review L9-2); the source matches them as written.
+// Letter case is not folded. Pure: no I/O, no clock.
 import { canonicalJson } from "../model.ts";
 import type { MemoryItem } from "../schema.ts";
 
 /** The shortest quote that grounds a flag, in characters after folding. */
 export const MIN_QUOTE = 12;
 
-/** `text` as quotes are matched: NFC, every whitespace run one space, trimmed. */
+/** Typographic characters folded to ASCII before matching: single quotes and primes, double quotes, hyphens and dashes, minus. */
+export const TYPOGRAPHIC: readonly [RegExp, string][] = [
+  [/[\u2018\u2019\u201a\u201b\u2032]/gu, "'"],
+  [/[\u201c\u201d\u201e\u201f\u2033]/gu, '"'],
+  [/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/gu, "-"],
+];
+
+/** `text` as quotes are matched: NFC, typographic quotes and dashes as ASCII, every whitespace run one space, trimmed. */
 export function foldQuoteText(text: string): string {
-  return text.normalize("NFC").replace(/\s+/gu, " ").trim();
+  let out = text.normalize("NFC");
+  for (const [from, to] of TYPOGRAPHIC) out = out.replace(from, to);
+  return out.replace(/\s+/gu, " ").trim();
 }
 
 /** An item's text as a quote is checked against it: a string as it is, structured content as canonical JSON. */

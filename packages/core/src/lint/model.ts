@@ -225,11 +225,22 @@ export interface QuoteSource {
   field: string;
   item_id: string;
   text: string;
+  /**
+   * The text of the pair's other item, for a contradiction's quote: a flag
+   * whose every quote is also a span of the other item quotes what the two
+   * share, which shows no conflict (review L9-1).
+   */
+  other?: string;
 }
+
+/** The reason a contradiction's quotes fail when every one is also in the other item. */
+export const SHARED_QUOTE_REASON =
+  "the quote is also in the other item, so the quotes show no difference between them";
 
 /**
  * `ungrounded` (card L9, only with `lints.model.evidence` on): a flag verdict
- * with a quote that is missing, too short or not in its item; not a finding.
+ * with a quote that is missing, too short or not in its item, or a
+ * contradiction whose every quote is also in the other item; not a finding.
  */
 export type LintOutcome = "flag" | "pass" | "refused" | "malformed" | "ungrounded";
 
@@ -379,8 +390,18 @@ export function contradictionUnits(
     ...(grounded
       ? {
           grounding: [
-            { field: "quote_a", item_id: a.id, text: quotableText(a.content) },
-            { field: "quote_b", item_id: b.id, text: quotableText(b.content) },
+            {
+              field: "quote_a",
+              item_id: a.id,
+              text: quotableText(a.content),
+              other: quotableText(b.content),
+            },
+            {
+              field: "quote_b",
+              item_id: b.id,
+              text: quotableText(b.content),
+              other: quotableText(a.content),
+            },
           ],
         }
       : {}),
@@ -499,17 +520,35 @@ export function parseLintReply(lint: ModelLintId, text: string, grounded = false
   };
 }
 
-/** Each quote of a grounded flag checked against the item it must come from (card L9). */
+/**
+ * Each quote of a grounded flag checked against the item it must come from
+ * (card L9). When every quote is found and every source names an other item
+ * (a contradiction's pair), and every quote is also a span of that other
+ * item, the quotes show only what the two share: each is marked not found
+ * with SHARED_QUOTE_REASON, so the flag is ungrounded (review L9-1). One
+ * quote the other item lacks ("port 8080" against "port 80") keeps the flag.
+ */
 export function groundFlag(
   sources: readonly QuoteSource[],
   quotes: Record<string, unknown> | undefined,
 ): QuoteJudgment[] {
-  return sources.map(({ field, item_id, text }) => {
+  const checked = sources.map(({ field, item_id, text }) => {
     const check = checkQuote(quotes?.[field], text);
     return check.found
       ? { field, item_id, quote: check.quote, found: true }
       : { field, item_id, quote: check.quote, found: false, reason: check.reason };
   });
+  const shared =
+    sources.length > 0 &&
+    sources.every(
+      (s, i) =>
+        s.other !== undefined &&
+        checked[i]?.found === true &&
+        checkQuote(checked[i]?.quote, s.other).found,
+    );
+  return shared
+    ? checked.map((c) => ({ ...c, found: false, reason: SHARED_QUOTE_REASON }))
+    : checked;
 }
 
 /** A grounded finding's quote lines: each quote, clipped, with the item it is a span of. */
