@@ -242,12 +242,12 @@ describe("the write gate", () => {
     const held = mine(8, { content: "my health is fine" });
     expect(judge({ ...held, status: "retired", version: 2 }, held).decision).toBe("allow");
     expect(judge({ ...held, confidence: 0.95, version: 2 }, held).decision).toBe("allow");
-    expect(judge({ ...held, content: "My  HEALTH is fine", version: 2 }, held).decision).toBe(
-      "allow",
-    );
-    expect(judge({ ...held, content: "my health is bad", version: 2 }, held).policy_id).toBe(
-      CONSENT_ID,
-    );
+    expect(
+      judge({ ...held, content: "My  HEALTH is fine", version: 2 } as MemoryItem, held).decision,
+    ).toBe("allow");
+    expect(
+      judge({ ...held, content: "my health is bad", version: 2 } as MemoryItem, held).policy_id,
+    ).toBe(CONSENT_ID);
     const team = item(9, { content: "health check" });
     expect(judge({ ...team, scope: "person:omar", version: 2 }, team).policy_id).toBe(CONSENT_ID);
   });
