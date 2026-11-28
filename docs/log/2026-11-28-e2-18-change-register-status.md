@@ -7,17 +7,15 @@ chapter: implementation
 pillar: research
 hypothesis: none
 evidence:
-  - research/scripts/results_register.py
-  - research/tests/test_results_register.py
   - research/configs/results-register.json
   - docs/research/results.md
 supersedes: none
 ---
 
-**What.** The results register gains the status `proof of concept`, and the Cedar properties result its section.
+**What.** The Cedar properties result gets its section in the results register, under the status `proof of concept`.
 
-**Why.** The lead's request of 2026-11-28 names the status; card E8.16, which might add it, has not merged, so this card adds it with a test.
+**Why.** The lead's request of 2026-11-28 asks for that status. Card E1.8 merged first and added it to the register's statuses (`docs/log/2026-11-28-e1-8-decision-proof-of-concept-status.md`), so this card keeps main's definition and test and drops its own, which said the same, at the merge.
 
-**Result.** `proof of concept` is one of the register's non-hypothesis statuses, never in HYPOTHESIS_RESULTS; a new test builds a register with it and finds the status line, its count and the unchanged top paragraph.
+**Result.** `make results-register` writes the section; `make results-register CHECK=1` passes.
 
-**Consequence.** Card E8.16, if it adds the same status, keeps one of the two definitions at merge.
+**Consequence.** Nothing further.
