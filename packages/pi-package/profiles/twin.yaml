@@ -135,5 +135,5 @@ lints:
 # E2.21). On in this profile and the knowledge one only, by the lead's answer of
 # 2026-11-25; never in a registered preset, so H1 to H4 run without it.
 grants:
-  expiry_cap: on
+  expiry_cap: "on"
 schema_version: 1
