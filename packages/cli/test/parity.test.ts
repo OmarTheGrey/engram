@@ -684,7 +684,8 @@ describe("E8.16: no command leaks a canary, through the CLI or the TUI", () => {
           (c) => c.label,
         );
         expect(shown, name).toEqual(expect.arrayContaining(["lee-team"]));
-        for (const l of shown) found.add(l);
+        // Recorded by nonce only: a by-id command echoes the ids it was asked.
+        for (const l of noncesIn(text)) found.add(l);
       }
       expect(noncesIn((outs.get("read") ?? []).join("\n"))).toEqual(
         expect.arrayContaining(["dana-team", "fred-team", "lee-team"]),
