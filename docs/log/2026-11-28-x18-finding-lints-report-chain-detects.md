@@ -18,4 +18,4 @@ supersedes: none
 
 **Result.** `research/results/h3-fault-injection.json`: 0 of 990 log faults recovered after the lints; verification failed on every edited log and on no control.
 
-**Consequence.** A state-recovery claim of this kind would rest on replay and a checkpointed chain, not on the lints; it says nothing of H3's utility recovery. Whether runner logs should keep the chain is the lead's question.
+**Consequence.** A state-recovery claim of this kind would rest on replay and a checkpointed chain, not on the lints; it says nothing of H3's utility recovery. Runner logs keeping the chain is the lead's call.
