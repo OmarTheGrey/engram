@@ -206,7 +206,10 @@ function normalised(text: string, asked: readonly string[]) {
   const seen = new Map<string, string>();
   out = out.replace(
     /[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/g,
-    (u) => seen.get(u) ?? (seen.set(u, `<id${seen.size}>`), `<id${seen.size - 1}>`),
+    (u) => {
+      if (!seen.has(u)) seen.set(u, `<id${seen.size}>`);
+      return seen.get(u) as string;
+    },
   );
   return out.replace(/"seq":\d+/g, '"seq":<n>');
 }
@@ -309,7 +312,7 @@ describe("E8.16: no route of the HTTP API leaks a canary", () => {
   });
 
   it("a denied id and a never-held id answer alike, but for the pinned characterisations", async () => {
-    const { seeded, call } = await served();
+    const { seeded } = await served();
     const differs: Record<string, string> = {};
     const actor = PROBE_ACTORS[0]?.actor as Ctx["actor"];
     const hidden = CANARIES[0]?.id as string;
