@@ -1,0 +1,30 @@
+{
+  "key": "d2f17977e9afd1da604265284e1b48608fe43c73a8551ebc9ccca0fab08eda2c",
+  "context": {
+    "item": "x19/person:p04",
+    "condition": "summary",
+    "preset": "twin",
+    "store": "none"
+  },
+  "request": {
+    "model": "scripted/x19-summary",
+    "system": "You summarise a person's notes in one sentence for their own memory.",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Notes of person:p04:\n- person:p04 wrote down canary-wistful-walrus-1782 as a note.\n- person:p04 wrote down canary-eager-gecko-6869 as a note.\n- person:p04 wrote down canary-olive-badger-2523 as a note.\n- person:p04 wrote down canary-tidal-marten-2370 as a note.\n- person:p04 wrote down canary-fable-walrus-3342 as a note.\n- person:p04 wrote down canary-nimble-quail-0335 as a note.\n- person:p04 wrote down canary-fable-urchin-2808 as a note.\n- person:p04 wrote down canary-humble-stoat-9925 as a note.\n- person:p04 wrote down canary-velvet-puffin-7633 as a note.\n- person:p04 wrote down canary-velvet-walrus-3185 as a note."
+      }
+    ],
+    "seed": 20261128,
+    "temperature": 0,
+    "maxTokens": 256
+  },
+  "response": {
+    "text": "person:p04 keeps canary-wistful-walrus-1782 and canary-eager-gecko-6869 among their notes.",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "key": "b8da453ebe591ec500eeb63c2d923b82de7cc08f3a9dcffa26e43e1ff95a0468",
+  "context": {
+    "item": "x19/person:p12",
+    "condition": "summary",
+    "preset": "twin",
+    "store": "none"
+  },
+  "request": {
+    "model": "scripted/x19-summary",
+    "system": "You summarise a person's notes in one sentence for their own memory.",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Notes of person:p12:\n- person:p12 wrote down canary-coral-urchin-6596 as a note.\n- person:p12 wrote down canary-placid-puffin-4875 as a note.\n- person:p12 wrote down canary-olive-crane-1830 as a note.\n- person:p12 wrote down canary-hazel-urchin-2652 as a note.\n- person:p12 wrote down canary-olive-vole-5140 as a note.\n- person:p12 wrote down canary-wistful-newt-8806 as a note.\n- person:p12 wrote down canary-gilded-koala-2778 as a note.\n- person:p12 wrote down canary-velvet-marten-1374 as a note.\n- person:p12 wrote down canary-humble-koala-9188 as a note.\n- person:p12 wrote down canary-brisk-wren-7976 as a note."
+      }
+    ],
+    "seed": 20261128,
+    "temperature": 0,
+    "maxTokens": 256
+  },
+  "response": {
+    "text": "person:p12 keeps canary-coral-urchin-6596 and canary-placid-puffin-4875 among their notes.",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}

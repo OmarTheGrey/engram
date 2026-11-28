@@ -1,0 +1,30 @@
+{
+  "key": "d4836d68d92b5bda0ea7d33a2f0a8a99a102e7f76f7ee710a8599c1e2a632798",
+  "context": {
+    "item": "x19/person:p03",
+    "condition": "summary",
+    "preset": "twin",
+    "store": "none"
+  },
+  "request": {
+    "model": "scripted/x19-summary",
+    "system": "You summarise a person's notes in one sentence for their own memory.",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Notes of person:p03:\n- person:p03 wrote down canary-tidal-vole-7612 as a note.\n- person:p03 wrote down canary-civic-egret-4951 as a note.\n- person:p03 wrote down canary-dusky-gecko-5384 as a note.\n- person:p03 wrote down canary-coral-crane-8307 as a note.\n- person:p03 wrote down canary-lunar-urchin-3491 as a note.\n- person:p03 wrote down canary-hazel-otter-0162 as a note.\n- person:p03 wrote down canary-velvet-hare-7476 as a note.\n- person:p03 wrote down canary-velvet-marten-2917 as a note.\n- person:p03 wrote down canary-jovial-gannet-4609 as a note.\n- person:p03 wrote down canary-silken-dingo-5538 as a note."
+      }
+    ],
+    "seed": 20261128,
+    "temperature": 0,
+    "maxTokens": 256
+  },
+  "response": {
+    "text": "person:p03 keeps canary-tidal-vole-7612 and canary-civic-egret-4951 among their notes.",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}

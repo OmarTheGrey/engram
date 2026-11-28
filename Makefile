@@ -187,6 +187,7 @@ fixtures: ## regenerate golden files and scripted cassettes; refuses without MSG
 	node packages/bench/scripts/fault-set.ts --data fixtures/bench/longmemeval/questions.jsonl --config research/configs/h3-fault-set.json --out fixtures/fault-sets/longmemeval
 	node packages/runner/scripts/fault-set-script.ts --config research/configs/h3-lint-model-fixture.json --out fixtures/lint/h3-lint-model-script.json
 	ENGRAM_UPDATE_FIXTURES=1 env -u ENGRAM_OFFLINE node packages/bench/scripts/run-merit.ts --config research/configs/b7-merit-fixture.json --out .engram/bench/merit-record --record
+	rm -rf fixtures/cassettes/x19-erasure-residue && mkdir -p .engram && node packages/bench/scripts/erasure-residue.ts --backend sqlite --store mcp-memory --seed 20261128 --cassettes fixtures/cassettes/x19-erasure-residue --out .engram/x19-erasure-residue-record.json --record
 	for name in $(RUNNER_FIXTURES); do \
 	  rm -rf "fixtures/cassettes/$$name"; \
 	  env -u ENGRAM_OFFLINE node packages/runner/scripts/run.ts --config "research/configs/$$name.json" --out ".engram/runs/$$name" --record; \
