@@ -35,6 +35,22 @@ Invariant 1's oracle also excludes an item past its ttl, and invariant 2's forbi
 
 This file is owned by the lead. Changing it needs a second reviewer and a `decision` log entry. It never has a skip. Its oracles live in `packages/core/src/oracle.ts` since card E9.5, so the twin dogfood's violation report (`packages/core/src/dogfood.ts`) judges a member's log with the same oracle; `packages/core/test/property/oracle.ts` re-exports them, and they are the lead's with the file.
 
+## The invariants bite: the mutation audit
+
+Card X16's audit (`research/scripts/gate_mutation_audit.py`, its MANIFEST row `research/results/h1-gate-mutation-audit.json`) applies each frozen mutant in `fixtures/mutants/` to a scratch copy and runs the one invariant test that must kill it. A mutant names one exact line of code, so the frozen set couples these files to it:
+
+- `packages/core/src/events.ts`
+- `packages/core/src/log/chain.ts`
+- `packages/core/src/plane/offboard.ts`
+- `packages/core/src/plane/read.ts`
+- `packages/core/src/plane/write.ts`
+- `packages/core/src/policy/evaluate.ts`
+- `packages/core/src/policy/promotion.ts`
+- `packages/core/src/policy/retention.ts`
+- `packages/core/src/policy/trust.ts`
+
+An edit to a line a mutant names fails `make test` (`test_every_frozen_mutant_still_applies_once_to_the_committed_code`). Rewrite that mutant's `find` and `replace` against the new code in the same pull request, rerun its MANIFEST row (about five to ten minutes on one worker, nothing else edited in the checkout meanwhile), and record the new sha256 with a `measurement` entry. A change that makes a killed mutant survive is a finding: either the test lost its bite, or the code no longer holds the bug the mutant plants. A new invariant gets at least one mutant its test kills.
+
 ## Fakes, not mocks
 
 - Never mock the plane. Tests drive `Plane.read` and `Plane.write` and assert on events and results.

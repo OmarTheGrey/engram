@@ -1,0 +1,9 @@
+{
+  "id": "I1H-erase-active-only",
+  "invariant": "I1H",
+  "area": "offboarding",
+  "file": "packages/core/src/plane/offboard.ts",
+  "find": "const doomed = projected.filter((i) => i.scope === person);",
+  "replace": "const doomed = projected.filter((i) => i.scope === person && i.status === \"active\");",
+  "what": "offboarding erases only the active items of the person scope, leaving candidates and retired ones"
+}

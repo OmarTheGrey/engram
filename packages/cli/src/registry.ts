@@ -156,13 +156,13 @@ const STORE_KIND = flag({
   label: "Store kind",
   help: "the store adapter",
   control: "choice",
-  choices: ["files", "letta"],
+  choices: ["files", "letta", "mcp-memory"],
   defaultText: "files",
 });
 const ROOT = flag({
   type: "string",
   label: "Store folder",
-  help: "a Claude Code memory folder (files), or a MemFS repository or an empty folder (letta)",
+  help: "a Claude Code memory folder (files), a MemFS repository or an empty folder (letta), or the MCP memory server's memory.jsonl (mcp-memory)",
   control: "file",
 });
 const OWNER = flag({
@@ -1769,9 +1769,10 @@ const SHARED: Record<string, (specs: readonly CommandSpec[]) => readonly string[
   ],
   store: (specs) => [
     `store options (${listing(specs, "store")}):`,
-    "  --store <name>              the store adapter: files or letta (default files)",
+    "  --store <name>              the store adapter: files, letta or mcp-memory (default files)",
     "  --root <folder>             the store folder: a Claude Code memory folder (files),",
-    "                              or a MemFS repository or an empty folder (letta)",
+    "                              a MemFS repository or an empty folder (letta),",
+    "                              or the MCP memory server's memory.jsonl file (mcp-memory)",
     "  --owner <id>                the person whose folder it is; its memories are adopted as person:<id>",
     "  --import-valid-from <iso>   valid_from for imported memories (default each file's mtime)",
     "  --policy <preset|path>      strict, medium, permissive or a policy YAML file (default medium)",

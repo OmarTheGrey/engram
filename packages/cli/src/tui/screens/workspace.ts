@@ -40,7 +40,7 @@ const ROWS: readonly Row[] = [
     label: "Store kind",
     kind: "radio",
     flag: "store",
-    choices: ["", "files", "letta"],
+    choices: ["", "files", "letta", "mcp-memory"],
   },
   { id: "root", label: "Store folder", kind: "text", flag: "root" },
   { id: "owner", label: "Owner", kind: "text", flag: "owner" },

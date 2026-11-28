@@ -2293,7 +2293,12 @@ async function promotionsLandOnlyWherePermitted(name: string) {
     const trustedActors = new Set(
       sameText.filter((w) => TRUSTED.includes(w.kind)).map((w) => w.actor),
     ).size;
-    const anyActors = new Set(sameText.map((w) => w.actor)).size;
+    // Distinct actors of the active same-content writes, whatever their kind:
+    // a refusal counts as the trusted-kind rule's alone only when these reach
+    // k (card X16: retired confirmers never confirm, so counting them let
+    // the guard be met by refusals the rule does not decide).
+    const activeAnyActors = new Set(sameText.filter((w) => isActive(w.item_id)).map((w) => w.actor))
+      .size;
 
     if (result.decision === "deny" && result.event.policy_id === "engram/promote/expired")
       seen.expired++;
@@ -2329,7 +2334,7 @@ async function promotionsLandOnlyWherePermitted(name: string) {
         projected.class === "episodic" &&
         !promoter.review;
       if (evidenceOnly && trustedItems >= k && trustedActors < k) seen.sameActorOnly++;
-      if (evidenceOnly && anyActors >= k && trustedActors < k) seen.untrustedOnly++;
+      if (evidenceOnly && activeAnyActors >= k && activeTrustedActors < k) seen.untrustedOnly++;
       // Only confirmers retired since stood in the way (P5-17).
       if (evidenceOnly && trustedActors >= k && activeTrustedActors < k) seen.retiredOnly++;
       if (
@@ -2388,6 +2393,83 @@ async function promotionsLandOnlyWherePermitted(name: string) {
     numRuns: RUNS,
     seed: seedFor(name),
   });
+  // The trusted-kind rule where nothing else decides (card X16, mutant
+  // I2-untrusted-confirms): an episodic item written as user in person:a,
+  // k = 2, and one active restatement by another actor with source import,
+  // which the target's rule admits with no review. Only the user write
+  // confirms, so the promotion must be refused for want of evidence; a
+  // count that let the import restatement confirm would land an item the
+  // oracle forbids. The walk meets this case too rarely to rely on it.
+  const fixed = fc.sample(arbPromotionCase, {
+    seed: seedFor(`${name}, import restatement`),
+    numRuns: 1,
+  })[0] as PromotionCase;
+  const before = seen.untrustedOnly;
+  await check({
+    ...fixed,
+    policy: {
+      target: "person:a",
+      policy: {
+        ...fixed.policy.policy,
+        write: [
+          ...fixed.policy.policy.write.filter((r) => r.scope !== "person"),
+          {
+            scope: "person",
+            allowed_sources: ["user", "document", "tool", "import"],
+            confidence_floor: 0,
+            forbidden_classes: [],
+            requires_review: false,
+          },
+        ],
+        read: {
+          matrix: [{ reader: "person", may_read: ["person", "role", "team", "org"] }],
+          honour_grants: true,
+        },
+        promotion: {
+          episodic_to_semantic: { confirmations: 2, or_review: false },
+          procedural: { replay_k: 4, replay_n: 5 },
+        },
+      } as Policy,
+    },
+    source: {
+      class: "episodic",
+      status: "active",
+      scope: "person:a",
+      owner: "person:a",
+      author: undefined,
+      kind: "user",
+      confidence: 1,
+      ttl: null,
+      grantTo: undefined,
+      hidden: false,
+    },
+    restatements: [
+      {
+        actor: "person:b",
+        kind: "import",
+        loud: false,
+        same: true,
+        inScope: true,
+        retired: false,
+        byAuthor: false,
+        inTarget: false,
+      },
+    ],
+    promoter: {
+      id: "person:a",
+      level: "person",
+      source: "user",
+      extra: [],
+      joins: true,
+      review: false,
+    },
+    after: 0,
+    replay: { ...fixed.replay, use: false },
+  });
+  expect(
+    seen.untrustedOnly,
+    "an import restatement beside one user write is refused under engram/promote/no-evidence",
+  ).toBe(before + 1);
   expect(
     Object.values(replaySeen).every((n) => n > 0),
     `invariant 2 over promotions needs replay admissions and refusals by the presenter's source, another item's replay, a split that is not the ref's, one only the ref's tasks refuse, too few passes, one only the no-worse rule refuses, and a replay off the registered seeds; it saw ${JSON.stringify(replaySeen)}`,
@@ -3038,7 +3120,10 @@ async function twoHandleWalk(
             : (held?.grants ?? []),
           version: (held?.version ?? 0) + 1,
           lineage: [],
-          status: "active",
+          // The pool's fourth person item is written as a candidate, so an
+          // offboarding meets an item of the person scope that is not
+          // active and must erase it too (card X16, I1H-erase-active-only).
+          status: op.pick === 3 ? "candidate" : "active",
           store_ref: null,
           schema_version: 1,
         } as MemoryItem,
@@ -3216,6 +3301,33 @@ async function twoHandleWalk(
   };
   // Every offboarding completed, the stopped ones by their rerun (V-1).
   expect(erasureOpen(base, "person:dana"), "an offboarding's mark left open").toBe(false);
+  // Every offboarding erased the whole person scope (card X16, mutant
+  // I1H-erase-active-only): as the log stood at its report, the scope holds
+  // no item, candidates and retired ones included, but those a store failure
+  // kept back (one deny each, offboarding again erases them).
+  for (const r of log.filter(
+    (e) => e.decision === "allow" && e.policy_id === "engram/offboard/report",
+  )) {
+    const keptBack = new Set(
+      log
+        .filter(
+          (e) =>
+            e.seq < r.seq &&
+            e.decision === "deny" &&
+            e.op === "retire" &&
+            e.scope_from === "person:dana" &&
+            e.policy_id === "engram/write/store-failure",
+        )
+        .map((e) => e.item_id),
+    );
+    const left = itemsAt(base, r.seq).filter(
+      (i) => i.scope === "person:dana" && !keptBack.has(i.id),
+    );
+    expect(
+      left.map((i) => `${i.id} (${i.status})`),
+      `the offboarding reported at seq ${r.seq} left items of person:dana`,
+    ).toEqual([]);
+  }
   /**
    * A committed grant removal survives the plane's own recovery (V-2, V-3):
    * for every grant an owner's grant change removed, if the item carries it

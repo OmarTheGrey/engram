@@ -1,0 +1,9 @@
+{
+  "id": "I1-grant-class-ignored",
+  "invariant": "I1",
+  "area": "read filter",
+  "file": "packages/core/src/policy/evaluate.ts",
+  "find": "(g.class === undefined || g.class === item.class) &&",
+  "replace": "true &&",
+  "what": "a grant admits a read of an item of any class, not only its own"
+}

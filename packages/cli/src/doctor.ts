@@ -11,7 +11,9 @@
 // no adapter is called directly (AGENTS.md rule 2) and nothing is recorded;
 // the exceptions are three calls the letta check makes on its probe in its
 // own temporary repository, `history`, `delete` and `read`, since the plane
-// has neither history nor delete (checkLettaAdapter).
+// has neither history nor delete (checkLettaAdapter), and two the mcp-memory
+// check makes in its own temporary file, `delete` and `read`
+// (checkMcpMemoryAdapter).
 //
 // One check warns and never fails: `harness memory` (card E9.10), the harness
 // memory files outside every store root, counted by `engram discover`'s walk
@@ -25,13 +27,14 @@
 // from pi-ai: the CLI never imports pi-ai (AGENTS.md, what not to do).
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { access, constants, mkdtemp, rm, stat } from "node:fs/promises";
+import { access, constants, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   createFilesAdapter,
   createHashingEmbedder,
   createLettaAdapter,
+  createMcpMemoryAdapter,
   createMem0Adapter,
   gitVersion,
 } from "@engram/adapters";
@@ -284,6 +287,61 @@ export async function checkLettaAdapter(
     ];
   } finally {
     await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 });
+  }
+}
+
+/**
+ * A line of another client in the probe's memory file: an entity the MCP
+ * memory server wrote, with a member it does not model. The probe checks
+ * that a governed write and a delete leave it byte for byte.
+ */
+const MCP_FOREIGN_LINE = JSON.stringify({
+  type: "entity",
+  name: "doctor-foreign",
+  entityType: "probe",
+  observations: [],
+  createdAt: "2026-01-01T00:00:00Z",
+});
+
+/**
+ * The MCP reference memory server's knowledge-graph file (card A6 of the
+ * second absorb plan), in a temporary folder holding one line another client
+ * wrote: the probe written and read through the plane, the other line kept
+ * byte for byte, then the probe deleted and the file back to that one line,
+ * offline. Two calls are made outside a plane, `delete` and the `read` that
+ * finds the probe gone, as the letta check makes them on its own temporary
+ * store, since the plane has no delete; the file is doctor's own, removed
+ * afterwards, never a governed store.
+ */
+export async function checkMcpMemoryAdapter(
+  at: string,
+  newId: () => string,
+  open: (file: string) => Adapter = (file) => createMcpMemoryAdapter({ file, owner: "doctor" }),
+): Promise<CheckResult> {
+  const dir = await mkdtemp(join(tmpdir(), "engram-doctor-mcp-memory-"));
+  try {
+    const file = join(dir, "memory.jsonl");
+    const foreign = `${MCP_FOREIGN_LINE}\n`;
+    await writeFile(file, foreign);
+    const adapter = open(file);
+    const { failure, stored } = await probeRoundTrip(adapter, at, newId);
+    if (failure !== undefined) return ["fail", failure];
+    const ref = stored?.store_ref;
+    if (!ref) return ["fail", "the probe write recorded no store_ref"];
+    const written = await readFile(file, "utf8");
+    if (!written.startsWith(foreign))
+      return ["fail", "the probe write did not keep the other client's line byte for byte"];
+    await adapter.delete(ref);
+    if ((await adapter.read(ref)) !== undefined)
+      return ["fail", "the probe item was deleted but a read still returns it"];
+    if ((await readFile(file, "utf8")) !== foreign)
+      return ["fail", "the probe delete left the memory file changed"];
+    return [
+      "ok",
+      "the MCP memory server's JSONL file in a temporary folder: a write and a read round-trip through the plane, another client's line kept byte for byte, and a delete, offline",
+    ];
+  } finally {
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 });
   }
 }
 
@@ -694,6 +752,10 @@ export async function doctorCommand(args: string[], io: Io): Promise<number> {
   await check(
     "adapter letta",
     io.doctorProbes?.["adapter letta"] ?? (() => checkLettaAdapter(at, io.newId)),
+  );
+  await check(
+    "adapter mcp-mem",
+    io.doctorProbes?.["adapter mcp-mem"] ?? (() => checkMcpMemoryAdapter(at, io.newId)),
   );
   await check("provider keys", () => checkProviderKeys(io.repo, io.env));
   await check("benchmark pins", () => checkBenchmarkPins(io.repo));

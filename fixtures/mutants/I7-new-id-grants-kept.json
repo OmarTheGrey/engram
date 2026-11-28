@@ -1,0 +1,9 @@
+{
+  "id": "I7-new-id-grants-kept",
+  "invariant": "I7",
+  "area": "adoption",
+  "file": "packages/core/src/plane/write.ts",
+  "find": "known.grants.some((h) => sameGrant(g, h))) : [];",
+  "replace": "known.grants.some((h) => sameGrant(g, h))) : item.grants;",
+  "what": "adoption keeps the grants of a record whose id the plane never held"
+}

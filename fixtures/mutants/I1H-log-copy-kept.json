@@ -1,0 +1,9 @@
+{
+  "id": "I1H-log-copy-kept",
+  "invariant": "I1H",
+  "area": "offboarding",
+  "file": "packages/core/src/plane/offboard.ts",
+  "find": "update.run(JSON.stringify({ ...event, item: redacted(event.item) }), String(row.id));",
+  "replace": "update.run(JSON.stringify({ ...event }), String(row.id));",
+  "what": "offboarding leaves the erased item's content in the log's earlier events"
+}

@@ -23,7 +23,12 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { createFilesAdapter, deferLettaAdapter, NotMemfsRepositoryError } from "@engram/adapters";
+import {
+  createFilesAdapter,
+  createMcpMemoryAdapter,
+  deferLettaAdapter,
+  NotMemfsRepositoryError,
+} from "@engram/adapters";
 import {
   type Actor,
   type Adapter,
@@ -558,31 +563,36 @@ export interface StoreFlags {
 }
 
 /** The stores a workspace opens. */
-export const WORKSPACE_STORES = ["files", "letta"] as const;
+export const WORKSPACE_STORES = ["files", "letta", "mcp-memory"] as const;
 
 /**
  * The store the flags name: `files`, a Claude Code memory folder (card A3),
- * or `letta`, a MemFS repository (card A2, ADR 0028): its top level, or an
- * empty or missing folder the adapter initialises, items under `engram/`.
- * Both need --root and --owner (whose person scope a read adopts the store's
- * items into). The Letta repository is checked here for what the file system
- * can tell (a bad folder is a usage error at once) and opened by git in the
- * background; what only git can tell is the first store call's error. Mem0
- * needs an embedding model wired at the surface and is not opened here.
+ * `letta`, a MemFS repository (card A2, ADR 0028): its top level, or an
+ * empty or missing folder the adapter initialises, items under `engram/`,
+ * or `mcp-memory`, the MCP reference memory server's knowledge-graph file
+ * (card A6 of the second absorb plan): --root names the file itself, as the
+ * server's MEMORY_FILE_PATH does, and a missing one is created by the first
+ * write. Each needs --root and --owner (whose person scope a read adopts the
+ * store's items into). The Letta repository is checked here for what the
+ * file system can tell (a bad folder is a usage error at once) and opened by
+ * git in the background; what only git can tell is the first store call's
+ * error. Mem0 needs an embedding model wired at the surface and is not
+ * opened here.
  */
 export function openStore(flags: StoreFlags, resolvePath: (p: string) => string): Store {
   const name = flags.store ?? "files";
   if (!(WORKSPACE_STORES as readonly string[]).includes(name))
     throw new UsageError(
-      `--store ${name} is not available in the CLI yet; it opens ${WORKSPACE_STORES.join(" and ")} (mem0 needs an embedding model wired at the surface)`,
+      `--store ${name} is not available in the CLI yet; it opens ${WORKSPACE_STORES.join(", ")} (mem0 needs an embedding model wired at the surface)`,
     );
-  const folder = name === "letta" ? "<MemFS folder>" : "<folder>";
+  const folder =
+    name === "letta" ? "<MemFS folder>" : name === "mcp-memory" ? "<memory.jsonl>" : "<folder>";
   if (flags.root === undefined) throw new UsageError(`the ${name} store needs --root ${folder}`);
   if (flags.owner === undefined) throw new UsageError(`the ${name} store needs --owner <id>`);
   const root = resolvePath(flags.root);
   if (name === "letta") {
     if (flags.importValidFrom !== undefined)
-      throw new UsageError("--import-valid-from applies to the files store only");
+      throw new UsageError("--import-valid-from applies to the files and mcp-memory stores only");
     let adapter: Adapter;
     try {
       adapter = deferLettaAdapter({ root, create: flags.readOnlyStore !== true });
@@ -590,6 +600,14 @@ export function openStore(flags: StoreFlags, resolvePath: (p: string) => string)
       if (e instanceof NotMemfsRepositoryError) throw new UsageError(e.message);
       throw e;
     }
+    return { name, root, adapter, owner: flags.owner, scope: `person:${flags.owner}` };
+  }
+  if (name === "mcp-memory") {
+    const adapter = createMcpMemoryAdapter({
+      file: root,
+      owner: flags.owner,
+      importValidFrom: flags.importValidFrom,
+    });
     return { name, root, adapter, owner: flags.owner, scope: `person:${flags.owner}` };
   }
   const adapter = createFilesAdapter({

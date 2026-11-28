@@ -1,0 +1,9 @@
+{
+  "id": "I2-owner-reviews",
+  "invariant": "I2",
+  "area": "promotion",
+  "file": "packages/core/src/policy/promotion.ts",
+  "find": "  if (actor.id === item.owner)\n    return `${actor.id} owns item ${item.id} and cannot approve its own item`;\n",
+  "replace": "",
+  "what": "an item's owner may approve its own promotion as a reviewer"
+}

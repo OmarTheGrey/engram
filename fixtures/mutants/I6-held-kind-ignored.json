@@ -1,0 +1,9 @@
+{
+  "id": "I6-held-kind-ignored",
+  "invariant": "I6",
+  "area": "adoption",
+  "file": "packages/core/src/plane/write.ts",
+  "find": "    ...(known ? [known.provenance.kind] : []),\n",
+  "replace": "",
+  "what": "adoption ignores the kind the plane holds for the id"
+}

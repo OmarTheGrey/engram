@@ -1,0 +1,9 @@
+{
+  "id": "I9-commitment-ignores-value",
+  "invariant": "I9",
+  "area": "log chain",
+  "file": "packages/core/src/log/chain.ts",
+  "find": "value.present ? { part, present: true, value: value.value } : { part, present: false },",
+  "replace": "{ part, present: value.present },",
+  "what": "a part's commitment does not cover its value, so edited content verifies"
+}
