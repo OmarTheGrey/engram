@@ -1,0 +1,13 @@
+{
+  "name": "cedar-properties",
+  "kind": "measurement",
+  "hypothesis": "none",
+  "status": "proof of concept",
+  "card": "E2.18",
+  "properties": [
+    {"id": "read-monotone", "shape": "monotone", "pairs": [["strict", "medium"], ["medium", "permissive"]], "actions": ["read"], "expect": "holds"},
+    {"id": "model-write-person-scope", "shape": "invariant", "presets": ["strict", "medium", "permissive"], "expect": "holds"},
+    {"id": "person-read-needs-grant", "shape": "invariant", "presets": ["strict", "medium", "permissive"], "expect": "holds"},
+    {"id": "read-monotone-reversed", "shape": "monotone", "pairs": [["medium", "strict"], ["permissive", "medium"]], "actions": ["read"], "expect": "fails"}
+  ]
+}
