@@ -1,0 +1,12 @@
+{
+  "name": "l9-grounding-fixture",
+  "kind": "pipeline",
+  "benchmark": "lint-faults",
+  "data": "../../fixtures/faults/model",
+  "items": "all",
+  "model": "scripted/lint-1",
+  "seeds": [1, 2, 3],
+  "script": "../../fixtures/lint/l9-script.json",
+  "cassettes": "../../fixtures/cassettes/l9-grounding-fixture",
+  "evidence": "on"
+}

@@ -1,0 +1,46 @@
+ engram  Lint a scope                                                   in process  log engram.db  person:dana (person)
+   Scope        [ team:core                                ]  linted as a member of it
+   ~ More flags: 13, set: --root --owner --db
+
+ [ Lint ]
+
+ ! 1 finding   exit 1  each one a lint event in the log
+
+ lint team:core at 2026-11-06T12:00:00Z as person:dana: allow, 1 finding
+> ! warn  contradiction  01950000-0000-7000-8000-000000000002
+    it contradicts 01950000-0000-7000-8000-000000000001, an earlier active semantic item in team:core, as
+    scripted/lint-1 judged it
+    v evidence
+      contradicts 01950000-0000-7000-8000-000000000001
+      model scripted/lint-1, seed 1
+      reason: The freeze cannot start on both Friday and Monday.
+      quote of 01950000-0000-7000-8000-000000000001: "The release freeze starts on Friday"
+      quote of 01950000-0000-7000-8000-000000000002: "The release freeze starts on Monday"
+    rule fixture.faults/lint/contradiction
+
+ exit 1: 1 finding. Each finding is a lint event in the log.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram lint --scope team:core --db engram.db --owner dana --root mem   exit 1
+ ? help  enter item page  space evidence  r again  v plain  J json  ; commands  esc back
+--- styles
+r0 c0-119 inverse
+r6 c1-1 fg #E69F00
+r9 c0-1 inverse
+r9 c2-2 fg #E69F00 inverse
+r9 c3-119 inverse
