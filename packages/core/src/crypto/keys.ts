@@ -68,11 +68,12 @@ export class DataKeyError extends Error {
 /** The scope's key was shredded: its content is erased, and the scope is not re-keyed. */
 export class DataKeyShreddedError extends DataKeyError {
   override readonly name = "DataKeyShreddedError";
-  constructor(
-    readonly scope: string,
-    readonly version: number,
-  ) {
+  readonly scope: string;
+  readonly version: number;
+  constructor(scope: string, version: number) {
     super(`the data key of ${scope} (version ${version}) was shredded`);
+    this.scope = scope;
+    this.version = version;
   }
 }
 
