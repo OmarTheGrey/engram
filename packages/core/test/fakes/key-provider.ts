@@ -1,4 +1,4 @@
-// A key provider for tests (card E9.11, ADR XXXX): the operator key is 32
+// A key provider for tests (card E9.11, ADR 0051): the operator key is 32
 // bytes held in memory, wrapping is AES-256-GCM over node:crypto with the
 // associated data core passes, and every "random" byte comes from a seeded
 // SHA-256 counter, so a test's keys and wrapped bytes are the same on every

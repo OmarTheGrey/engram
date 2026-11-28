@@ -18,4 +18,4 @@ supersedes: none
 
 **Result.** "health" matches "Health insurance" and "h\u200Dealth", not "healthy". Stated evasions: plurals, an accent inside a word, compounds and camelCase, glued digits, split letters, homoglyphs NFKC keeps, a topic split across writes, lower case short of case folding.
 
-**Consequence.** Consent is a control a cooperative writer meets, not a filter against an adversary; ADR XXXX records the choice for the lead.
+**Consequence.** Consent is a control a cooperative writer meets, not a filter against an adversary; ADR 0052 records the choice for the lead.

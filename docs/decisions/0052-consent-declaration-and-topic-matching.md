@@ -1,7 +1,7 @@
-# ADR XXXX: Consent opt-outs are declared in the policy document and match whole words of the content
+# ADR 0052: Consent opt-outs are declared in the policy document and match whole words of the content
 
-Status: proposed, 2026-11-28
-Deciders: drafted by card E9.12 of the second absorb plan; for the lead's acceptance
+Status: accepted, 2026-11-29, under the lead's delegation of 2026-11-28 (`docs/tasks/lead-decisions.md`, "The lead's answers, 2026-11-28": new ADRs as needed, none contradicting the set); the lead may overturn it
+Deciders: the orchestrating session, under the lead's delegation of 2026-11-28; drafted by card E9.12 of the second absorb plan
 
 ## Context
 

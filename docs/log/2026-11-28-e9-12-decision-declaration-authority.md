@@ -18,4 +18,4 @@ supersedes: none
 
 **Result.** Every refusal names the policy id and the opt-out's index, so a refusal can be traced to the file line. Who edited the file is outside the plane, as for every other policy field.
 
-**Consequence.** On a shared server a person cannot yet declare their own opt-outs; a later card would need a per-person consent record with its own events (a finding). ADR XXXX (docs/decisions/XXXX-consent-declaration-and-topic-matching.md) records this for the lead.
+**Consequence.** On a shared server a person cannot yet declare their own opt-outs; a later card would need a per-person consent record with its own events (a finding). ADR 0052 (docs/decisions/0052-consent-declaration-and-topic-matching.md) records this for the lead.

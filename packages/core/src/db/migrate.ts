@@ -256,7 +256,7 @@ export const MIGRATIONS: readonly Migration[] = [
     },
   },
   {
-    // Card E9.11, ADR XXXX (crypto/keys.ts). One row per data key of a person
+    // Card E9.11, ADR 0051 (crypto/keys.ts). One row per data key of a person
     // scope: its version, the id of the operator key that wraps it, the wrap
     // algorithm, the wrapped bytes (hex) and when it was made. Shredding sets
     // `wrapped` to NULL and `shredded_at`, keeping the row as a content-free

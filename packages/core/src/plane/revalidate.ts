@@ -1,5 +1,5 @@
 // Re-validation on the plane (card D4 of the second absorb plan; ADR 0011, ADR
-// XXXX proposed, ADR 0046). The pure rule is distill/drift.ts; this file
+// 0050, ADR 0046). The pure rule is distill/drift.ts; this file
 // reads the last validation from the log and commits the decision as one
 // event, in one slot of the write queue and one transaction, as Plane.retain
 // does.
