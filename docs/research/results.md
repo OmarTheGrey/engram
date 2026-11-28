@@ -335,7 +335,7 @@ Recorded by [`docs/log/2026-11-22-l7-measurement-h3-lint-nli-revised.md`](../log
 | log edits `engram log verify` detects (no re-chain) | 1.0 | `by_place.log.verify_detection.rate` |
 | unedited control logs that fail verification | 0 | `control.verify_failed` |
 
-Recorded by [`docs/log/2026-11-28-x18-measurement-fault-injection-review.md`](../log/2026-11-28-x18-measurement-fault-injection-review.md).
+Recorded by [`docs/log/2026-11-28-e2-19-measurement-guard-reruns.md`](../log/2026-11-28-e2-19-measurement-guard-reruns.md), [`docs/log/2026-11-28-x18-measurement-fault-injection-review.md`](../log/2026-11-28-x18-measurement-fault-injection-review.md).
 
 ## H4. The plane is store-, model- and harness-agnostic
 
@@ -539,7 +539,7 @@ Recorded by [`docs/log/2026-11-28-e1-7-measurement-trace-replay.md`](../log/2026
 | two-handle offboarding walk, killed | 2 | `per_invariant.I1H.killed` |
 | log chain, killed | 2 | `per_invariant.I9.killed` |
 
-Recorded by [`docs/log/2026-11-28-e1-7-measurement-mutation-audit.md`](../log/2026-11-28-e1-7-measurement-mutation-audit.md), [`docs/log/2026-11-28-e1-9-measurement-gate-mutation-audit.md`](../log/2026-11-28-e1-9-measurement-gate-mutation-audit.md), [`docs/log/2026-11-28-e2-21-measurement-mutation-audit-merged.md`](../log/2026-11-28-e2-21-measurement-mutation-audit-merged.md).
+Recorded by [`docs/log/2026-11-28-e1-7-measurement-mutation-audit.md`](../log/2026-11-28-e1-7-measurement-mutation-audit.md), [`docs/log/2026-11-28-e1-9-measurement-gate-mutation-audit.md`](../log/2026-11-28-e1-9-measurement-gate-mutation-audit.md), [`docs/log/2026-11-28-e2-19-measurement-guard-reruns.md`](../log/2026-11-28-e2-19-measurement-guard-reruns.md), [`docs/log/2026-11-28-e2-21-measurement-mutation-audit-merged.md`](../log/2026-11-28-e2-21-measurement-mutation-audit-merged.md).
 
 ### `research/results/h2-cedar-properties.json`
 
@@ -556,7 +556,7 @@ Recorded by [`docs/log/2026-11-28-e1-7-measurement-mutation-audit.md`](../log/20
 | refutations the evaluator reproduces | 20 | `summary.reproduced` |
 | every check as the config expects | true | `summary.all_as_expected` |
 
-Recorded by [`docs/log/2026-11-28-e2-18-measurement-cedar-properties.md`](../log/2026-11-28-e2-18-measurement-cedar-properties.md).
+Recorded by [`docs/log/2026-11-28-e2-18-measurement-cedar-properties.md`](../log/2026-11-28-e2-18-measurement-cedar-properties.md), [`docs/log/2026-11-28-e2-19-measurement-guard-reruns.md`](../log/2026-11-28-e2-19-measurement-guard-reruns.md).
 
 ### `research/results/h3-l9-grounding.json`
 
