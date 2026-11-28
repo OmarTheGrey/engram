@@ -611,7 +611,32 @@ function walksTree(words: readonly string[]): boolean {
 }
 
 /**
- * The bypass a tool call would be: a path argument, at any depth, inside a
+ * The delete tools of the MCP reference memory server (card A6 of the second
+ * absorb plan), under any server name a client gave it: `mcp__<name>__` is
+ * how Claude Code names an MCP tool. `delete_entities` on an `engram:<id>`
+ * entity removes an item the plane wrote with no event, and
+ * `delete_observations` and `delete_relations` remove records the plane
+ * adopted; none of them passes the gate. The Engram server's own tools
+ * (`mcp__engram__*`) are the governed path and never match.
+ *
+ * A partial layer, not the fix: it sees only a client whose tool calls reach
+ * this check (Claude Code through the hook, pi through the extension), only
+ * the server's own tool names, and nothing the server is asked to do from a
+ * client with no Engram hook. Detecting that the store no longer holds an
+ * item the plane wrote is the backlog's store-loss row.
+ */
+const MEMORY_SERVER_DELETE = /^mcp__(.+)__delete_(?:entities|observations|relations)$/i;
+
+/** The bypass a call to the MCP memory server's delete tools would be, if `toolName` is one. */
+export function memoryServerToolBypass(toolName: string): Bypass | undefined {
+  const server = MEMORY_SERVER_DELETE.exec(toolName)?.[1];
+  if (server === undefined || server.toLowerCase() === "engram") return undefined;
+  return { command: toolName, store: "mcp-memory" };
+}
+
+/**
+ * The bypass a tool call would be: one of the MCP memory server's delete
+ * tools (memoryServerToolBypass), or a path argument, at any depth, inside a
  * store root (or, for a recursive tool, a root inside the path it searches).
  */
 export function toolBypass(
@@ -619,6 +644,8 @@ export function toolBypass(
   input: Record<string, unknown>,
   check: BypassCheck,
 ): Bypass | undefined {
+  const deletion = memoryServerToolBypass(toolName);
+  if (deletion !== undefined) return deletion;
   const { paths, recursive } = toolPaths(toolName, input);
   for (const path of paths) {
     if (reaches(path, check, recursive)) {

@@ -6,10 +6,12 @@
 // Docker), in a fresh database owned by a role whose password must never
 // appear in any output. The same write, read and explain then run with
 // `--store letta` on a fresh MemFS repository (card A2), whose git log must
-// show the one commit the write made. The MCP handshakes are in
+// show the one commit the write made, and with `--store mcp-memory` on the
+// MCP memory server's JSONL file (card A6 of the second absorb plan), whose
+// other client's line must stay as it was. The MCP handshakes are in
 // mcp.e2e.test.ts (card E8.4).
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -155,6 +157,29 @@ describe.each(BACKENDS)("engram end to end on $name", (backend) => {
       const x = engram("explain", id, "--owner", "dana", "--db", ldb);
       expect(x.out).toMatch(new RegExp(`^read ${id}: 1 explanation`, "m"));
       expect(x.code).toBe(0);
+    });
+
+    it("the same write, read and explain on the MCP memory server's JSONL file, its other lines kept (card A6)", () => {
+      const file = join(temp("mcp-memory"), "memory.jsonl");
+      const other = `${JSON.stringify({ type: "relation", from: "a", to: "b", relationType: "knows" })}\n`;
+      writeFileSync(file, other);
+      const mdb = backend.fresh();
+      const store = ["--store", "mcp-memory", "--root", file, "--owner", "dana", "--db", mdb];
+      const w = engram("write", ...store, "--content", "The graph file holds the freeze date.");
+      expect(w.err).toBe("");
+      expect(w.out).toMatch(/allow/);
+      expect(w.code).toBe(0);
+      expect(readFileSync(file, "utf8").startsWith(other)).toBe(true);
+
+      const r = engram("read", "freeze date", ...store);
+      expect(r.code).toBe(0);
+      expect(r.out).toContain("The graph file holds the freeze date.");
+      const id = /^read (\S+) at /m.exec(r.out)?.[1] ?? "";
+      expect(id).not.toBe("");
+      const x = engram("explain", id, "--owner", "dana", "--db", mdb);
+      expect(x.out).toMatch(new RegExp(`^read ${id}: 1 explanation`, "m"));
+      expect(x.code).toBe(0);
+      expect(readFileSync(file, "utf8").startsWith(other)).toBe(true);
     });
 
     it("export then import: the bundle lands in a fresh log and folder as candidates (card E9.8)", () => {

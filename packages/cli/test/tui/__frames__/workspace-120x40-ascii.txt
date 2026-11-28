@@ -2,7 +2,7 @@
  > Connection             (o) in process  ( ) server
    Event log              [ engram.db                                ]  from a flag; a SQLite file, :memory: or postg...
    Policy                 [                                          ]  strict, medium, permissive or a YAML file
-   Store kind             (o) default  ( ) files  ( ) letta
+   Store kind             (o) default  ( ) files  ( ) letta  ( ) mcp-memory
    Store folder           [ mem                                      ]  from a flag
    Owner                  [ dana                                     ]  from a flag; the person whose folder it is
    Acting as              [                                          ]  a principal such as person:dana
