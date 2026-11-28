@@ -24,9 +24,11 @@
 //   smoothed across re-validations: the log keeps no per-trial history, and
 //   a stored rate on the item is a schema change (rule 5).
 // - Restoring (SKILL.nb's rollback): a procedure drift retired is kept in the
-//   store and the log (ADR 0010). A later re-validation that meets the
-//   admission rule again (D3's record meets replay_k of replay_n, and the
-//   rate reaches the floor) puts the same version back, active.
+//   store and the log (ADR 0010). A later re-validation whose rate reaches
+//   the floor goes to the promotion gate with its replay, as the candidate
+//   it was (plane/promote.ts restoreRetired): the gate's replay rule
+//   (replay_k of replay_n), expiry, write rule, duplicate and budget checks
+//   decide whether the version comes back, active, version plus one.
 //
 // Ideas only, no code taken (ADR 0037): SkillGuard's drift re-tests
 // (arXiv 2605.10990), Library Drift's retirement after a minimum number of
@@ -56,12 +58,14 @@ export function driftRuleId(policy: Policy, rule: LifecycleTrigger | "restored")
   return `${policy.id}/drift/${rule}`;
 }
 
-/** Every drift rule id of `policy`, so a reader can tell a drift retirement from any other. */
-export function isDriftRetirement(policy: Policy, policyId: string): boolean {
-  return (
-    policyId === driftRuleId(policy, "replay-drift") ||
-    policyId === driftRuleId(policy, "environment-changed")
-  );
+/**
+ * Whether `policyId` is a drift trigger's rule, under any policy id: a
+ * procedure drift retired under a policy since renamed or versioned is still
+ * a drift retirement (review of card D4, finding 5), as retiredContent
+ * matches `/promotion/superseded` by its suffix.
+ */
+export function isDriftRetirement(policyId: string): boolean {
+  return /\/drift\/(replay-drift|environment-changed)$/.test(policyId);
 }
 
 /** What `procedures.drift` and the two thresholds set, or null when drift is off. */

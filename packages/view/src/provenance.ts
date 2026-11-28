@@ -30,6 +30,8 @@ export interface KnownItem {
 const CREATING_OPS = new Set<MemoryEvent["op"]>(["write", "promote"]);
 /** The ops whose allowed event retires the item it names (core's events.ts). */
 const RETIRING_OPS = new Set<MemoryEvent["op"]>(["retire", "evict"]);
+/** The rule of a person-scope erasure, restated from core's events.ts (the package imports no runtime code). */
+const ERASURE_ID = "engram/offboard/erase";
 
 /**
  * The items the viewer may see something of: every item its read returned,
@@ -54,6 +56,12 @@ export function knownItems(
       e.decision === "allow" &&
       RETIRING_OPS.has(e.op)
     ) {
+      // An erasure removes its item, as core's projection does (events.ts
+      // ERASURE_ID): it is absent, not retired.
+      if (e.op === "retire" && e.policy_id === ERASURE_ID) {
+        known.delete(e.item_id);
+        continue;
+      }
       const was = known.get(e.item_id)?.state;
       if (was) known.set(e.item_id, { id: e.item_id, state: { ...was, status: "retired" } });
     } else if (

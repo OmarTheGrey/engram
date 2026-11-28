@@ -143,5 +143,13 @@ describe("@engram/view", () => {
       ...state,
       status: "retired",
     });
+    // An erasure removes the item, as core's projection does: absent, not retired.
+    const erased = {
+      ...retired,
+      id: id(13),
+      seq: 4,
+      policy_id: "engram/offboard/erase",
+    } as MemoryEvent;
+    expect(view.knownItems([], [promoted, erased]).has(state.id)).toBe(false);
   });
 });

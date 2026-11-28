@@ -13,14 +13,27 @@
 // Every call that reaches the log appends exactly one event (rule 3):
 //   retire allow   <policy>/drift/<trigger>     the re-validation fell below the floor: retired
 //   retire deny    <policy>/drift/<trigger>     it was due and ran, and the procedure is kept
-//   promote allow  <policy>/drift/restored      a drift-retired procedure meets the admission rule
-//                                               again: the same version is active again
-//   promote deny   <policy>/drift/restored      a drift-retired procedure's re-validation does not
+//   promote allow  <policy>/drift/restored      a drift-retired procedure reaches the floor again
+//                                               and the promotion gate admits it as a candidate
+//                                               (restoreRetired, plane/promote.ts): in place, version
+//                                               plus one, active
+//   promote deny   <the gate's rule>            the gate refuses it (the replay rule, expiry, the
+//                                               write rule, a duplicate, the budget, later gates)
+//   promote deny   <policy>/drift/restored      a drift-retired procedure's re-validation is below the floor
 //   retire deny    engram/drift/*               refused: off, not due, not user-sourced, not a
 //                                               member, not an active or drift-retired procedure
 //   retire deny    engram/promote/replay-*      the replay is not this item's (D3-3, D3-1)
 // A malformed replay or environment is refused with InvalidCallError before
 // the log is touched. Nothing runs on a timer: the surfaces pass `at`.
+//
+// While a procedure is drift retired, its content counts as retired in its
+// scope (write.ts retiredContent, ADR 0025): a model, compaction or tool write
+// restating it is refused under engram/write/retired-content, so a drift
+// retirement is undone only by a restore, which leaves the item's own
+// retirement out of what it is judged against. A drift retirement is told
+// from any other by its rule's suffix, under any policy id
+// (isDriftRetirement); a ttl, eviction or supersession retirement is not
+// restored, and an erased item is gone.
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import {
   DRIFT_MEMBERSHIP_ID,
@@ -48,9 +61,11 @@ import { appendEvent, eventsByItem } from "../events.ts";
 import { itemById } from "../items.ts";
 import type { LifecycleTrigger } from "../lint.ts";
 import type { PlaneDeps } from "../plane.ts";
+import { readableScope } from "../policy/evaluate.ts";
 import { PROMOTE_REPLAY_SPLIT_ID } from "../policy/promotion.ts";
 import { Id, type MemoryEvent, type MemoryItem } from "../schema.ts";
 import { ERASING_ID, erasingReason, erasureOpen } from "./commit.ts";
+import { restoreRetired } from "./promote.ts";
 import { inWriteQueue } from "./queue.ts";
 
 /** What Plane.revalidate is given beside the item: the re-validation's replay and its environment. */
@@ -87,7 +102,7 @@ export function lastValidated(deps: PlaneDeps, itemId: string): string | null {
   let at: string | null = null;
   for (const e of eventsByItem(deps.db, itemId)) {
     const activated = e.decision === "allow" && e.item?.status === "active";
-    const judged = e.op === "retire" && isDriftRetirement(deps.policy, e.policy_id);
+    const judged = e.op === "retire" && isDriftRetirement(e.policy_id);
     if (activated || judged) at = e.ts;
   }
   return at;
@@ -98,7 +113,7 @@ function driftRetired(deps: PlaneDeps, itemId: string): MemoryEvent | undefined 
   const last = eventsByItem(deps.db, itemId)
     .filter((e) => e.decision === "allow" && (e.op === "retire" || e.op === "evict"))
     .at(-1);
-  return last !== undefined && isDriftRetirement(deps.policy, last.policy_id) ? last : undefined;
+  return last !== undefined && isDriftRetirement(last.policy_id) ? last : undefined;
 }
 
 /**
@@ -122,9 +137,26 @@ export function revalidate(
     throw new InvalidCallError("Plane.revalidate: a re-validation presents its replay");
   const problem = replayProblem(options.replay) ?? environmentProblem(options.environment);
   if (problem) throw new InvalidCallError(`Plane.revalidate: ${problem}`);
-  return inWriteQueue(deps.db, () =>
-    deps.db.transaction(() => decide(deps, actor, itemId, at, options)),
-  );
+  return inWriteQueue(deps.db, async () => {
+    const decided = deps.db.transaction(() => decide(deps, actor, itemId, at, options));
+    if (!("restore" in decided)) return decided;
+    // Still in the queue slot: the promotion gate judges and commits it.
+    const { item, prefix } = decided.restore;
+    const result = await restoreRetired(deps, actor, item, at, options.replay, {
+      policy_id: driftRuleId(deps.policy, "restored"),
+      prefix,
+    });
+    return {
+      outcome: result.decision === "allow" ? "restored" : "refused",
+      trigger: null,
+      event: result.event,
+    };
+  });
+}
+
+/** A restore the promotion gate is to judge: the item and the clause its reason starts with. */
+interface RestoreRequest {
+  restore: { item: MemoryItem; prefix: string };
 }
 
 function decide(
@@ -133,7 +165,7 @@ function decide(
   itemId: string,
   at: string,
   options: RevalidateOptions,
-): RevalidationResult {
+): RevalidationResult | RestoreRequest {
   const { db, newId, policy } = deps;
   const item = itemById(db, itemId);
   const append = (
@@ -162,8 +194,10 @@ function decide(
     event: append({ op: "retire", decision: "deny", policy_id, reason, scoped }),
   });
 
-  // An unknown id and one the actor may not reach look alike (decision D5).
-  if (!item || !actor.memberships.includes(item.scope))
+  // An unknown id and one the actor may not reach look alike (decision D5):
+  // a member whose level the read matrix does not let read the scope is
+  // answered as an outsider (review of card D4, finding 7).
+  if (!item || !actor.memberships.includes(item.scope) || !readableScope(policy, actor, item.scope))
     return refuse(
       DRIFT_MEMBERSHIP_ID,
       `item ${itemId} is not one ${actor.id} can access as a member of its scope, so it cannot re-validate it`,
@@ -209,32 +243,29 @@ function decide(
         : `environment ${env.validated} changed to ${env.current}`;
 
   if (retiredBy !== undefined) {
-    // A rollback: the version drift retired, put back as it was, when the
-    // re-validation meets the admission rule again and reaches the floor.
+    // A rollback: the version drift retired, when its re-validation reaches
+    // the floor again, goes to the promotion gate as the candidate it was,
+    // with the same replay (the review of card D4): the replay rule, expiry,
+    // the write rule, a duplicate and the budget all judge it.
     const j = judgeDrift(policy, replay);
-    const restores = j.admits && j.decision === "keep" && j.trials >= j.min_trials;
-    const policy_id = driftRuleId(policy, "restored");
-    const reason = `re-validation of item ${item.id}, retired under ${retiredBy.policy_id} at ${retiredBy.ts}: ${j.text}; ${envText}; ${
-      restores
-        ? "it meets the admission rule and the floor again, so the retired version is active again"
-        : "it does not meet both the admission rule and the floor, so it stays retired"
-    }`;
-    if (!restores)
+    const floor = j.decision === "keep" && j.trials >= j.min_trials;
+    const head = `drift restore of item ${item.id}, retired under ${retiredBy.policy_id} at ${retiredBy.ts}: ${j.text}; ${envText}`;
+    if (!floor)
       return {
         outcome: "refused",
         trigger: null,
-        event: append({ op: "promote", decision: "deny", policy_id, reason }),
+        event: append({
+          op: "promote",
+          decision: "deny",
+          policy_id: driftRuleId(policy, "restored"),
+          reason: `${head}; it does not reach the floor after the minimum trials, so it stays retired`,
+        }),
       };
     return {
-      outcome: "restored",
-      trigger: null,
-      event: append({
-        op: "promote",
-        decision: "allow",
-        policy_id,
-        reason,
-        item: { ...item, status: "active" } as MemoryItem,
-      }),
+      restore: {
+        item,
+        prefix: `${head}; it reaches the floor, so the promotion gate judges it as a candidate`,
+      },
     };
   }
 
@@ -272,7 +303,7 @@ function decide(
         op: "retire",
         decision: "allow",
         policy_id,
-        reason: `re-validation on ${trigger} (${cause}): ${j.text}, so the procedure is retired; the retired version stays in the store and the log, and a re-validation that meets the admission rule restores it`,
+        reason: `re-validation on ${trigger} (${cause}): ${j.text}, so the procedure is retired; the retired version stays in the store and the log, and a re-validation that reaches the floor and that the promotion gate admits restores it`,
       }),
     };
   return {

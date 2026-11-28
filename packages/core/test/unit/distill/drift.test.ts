@@ -38,9 +38,17 @@ import {
   type ReplayEvidence,
 } from "../../../src/distill/validate.ts";
 import { itemById } from "../../../src/items.ts";
+import { offboard } from "../../../src/plane/offboard.ts";
 import { type Actor, createPlane, InvalidCallError } from "../../../src/plane.ts";
+import { RETIRED_CONTENT_ID } from "../../../src/policy/evaluate.ts";
 import { loadPreset } from "../../../src/policy/load.ts";
-import { PROMOTE_REPLAY_ITEM_ID, PROMOTE_REPLAY_SPLIT_ID } from "../../../src/policy/promotion.ts";
+import {
+  PROMOTE_EXPIRED_ID,
+  PROMOTE_NO_EVIDENCE_ID,
+  PROMOTE_REPLAY_ITEM_ID,
+  PROMOTE_REPLAY_SPLIT_ID,
+} from "../../../src/policy/promotion.ts";
+import { DOWNGRADE_ID } from "../../../src/policy/trust.ts";
 import type { MemoryItem, Policy } from "../../../src/schema.ts";
 import { AT, id, item, testPolicy } from "../plane/helpers.ts";
 
@@ -163,7 +171,11 @@ describe("acceptance (card D4): a fixture with a changed task retires the skill"
       decision: "allow",
       policy_id: `${fixture.policy.id}/drift/restored`,
     });
-    expect(itemById(db, fixture.item.id)).toEqual({ ...retiredAs, status: "active" });
+    expect(itemById(db, fixture.item.id)).toMatchObject({
+      status: "active",
+      version: (retiredAs?.version ?? 0) + 1,
+      content: fixture.item.content,
+    });
   });
 });
 
@@ -259,21 +271,22 @@ const procedure = () =>
     provenance: { ...item(1).provenance, kind: "model", ref: "distill:awm:s1,s2" },
   }) as MemoryItem;
 
-async function active(policy: Policy = DRIFT) {
+async function active(policy: Policy = DRIFT, proc: MemoryItem = procedure()) {
   const db = openSqlite(":memory:");
   migrate(db);
   let n = 0;
-  const plane = createPlane({
+  const deps = {
     db,
     adapter: createFakeAdapter(),
     policy,
     newId: () => id(900_000 + ++n),
     distillTasks: SESSIONS,
-  });
-  await plane.write({ ...omar, source: "model" }, procedure(), AT);
-  const p = await plane.promote(omar, id(1), "person:omar", AT, { replay: replay(15) });
+  };
+  const plane = createPlane(deps);
+  await plane.write({ ...omar, source: "model" }, proc, AT);
+  const p = await plane.promote(omar, id(1), proc.scope, AT, { replay: replay(15) });
   expect(p.decision).toBe("allow");
-  return { db, plane };
+  return { db, plane, deps };
 }
 
 const changed = { validated: hash("a"), current: hash("b") };
@@ -330,14 +343,156 @@ describe("Plane.revalidate", () => {
       })),
     });
     const short = await plane.revalidate(omar, id(1), AT, { replay: spread });
+    // The promotion gate judges it, with the replay: 3 of 5 does not meet 4 of 5.
     expect(short).toMatchObject({
       outcome: "refused",
-      event: { op: "promote", decision: "deny", policy_id: "test/drift/restored" },
+      event: { op: "promote", decision: "deny", policy_id: PROMOTE_NO_EVIDENCE_ID },
     });
+    expect(short.event.reason).toMatch(
+      /^drift restore of item .*, retired under test\/drift\/environment-changed/,
+    );
     expect(itemById(db, id(1))?.status).toBe("retired");
+    // Below the floor, the gate is never asked.
+    const below = await plane.revalidate(omar, id(1), AT, { replay: replay(3) });
+    expect(below.event).toMatchObject({
+      op: "promote",
+      decision: "deny",
+      policy_id: "test/drift/restored",
+    });
     const back = await plane.revalidate(omar, id(1), AT, { replay: replay(15) });
     expect(back.outcome).toBe("restored");
-    expect(itemById(db, id(1))).toMatchObject({ status: "active", version: 2 });
+    expect(back.event).toMatchObject({
+      op: "promote",
+      decision: "allow",
+      policy_id: "test/drift/restored",
+    });
+    // The in-place promotion: same id, version plus one, active.
+    expect(itemById(db, id(1))).toMatchObject({ status: "active", version: 3 });
+  });
+
+  test("a restore the budget refuses stays retired (trust.protect_trusted)", async () => {
+    const policy: Policy = {
+      ...DRIFT,
+      trust: { protect_trusted: "on" },
+      retention: [
+        { scope: "team", class: "procedural", ttl: null, budget: 1, eviction: "recency" },
+      ],
+    };
+    const team = { ...procedure(), scope: "team:platform" } as MemoryItem;
+    const { db, plane } = await active(policy, team);
+    await plane.revalidate(omar, id(1), AT, { replay: replay(3), environment: changed });
+    // Another member's user-written procedure takes the one slot.
+    const ana: Actor = {
+      id: "person:ana",
+      level: "person",
+      memberships: ["team:platform"],
+      source: "user",
+    };
+    const theirs = {
+      ...item(5, { scope: "team:platform", owner: "person:ana" }),
+      class: "procedural",
+      content: { body: "Run the tests before pushing.", tools: ["bash"] },
+      provenance: { ...item(5).provenance, actor: "person:ana" },
+    } as MemoryItem;
+    expect((await plane.write(ana, theirs, AT)).event.decision).toBe("allow");
+    const r = await plane.revalidate(omar, id(1), AT, { replay: replay(15) });
+    expect(r).toMatchObject({
+      outcome: "refused",
+      event: { op: "promote", decision: "deny", policy_id: DOWNGRADE_ID },
+    });
+    expect(itemById(db, id(1))?.status).toBe("retired");
+    expect(itemById(db, id(5))?.status).toBe("active");
+  });
+
+  test("an item past its ttl is not restored", async () => {
+    const short = { ...procedure(), valid_from: AT, ttl: 2 * 86_400 } as MemoryItem;
+    const { db, plane } = await active(DRIFT, short);
+    await plane.revalidate(omar, id(1), AT, { replay: replay(3), environment: changed });
+    const r = await plane.revalidate(omar, id(1), "2026-10-28T12:00:00Z", { replay: replay(15) });
+    expect(r).toMatchObject({
+      outcome: "refused",
+      event: { op: "promote", decision: "deny", policy_id: PROMOTE_EXPIRED_ID },
+    });
+    expect(itemById(db, id(1))?.status).toBe("retired");
+  });
+
+  test("a procedure retired by its ttl, a budget eviction or an offboarding is not restored", async () => {
+    // ttl: the sweep retires it.
+    const short = { ...procedure(), valid_from: AT, ttl: 2 * 86_400 } as MemoryItem;
+    const ttl = await active(DRIFT, short);
+    const later = "2026-10-28T12:00:00Z";
+    expect((await ttl.plane.retain(omar, "person:omar", later)).expired).toEqual([id(1)]);
+    const t = await ttl.plane.revalidate(omar, id(1), later, { replay: replay(15) });
+    expect(t.event.policy_id).toBe(DRIFT_STATUS_ID);
+    expect(t.event.reason).toContain("retired other than by drift");
+    expect(itemById(ttl.db, id(1))?.status).toBe("retired");
+    // Eviction: a budget of one, and a newer procedure takes it.
+    const budget: Policy = {
+      ...DRIFT,
+      retention: [
+        { scope: "person", class: "procedural", ttl: null, budget: 1, eviction: "recency" },
+      ],
+    };
+    const ev = await active(budget);
+    const newer = {
+      ...item(5, { scope: "person:omar" }),
+      class: "procedural",
+      content: { body: "Run the tests before pushing.", tools: ["bash"] },
+    } as MemoryItem;
+    expect((await ev.plane.write(omar, newer, "2026-10-25T13:00:00Z")).event.decision).toBe(
+      "allow",
+    );
+    expect(itemById(ev.db, id(1))?.status).toBe("retired");
+    const e = await ev.plane.revalidate(omar, id(1), "2026-10-25T13:00:00Z", {
+      replay: replay(15),
+    });
+    expect(e.event.policy_id).toBe(DRIFT_STATUS_ID);
+    expect(e.event.reason).toContain("retired other than by drift");
+    // Offboarding: erased, so it is gone, and refused as an unknown id.
+    const off = await active();
+    await off.plane.revalidate(omar, id(1), AT, { replay: replay(3), environment: changed });
+    await offboard(off.deps, omar, { person: "person:omar", roles: [] }, AT);
+    expect(itemById(off.db, id(1))).toBeUndefined();
+    const o = await off.plane.revalidate(omar, id(1), AT, { replay: replay(15) });
+    expect(o.event).toMatchObject({ policy_id: DRIFT_MEMBERSHIP_ID, scope_from: null });
+  });
+
+  test("while drift retired, its content counts as retired: a model rewrite is refused", async () => {
+    const { plane } = await active();
+    await plane.revalidate(omar, id(1), AT, { replay: replay(3), environment: changed });
+    const again = { ...procedure(), id: id(6), status: "active" } as MemoryItem;
+    const w = await plane.write({ ...omar, source: "model" }, again, AT);
+    expect(w.event).toMatchObject({ decision: "deny", policy_id: RETIRED_CONTENT_ID });
+  });
+
+  test("a drift retirement under a policy since renamed is still restored", async () => {
+    const { db, plane, deps } = await active();
+    await plane.revalidate(omar, id(1), AT, { replay: replay(3), environment: changed });
+    const renamed = createPlane({ ...deps, policy: { ...DRIFT, id: "test-v2" } });
+    const r = await renamed.revalidate(omar, id(1), AT, { replay: replay(15) });
+    expect(r.event).toMatchObject({
+      op: "promote",
+      decision: "allow",
+      policy_id: "test-v2/drift/restored",
+    });
+    expect(itemById(db, id(1))?.status).toBe("active");
+  });
+
+  test("a member whose level may not read the scope is answered as an outsider", async () => {
+    const { plane } = await active();
+    // A team-level reader may read team and org scopes only (testPolicy's matrix).
+    const blind: Actor = {
+      id: "person:bo",
+      level: "team",
+      memberships: ["person:omar"],
+      source: "user",
+    };
+    const r = await plane.revalidate(blind, id(1), AT, { replay: replay(0), environment: changed });
+    expect(r.event).toMatchObject({
+      policy_id: DRIFT_MEMBERSHIP_ID,
+      scope_from: null,
+      scope_to: null,
+    });
   });
 
   test("off by default: a policy without procedures.drift refuses, and nothing retires", async () => {
@@ -399,7 +554,7 @@ describe("Plane.revalidate", () => {
     );
   });
 
-  test("a candidate, a non-procedure and an item retired otherwise are not re-validated", async () => {
+  test("a candidate and a non-procedure are not re-validated", async () => {
     const db = openSqlite(":memory:");
     migrate(db);
     let n = 0;
