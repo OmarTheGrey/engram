@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 from html.parser import HTMLParser
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -236,6 +237,26 @@ def test_a_proof_of_concept_gets_its_own_section_and_meter(tmp_path: Path) -> No
     assert 'width="1.20"' in text  # 3 / 1,500 of the 600-unit bar
 
 
+def test_headings_do_not_skip_and_bars_are_not_read_twice(tmp_path: Path) -> None:
+    poc = _entry(X, status="proof of concept", hypothesis="none", title="T", prereg=None)
+    poc["meter"] = {"part": ["k"], "whole": ["n"], "label": "passed"}
+    text = build(_repo(tmp_path, {X: BODY}), _page(), _register(poc))
+    proofs = text[text.index('<section id="proofs"') :]
+    assert "<h3>T</h3>" in proofs and "<h4>" not in proofs.split("</section>")[0]
+    levels = [int(m) for m in re.findall(r"<h([1-6])[ >]", text)]
+    assert all(b - a <= 1 for a, b in pairwise(levels))
+    assert text.count("<svg") == text.count('aria-hidden="true"')
+    assert "3 of 1,500 passed" in text  # the bar's text stays, once
+    assert "<code>n</code>" in text
+
+
+def test_key_paths_wrap_at_dots(tmp_path: Path) -> None:
+    entry = _entry(X, headline=[{"label": "l", "path": ["a", "b"]}])
+    body = b'{"a": {"b": 1}}\n'
+    text = build(_repo(tmp_path, {X: body}), _page(), _register(entry))
+    assert '<td class="path"><code>a.<wbr>b</code></td>' in text
+
+
 def test_a_complement_meter_fills_with_whole_minus_part(tmp_path: Path) -> None:
     meter = {"part": ["k"], "whole": ["n"], "label": "held", "complement": "leaked"}
     poc = _entry(X, status="proof of concept", hypothesis="none", title="T", meter=meter)
@@ -285,6 +306,37 @@ def test_the_page_is_byte_stable(tmp_path: Path) -> None:
             "names no cost",
         ),
         ({"research/results/h1-dogfood.json": BODY}, [], {}, "dogfood"),
+        (
+            {X: BODY},
+            [_entry(X, status="hypothesis result", prereg="#### P1. An arm", cost=[])],
+            {
+                "statuses": {"hypothesis result": "r"},
+                "hypothesis_results": frozenset({"hypothesis result"}),
+            },
+            "cannot cite '#### P1. An arm', an arm proposed",
+        ),
+        (
+            {X: BODY},
+            [
+                _entry(
+                    X,
+                    status="hypothesis result",
+                    hypothesis="none",
+                    cost=[{"label": "calls", "path": ["calls"]}],
+                )
+            ],
+            {
+                "statuses": {"hypothesis result": "r"},
+                "hypothesis_results": frozenset({"hypothesis result"}),
+            },
+            "must serve a hypothesis, not none",
+        ),
+        (
+            {X: BODY},
+            [_entry(X, status="proof of concept")],
+            {},
+            "research/configs/results-register.json, then run make results-page",
+        ),
     ],
 )
 def test_build_refuses(

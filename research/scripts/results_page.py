@@ -63,6 +63,7 @@ __all__ = ["HYPOTHESIS_RESULTS", "STATUSES", "PageError", "anchor", "build", "ma
 
 REPO = Path(__file__).resolve().parents[2]
 PROPOSED = "## Proposed amendments, not yet registered"
+REGISTER_CONFIG = "research/configs/results-register.json"
 PROOF = "proof of concept"
 EXPLORATORY = "exploratory: a proposed arm, not registered"
 NO_MODEL = "no model call: regenerated offline from committed inputs"
@@ -138,7 +139,10 @@ td.num { white-space: nowrap; }
 svg { max-width: 100%; height: auto; }
 #manifest-table { min-width: 64rem; }
 #manifest-table td:nth-child(4) code { word-break: break-all; }
-.figure { background: #fcfcfb; border-radius: .5rem; padding: .5rem; overflow-x: auto; }
+/* An inlined figure paints its own light surface; the panel around it follows the theme. */
+.figure { background: var(--surface); border: 1px solid var(--line); border-radius: .5rem;
+  padding: .5rem; overflow-x: auto; }
+td.path code { overflow-wrap: normal; word-break: normal; }
 .bar-track { fill: var(--track); }
 .bar-fill { fill: var(--proof); }
 details summary { cursor: pointer; color: var(--accent); margin: .5rem 0; }
@@ -185,6 +189,11 @@ def _text(text: str) -> str:
     return re.sub(r"`([^`]+)`", r"<code>\1</code>", escape(text))
 
 
+def _path(path: Sequence[Any]) -> str:
+    """A key path that may wrap after each dot, never inside a key."""
+    return escape(path_text(path)).replace(".", ".<wbr>")
+
+
 def _plain(value: Any) -> str:
     return value if isinstance(value, str) else value_text(value)
 
@@ -221,8 +230,8 @@ def _meter(part: Any, whole: Any, label: str, complement: str | None = None) -> 
     width = 600.0
     return (
         f'<svg viewBox="0 0 {width:.2f} 18.00" width="100%" height="18" '
-        f'preserveAspectRatio="none" role="img" '
-        f'aria-label="{escape(text)}"><rect class="bar-track" x="0.00" y="0.00" '
+        'preserveAspectRatio="none" aria-hidden="true">'
+        '<rect class="bar-track" x="0.00" y="0.00" '
         f'width="{width:.2f}" height="18.00" rx="4.00"/><rect class="bar-fill" x="0.00" '
         f'y="0.00" width="{width * share:.2f}" height="18.00" rx="4.00"/></svg>'
         f'<p class="meta">{escape(text)}</p>'
@@ -249,11 +258,10 @@ def _overview(counts: Mapping[str, int], statuses: Mapping[str, str]) -> str:
             f"<title>{escape(status)}: {n}</title></rect>"
         )
         x += w
-    label = ", ".join(f"{s} {counts.get(s, 0)}" for s in statuses)
     return (
         f'<svg viewBox="0 0 {width:.2f} 24.00" width="100%" height="24" '
         f'preserveAspectRatio="none" role="img" '
-        f'aria-label="{escape(label)}">{"".join(rects)}</svg>'
+        f'aria-hidden="true">{"".join(rects)}</svg>'
         f'<ul class="legend">{"".join(legend)}</ul>'
     )
 
@@ -292,7 +300,7 @@ class _Page:
             f"{f}: more than one section" for f in sorted(set(named)) if named.count(f) > 1
         ]
         for row in rows.values():
-            if "dogfood" in row.file.lower() or "dogfood" in row.config.lower():
+            if any("dogfood" in c.lower() for c in (row.file, row.config, row.figure)):
                 problems.append(
                     f"{row.file}: the page never shows dogfood data (AGENTS.md rule 12)"
                 )
@@ -313,13 +321,23 @@ class _Page:
             if prereg is not None and prereg not in self.headings:
                 problems.append(f"{file}: {PREREG} has no heading {prereg!r}")
             if r["status"] == PROOF and not r.get("title"):
-                problems.append(f"{file}: a proof of concept needs a title for its section")
+                problems.append(
+                    f"{file}: a proof of concept needs a title for its section: add `title` to "
+                    f"its section in {REGISTER_CONFIG}, then run make results-page"
+                )
             raw = (self.root / file).read_bytes()
             if hashlib.sha256(raw).hexdigest() != rows[file].sha256:
                 problems.append(f"{file}: sha256 does not match MANIFEST.md")
                 continue
             self.data[file] = json.loads(raw.decode("utf-8"))
             ok = all(self._resolve(file, h["path"]) is not _MISSING for h in r["headline"])
+            if r["status"] in self.hypothesis_results and prereg in self.proposed:
+                problems.append(
+                    f"{file}: a hypothesis result cannot cite {prereg!r}, an arm proposed in the "
+                    "pre-registration's amendments and not registered"
+                )
+            if r["status"] in self.hypothesis_results and r["hypothesis"] == "none":
+                problems.append(f"{file}: a hypothesis result must serve a hypothesis, not none")
             if r["status"] in self.hypothesis_results and not r.get("cost"):
                 problems.append(f"{file}: a hypothesis result names no cost paths (`cost`)")
             parts: list[str] = []
@@ -354,15 +372,15 @@ class _Page:
         out.append(f'<span class="badge">{said}</span>')
         return "".join(out)
 
-    def card(self, r: Mapping[str, Any], *, figure: bool = False) -> str:
+    def card(self, r: Mapping[str, Any], *, level: int = 3, figure: bool = False) -> str:
         file = r["file"]
         row = self.rows[file]
         data = self.data[file]
         title = r.get("title")
         head = (
-            f'<h4>{escape(title)}</h4><p class="meta"><code>{escape(file)}</code></p>'
+            f'<h{level}>{escape(title)}</h{level}><p class="meta"><code>{escape(file)}</code></p>'
             if title
-            else f"<h4><code>{escape(file)}</code></h4>"
+            else f"<h{level}><code>{escape(file)}</code></h{level}>"
         )
         lines = [
             f'<article class="card{" proof" if r["status"] == PROOF else ""}" id="{anchor(file)}">',
@@ -397,7 +415,7 @@ class _Page:
             lines.append(
                 f"<tr><td>{escape(h['label'])}</td>"
                 f'<td class="num">{_value(resolve(data, h["path"]))}</td>'
-                f"<td><code>{escape(path_text(h['path']))}</code></td></tr>"
+                f'<td class="path"><code>{_path(h["path"])}</code></td></tr>'
             )
         lines.append("</tbody></table></div>")
         lines.append(
@@ -428,6 +446,8 @@ def build(
     for r in results:
         counts[r["status"]] += 1
     groups = [g for g in register["groups"] if g["id"] != "none"]
+    ids = [g["id"] for g in groups]
+    span = f"{ids[0]} to {ids[-1]}" if len(ids) > 1 else (ids[0] if ids else "any hypothesis")
     decided = [r for r in results if r["status"] in hypothesis_results]
     proofs = [r for r in results if r["status"] == PROOF]
     present = [s for s in statuses if counts[s] and s not in hypothesis_results]
@@ -449,7 +469,7 @@ def build(
     else:
         standing = (
             "<strong>No hypothesis has a result yet.</strong> Every committed file is a "
-            f"{escape(kinds)}. None is a test of H1 to H5, and none may be quoted as one."
+            f"{escape(kinds)}. None is a test of {escape(span)}, and none may be quoted as one."
         )
 
     body: list[str] = [
@@ -489,7 +509,7 @@ def build(
         ]
         body.append(f'<div id="g-{escape(gid.lower())}"><h3>{escape(g["title"])}</h3>')
         if mine:
-            body += [p.card(r, figure=True) for r in mine]
+            body += [p.card(r, level=4, figure=True) for r in mine]
         else:
             tests = ", ".join(sorted(hypothesis_results))
             why = (
@@ -509,7 +529,7 @@ def build(
                 f"<details><summary>{len(inputs)} committed file{'s' if len(inputs) != 1 else ''} "
                 f"that serve {escape(gid)} without testing it</summary>"
             )
-            body += [p.card(r) for r in inputs]
+            body += [p.card(r, level=4) for r in inputs]
             body.append("</details>")
         body.append("</div>")
     body.append("</section>")
