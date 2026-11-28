@@ -4,10 +4,73 @@
   "hypothesis": "none",
   "status": "proof of concept",
   "card": "E2.18",
+  "wording": "properties of the three registered presets proved for every request the Cedar export can express, by Cedar's symbolic compiler and cvc5, modulo grants (ADR 0041, decision 5); a proof of concept of the evaluator's first proofs, no hypothesis result, and no registered analysis reads it",
+  "tools": {
+    "symcc": {
+      "manifest": "tools/symcc/Cargo.toml",
+      "crate": "cedar-policy-symcc",
+      "version": "0.8.1",
+      "cedar_policy": "4.14.1"
+    },
+    "cvc5": {
+      "version": "1.4.2",
+      "upstream": ".engram/upstream/cvc5-1.4.2",
+      "release": "https://github.com/cvc5/cvc5/releases/download/cvc5-1.4.2",
+      "assets": {
+        "win32-amd64": {
+          "zip": "cvc5-Win64-x86_64-static.zip",
+          "sha256": "9055de9b724724890ba5a19cfdc98f68a8c0653284afa843096dec432a0f88c3",
+          "exe": "cvc5-Win64-x86_64-static/bin/cvc5.exe"
+        },
+        "linux-x86_64": {
+          "zip": "cvc5-Linux-x86_64-static.zip",
+          "sha256": "7eb18f8c814c36a46c5a7d003983e9cfbc4b0a9828d6dd596239291bd4cc61d8",
+          "exe": "cvc5-Linux-x86_64-static/bin/cvc5"
+        },
+        "darwin-arm64": {
+          "zip": "cvc5-macOS-arm64-static.zip",
+          "sha256": "24397f7d022e755876ca836193d4c5f9c1d4326f0f6c01f7d7fc1ddd6bc5096c",
+          "exe": "cvc5-macOS-arm64-static/bin/cvc5"
+        }
+      }
+    }
+  },
   "properties": [
-    {"id": "read-monotone", "shape": "monotone", "pairs": [["strict", "medium"], ["medium", "permissive"]], "actions": ["read"], "expect": "holds"},
-    {"id": "model-write-person-scope", "shape": "invariant", "presets": ["strict", "medium", "permissive"], "expect": "holds"},
-    {"id": "person-read-needs-grant", "shape": "invariant", "presets": ["strict", "medium", "permissive"], "expect": "holds"},
-    {"id": "read-monotone-reversed", "shape": "monotone", "pairs": [["medium", "strict"], ["permissive", "medium"]], "actions": ["read"], "expect": "fails"}
+    {
+      "id": "read-monotone",
+      "shape": "monotone",
+      "pairs": [
+        ["strict", "medium"],
+        ["medium", "permissive"]
+      ],
+      "actions": ["read"],
+      "expect": "holds",
+      "statement": "strict never allows a read medium denies, nor medium one permissive denies"
+    },
+    {
+      "id": "model-write-person-scope",
+      "shape": "invariant",
+      "presets": ["strict", "medium", "permissive"],
+      "expect": "holds",
+      "statement": "a model-sourced write is allowed, with or without review, only into a person scope the writer is a member of"
+    },
+    {
+      "id": "person-read-needs-grant",
+      "shape": "invariant",
+      "presets": ["strict", "medium", "permissive"],
+      "expect": "holds",
+      "statement": "an item in a person scope is read only by a member of that scope, or under a live grant naming the reader"
+    },
+    {
+      "id": "read-monotone-reversed",
+      "shape": "monotone",
+      "pairs": [
+        ["medium", "strict"],
+        ["permissive", "medium"]
+      ],
+      "actions": ["read"],
+      "expect": "fails",
+      "statement": "the control: the converse of read-monotone, which must be refuted, with a counterexample the evaluator reproduces; it shows the solver is not answering yes to everything and exercises the replay"
+    }
   ]
 }

@@ -58,12 +58,10 @@ const KINDS = ProvenanceKind.options;
 const MAX_SECOND = 253402300799;
 const MAX_SAFE = Number.MAX_SAFE_INTEGER;
 
-/** The properties a config may name, each with what its right side states. */
+/** The invariants a config may name: the actions, the permit that states it, and the same statement over an Engram request. */
 export const INVARIANTS = {
   "model-write-person-scope": {
     actions: ["write", "write_without_review"],
-    statement:
-      "an allowed model-sourced write lands in a person scope the writer is a member of",
     // The permit is the property: it allows every request but a model-sourced
     // write outside a person scope the writer is a member of.
     cedar: `permit (principal, action, resource)
@@ -74,8 +72,6 @@ when { resource.kind != "model" || (resource.scope.level == "person" && principa
   },
   "person-read-needs-grant": {
     actions: ["read"],
-    statement:
-      "an item in a person scope is read only by a member of that scope or under a live grant naming the reader",
     cedar: `permit (principal, action, resource)
 when { resource.scope.level != "person" || principal in resource.scope || (context has grant && (if context.grant has expires then (context.at.s < context.grant.expires.s || (context.at.s == context.grant.expires.s && context.at.ns < context.grant.expires.ns)) else true)) };`,
     holds: (r: Decoded) =>
@@ -98,6 +94,8 @@ export interface PropertySpec {
   actions?: Action[];
   /** holds: a proof is expected; fails: a counterexample is (the control). */
   expect: "holds" | "fails";
+  /** The property in words, for the result; the Cedar text is the statement checked. */
+  statement?: string;
 }
 
 export interface Check {
