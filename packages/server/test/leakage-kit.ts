@@ -377,7 +377,11 @@ export function recordProbes(records: SuiteRecords): void {
   const out = process.env.ENGRAM_LEAKAGE_OUT;
   if (out === undefined || out === "") return;
   mkdirSync(out, { recursive: true });
-  writeFileSync(join(out, `${records.suite}.json`), `${JSON.stringify(records, null, 2)}\n`);
+  // The canaries as written (label, write path, scope) and the probe actors, so the count names what it covers.
+  const canaries = CANARIES.map(({ label, path, scope }) => ({ label, path, scope }));
+  const probeActors = PROBE_ACTORS.map((p) => ({ name: p.name, actor: p.actor.id }));
+  const body = { ...records, canaries, probe_actors: probeActors };
+  writeFileSync(join(out, `${records.suite}.json`), `${JSON.stringify(body, null, 2)}\n`);
 }
 
 /**

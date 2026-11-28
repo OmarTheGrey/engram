@@ -1,0 +1,206 @@
+{
+  "canaries": {
+    "by_write_path": {
+      "adoption": 1,
+      "grants": 1,
+      "import-promote": 1,
+      "offboard-erased": 1,
+      "supersede": 2,
+      "write": 6,
+      "write-denied": 1
+    },
+    "labels": [
+      "dana-person",
+      "dana-team",
+      "granted-sam",
+      "expired-eve-write",
+      "expired-eve-grant",
+      "imported",
+      "superseded-old",
+      "superseded-new",
+      "adopted",
+      "denied-team",
+      "fred-team",
+      "fred-person",
+      "lee-team"
+    ],
+    "written": 13
+  },
+  "card": "E8.16",
+  "denied_and_missing": {
+    "http": {
+      "alike": 8,
+      "characterised": [
+        "write",
+        "checkWrite",
+        "explain",
+        "read (reason counts)"
+      ],
+      "compared": 12
+    },
+    "mcp": {
+      "alike": 2,
+      "characterised": [
+        "memory_explain"
+      ],
+      "compared": 3
+    }
+  },
+  "filed_under": "research/results/h1-* only because research/tests/test_prereg.py maps every MANIFEST file to one hypothesis's results glob; the result decides no hypothesis, as card X14 filed its red-team result",
+  "hypothesis": "none",
+  "limits": [
+    "A fixture workspace: thirteen canaries in one log, under the medium preset, at one clock; the probes cover every route, tool and command, not every argument a caller could send.",
+    "Memberships are self-asserted on every surface without credentials (ADR 0027): a former member is probed as the harness presents them after offboarding, without the scope they left. A caller who still asserts the scope is a member by assertion; only verified actors (card E8.12) close that.",
+    "A leak is a canary string or a hidden item id found in an answer. An answer that tells existence by its shape rather than by a canary (a different status or wording for a denied id than for a missing one) is counted apart, as a characterised oracle, and each is pinned by a test."
+  ],
+  "name": "leakage",
+  "parity": {
+    "cli": {
+      "operations": 13,
+      "same": 13
+    },
+    "cli --server": {
+      "operations": 13,
+      "same": 13
+    },
+    "http": {
+      "operations": 13,
+      "same": 13
+    },
+    "mcp": {
+      "operations": 5,
+      "same": 5
+    },
+    "pi": {
+      "operations": 5,
+      "same": 5
+    },
+    "tui": {
+      "operations": 13,
+      "same": 13
+    }
+  },
+  "positive_control": {
+    "cli": [
+      "dana-team",
+      "fred-team",
+      "lee-team"
+    ],
+    "http": [
+      "dana-team",
+      "fred-team",
+      "lee-team"
+    ],
+    "mcp": [
+      "dana-team",
+      "fred-team",
+      "lee-team"
+    ],
+    "pi": [
+      "dana-team",
+      "fred-team",
+      "lee-team"
+    ],
+    "tui": [
+      "dana-team",
+      "fred-team",
+      "lee-team"
+    ]
+  },
+  "probe_actors": [
+    {
+      "actor": "person:mallory",
+      "name": "non-member"
+    },
+    {
+      "actor": "person:eve",
+      "name": "expired-grantee"
+    },
+    {
+      "actor": "person:fred",
+      "name": "former-member"
+    },
+    {
+      "actor": "person:sam",
+      "name": "partial-grantee"
+    }
+  ],
+  "seed": 20261128,
+  "status": "proof of concept",
+  "suite": [
+    "packages/server/test/leakage.test.ts",
+    "packages/mcp/test/leakage.test.ts",
+    "packages/cli/test/parity.test.ts",
+    "packages/pi-extension/test/parity.test.ts"
+  ],
+  "suite_passed": true,
+  "surfaces": {
+    "cli": {
+      "leaked_canaries": {},
+      "leaks": 0,
+      "probes": 576,
+      "probes_by_actor": {
+        "expired-grantee": 144,
+        "former-member": 144,
+        "non-member": 144,
+        "partial-grantee": 144
+      },
+      "probes_leaking": 0
+    },
+    "http": {
+      "leaked_canaries": {},
+      "leaks": 0,
+      "probes": 728,
+      "probes_by_actor": {
+        "erasing-member": 32,
+        "expired-grantee": 166,
+        "former-member": 198,
+        "non-member": 166,
+        "partial-grantee": 166
+      },
+      "probes_leaking": 0
+    },
+    "mcp": {
+      "leaked_canaries": {},
+      "leaks": 0,
+      "probes": 288,
+      "probes_by_actor": {
+        "expired-grantee": 72,
+        "former-member": 72,
+        "non-member": 72,
+        "partial-grantee": 72
+      },
+      "probes_leaking": 0
+    },
+    "pi": {
+      "leaked_canaries": {},
+      "leaks": 0,
+      "probes": 48,
+      "probes_by_actor": {
+        "expired-grantee": 12,
+        "former-member": 12,
+        "non-member": 12,
+        "partial-grantee": 12
+      },
+      "probes_leaking": 0
+    },
+    "tui": {
+      "leaked_canaries": {},
+      "leaks": 0,
+      "probes": 581,
+      "probes_by_actor": {
+        "expired-grantee": 145,
+        "former-member": 145,
+        "member": 1,
+        "non-member": 145,
+        "partial-grantee": 145
+      },
+      "probes_leaking": 0
+    }
+  },
+  "totals": {
+    "leaks": 0,
+    "probes": 2221
+  },
+  "wording": "canary strings written through every write path of a fixture workspace, then probed through every surface as a non-member, an expired grantee, a former member after offboarding and a partial grantee: the number of probes per surface and the number of canaries any probe answer carried that its actor may not see. A proof of concept on a fixture workspace with no model in the loop, never a hypothesis result"
+}
