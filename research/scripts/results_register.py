@@ -25,6 +25,11 @@ config; add a status for a hypothesis result to STATUSES and to
 HYPOTHESIS_RESULTS, so that the generated top paragraph names the result
 instead of saying no hypothesis has one; and rewrite the config's dated intro
 paragraph about H1's live runs.
+
+The results page (research/scripts/results_page.py, card X17) is built on this
+config and STATUSES too: a proof of concept's section needs a `title` (and may
+have a `meter`), a hypothesis result's section needs `cost` key paths, and any
+change here is followed by `make results-page`, or the page's test fails.
 """
 
 from __future__ import annotations
