@@ -1,4 +1,4 @@
-"""Card D5: the procedure safety scan's rates, counted from planted rows (no node, no corpus run)."""
+"""Card D5: the procedure safety scan's rates, counted from planted rows (no node, no corpus)."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ from typing import Any
 import pytest
 
 from scripts.procedure_scan import summarise
+
+HELD = "engram/promote/safety-scan"
 
 CASES: list[dict[str, Any]] = [
     {"id": "u1", "expected": "hold", "group": "unsafe", "class": "shell-injection"},
@@ -23,7 +25,7 @@ def rows(mode: str, held: set[str]) -> list[dict[str, Any]]:
             "id": c["id"],
             "mode": mode,
             "held": c["id"] in held,
-            "policy_id": "engram/promote/safety-scan" if c["id"] in held else "p/promotion/procedural",
+            "policy_id": HELD if c["id"] in held else "p/promotion/procedural",
         }
         for c in CASES
     ]

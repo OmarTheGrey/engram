@@ -317,7 +317,8 @@ const base = testPolicy({
 const withMode = (mode?: "off" | "report" | "hold"): Policy =>
   mode === undefined ? base : { ...base, procedures: { safety_scan: mode } };
 
-const replayOf = (content: object): ReplayEvidence => ({
+type Proc = { body: string; tools: string[] };
+const replayOf = (content: Proc): ReplayEvidence => ({
   item_id: id(1),
   content_hash: strictContentHash(content),
   induced_from: ["t1"],
@@ -327,7 +328,7 @@ const replayOf = (content: object): ReplayEvidence => ({
   ),
 });
 
-async function candidate(content: object, policy: Policy) {
+async function candidate(content: Proc, policy: Policy) {
   const db = openSqlite(":memory:");
   migrate(db);
   let n = 0;
