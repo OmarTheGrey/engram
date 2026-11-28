@@ -1,5 +1,7 @@
 // The plane: schema, events, policy, lints, explain, distill. No store I/O, no model calls.
 export * from "./adapter.ts";
+export * from "./audit/dsse.ts";
+export * from "./audit/report.ts";
 export * from "./content-hash.ts";
 export * from "./db/db.ts";
 export { MIGRATIONS, type Migration, migrate, migrationText } from "./db/migrate.ts";
