@@ -119,6 +119,49 @@ describe("engram hook install codex", () => {
     expect(tree(dir)).toEqual(now);
   });
 
+  it("protects the hooks.json it installs into and the config.toml beside it, once each", async () => {
+    const dir = await tempDir();
+    const file = join(dir, ".codex", "hooks.json");
+    const toml = join(dir, ".codex", "config.toml");
+    await cli(["hook", "install", "codex", "--protect", toml], { cwd: dir, home: await tempDir() });
+    const command = json(file).hooks.PreToolUse[0].hooks[0].command as string;
+    const quoted = (p: string) => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(p) ? p : `'${p}'`);
+    expect(command).toContain(`--protect ${quoted(file)}`);
+    expect(command.split(`--protect ${quoted(toml)}`)).toHaveLength(2);
+  });
+
+  it("refuses a .codex folder that is a link or junction, writing nothing through it", async (ctx) => {
+    const dir = await tempDir();
+    const elsewhere = await tempDir();
+    try {
+      symlinkSync(elsewhere, join(dir, ".codex"), "junction");
+    } catch {
+      ctx.skip();
+    }
+    const r = await cli(["hook", "install", "codex"], { cwd: dir, home: await tempDir() });
+    expect(r.code).toBe(1);
+    expect(r.err).toContain("is a link");
+    expect(tree(elsewhere)).toEqual({});
+  });
+
+  it("refuses a backup path that is a link, leaving the file as it was", async (ctx) => {
+    const dir = await tempDir();
+    await mkdir(join(dir, ".codex"));
+    const file = join(dir, ".codex", "hooks.json");
+    const before = '{"hooks": {}}\n';
+    writeFileSync(file, before);
+    const elsewhere = await tempDir();
+    try {
+      symlinkSync(elsewhere, backupPath(file, before), "junction");
+    } catch {
+      ctx.skip();
+    }
+    const r = await cli(["hook", "install", "codex"], { cwd: dir, home: await tempDir() });
+    expect(r.code).toBe(1);
+    expect(readFileSync(file, "utf8")).toBe(before);
+    expect(tree(elsewhere)).toEqual({});
+  });
+
   it("with --user writes $CODEX_HOME/hooks.json, and ~/.codex/hooks.json without it", async () => {
     const home = await tempDir();
     const codexHome = await tempDir();
@@ -134,7 +177,8 @@ describe("engram hook install codex", () => {
     expect(tree(home)).toEqual({});
     await cli(["hook", "install", "codex", "--user"], { cwd: dir, home });
     expect(Object.keys(tree(home))).toEqual([".codex/hooks.json"]);
-    expect(r.out).not.toContain("/hooks.");
+    // User-level hooks need trusting too (card E8.17's review).
+    expect(r.out).toContain("/hooks");
   });
 
   it.each([
@@ -187,7 +231,10 @@ describe("engram hook install claude-code", () => {
     const entry = next.hooks.PreToolUse[0].hooks[0];
     expect(entry.type).toBe("command");
     expect(entry.onFailure).toBe("block");
-    expect(entry.args.slice(-4)).toEqual(["hook", "claude-code", "--root", join(dir, "memory")]);
+    const words = (entry.args as string[]).join(" ");
+    expect(words).toContain(`hook claude-code --root ${join(dir, "memory")}`);
+    // The hook guards the file it is installed into (card E8.17's review).
+    expect(words).toContain(`--protect ${file}`);
     expect(readFileSync(backupPath(file, before), "utf8")).toBe(before);
     const now = tree(dir);
     const again = await cli(["hook", "install", "claude-code", "--root", "memory"], {

@@ -12,10 +12,12 @@
 // writes only hooks.json, which Codex merges with it (a warning in Codex when
 // both hold hooks), and never edits TOML.
 //
-// What it writes: that one file, its folder when missing, and, when it
-// changes a file that existed, one backup beside it named by the old
-// content's sha256 (`settings.json.engram-backup-<12 hex>`), never
-// overwritten. Nothing else. A run whose merge equals the file's JSON writes
+// What it writes: that one file (through a temporary name beside it,
+// renamed over it), its folder when missing, and, when it changes a file
+// that existed, one backup beside it named by the old content's sha256
+// (`settings.json.engram-backup-<12 hex>`), never overwritten. A folder or
+// backup path that is a link is refused. The entry protects the file it is
+// installed into, and for Codex the config.toml beside it, with --protect. Nothing else. A run whose merge equals the file's JSON writes
 // nothing at all, a backup included. It refuses, writing nothing, a file
 // that is a link, is not a regular file, is not JSON, or is JSON whose
 // `hooks` or `hooks.PreToolUse` has another shape.
@@ -30,7 +32,7 @@
 // (`commandWindows`, written only when its quoting differs). Nothing here is
 // policy: the hook's decisions are core's.
 import { createHash } from "node:crypto";
-import { lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { HookHarness } from "@engram/mcp";
 import { parse } from "./commands.ts";
@@ -172,15 +174,33 @@ export interface Installed {
 export const backupPath = (file: string, before: string) =>
   `${file}.engram-backup-${createHash("sha256").update(before).digest("hex").slice(0, 12)}`;
 
-/** Merges the entry into `file`, writing only the file, its folder and one backup, and only on a change. */
+/** The path's own lstat (a link is not followed), or undefined when there is nothing there. */
+const lstatOf = (path: string) => {
+  try {
+    return lstatSync(path);
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * Merges the entry into `file`, writing only the file, its folder and one
+ * backup, and only on a change. The folder (`.claude`, `.codex` or the
+ * Codex home) and the backup path must not be links, so no write follows
+ * one out of the named files (card E8.17's review); the file is written to
+ * a temporary name beside it and renamed over it, so a crash leaves the old
+ * file or the new one, never half of one.
+ */
 export function installInto(harness: HookHarness, file: string, entry: Handler): Installed {
   let before: string | undefined;
-  let stat: ReturnType<typeof lstatSync> | undefined;
-  try {
-    stat = lstatSync(file);
-  } catch {
-    stat = undefined;
-  }
+  const folder = lstatOf(dirname(file));
+  if (folder?.isSymbolicLink() === true)
+    throw new InstallRefusal(
+      `${dirname(file)} is a link; the installer writes only into a real folder`,
+    );
+  if (folder !== undefined && !folder.isDirectory())
+    throw new InstallRefusal(`${dirname(file)} is not a folder`);
+  const stat = lstatOf(file);
   if (stat !== undefined) {
     if (stat.isSymbolicLink())
       throw new InstallRefusal(`${file} is a link; the installer edits only a regular file`);
@@ -203,16 +223,20 @@ export function installInto(harness: HookHarness, file: string, entry: Handler):
   let backup: string | undefined;
   if (before !== undefined) {
     backup = backupPath(file, before);
-    let held: string | undefined;
-    try {
-      held = readFileSync(backup, "utf8");
-    } catch {
-      held = undefined;
-    }
-    if (held !== before)
-      writeFileSync(backup, before, { encoding: "utf8", flag: held === undefined ? "wx" : "w" });
+    const held = lstatOf(backup);
+    if (held?.isSymbolicLink() === true || (held !== undefined && !held.isFile()))
+      throw new InstallRefusal(`${backup} is a link or not a regular file; move it aside`);
+    // Named by the old content's hash: a backup already there holds these bytes.
+    if (held === undefined) writeFileSync(backup, before, { encoding: "utf8", flag: "wx" });
   } else mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  const temp = `${file}.engram-${process.pid}.tmp`;
+  writeFileSync(temp, `${JSON.stringify(next, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+  try {
+    renameSync(temp, file);
+  } catch (e) {
+    rmSync(temp, { force: true });
+    throw e;
+  }
   return { file, changed: true, backup, replaced, created: before === undefined };
 }
 
@@ -241,9 +265,14 @@ export async function installCommand(args: string[], io: Io, launch?: Launch): P
     if (Array.isArray(v)) for (const one of v) argv.push(`--${flag}`, one);
     else if (typeof v === "string") argv.push(`--${flag}`, v);
   }
+  const file = installTarget(harness, { user: values.user === true, project }, io);
+  // The hook guards the file it is installed into, and for Codex the config.toml beside it,
+  // wherever Codex starts the session (card E8.17's review: a session in a subfolder).
+  const guard = [file, ...(harness === "codex" ? [join(dirname(file), "config.toml")] : [])];
+  const given = new Set((values.protect ?? []).map((f) => resolve(project, f)));
+  for (const f of guard) if (!given.has(f)) argv.push("--protect", f);
   const words = absolutePaths(argv, project);
   const how = launch ?? resolveLaunch(thisHost(io.env));
-  const file = installTarget(harness, { user: values.user === true, project }, io);
   let done: Installed;
   try {
     done = installInto(harness, file, hookEntry(harness, how, words));
@@ -266,7 +295,9 @@ export async function installCommand(args: string[], io: Io, launch?: Launch): P
     );
   if (done.backup !== undefined) said.push(`the file as it was is in ${done.backup}`);
   io.out(`${said.join("; ")}\n`);
-  if (harness === "codex" && values.user !== true)
-    io.out("Codex runs a project's hooks only once you trust them: review it in /hooks.\n");
+  if (harness === "codex")
+    io.out(
+      "Codex runs a hook only once you trust it, at the project or the user level alike, and again after each change to the entry: review it in /hooks.\n",
+    );
   return 0;
 }
