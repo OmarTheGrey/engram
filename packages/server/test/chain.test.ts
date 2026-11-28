@@ -5,7 +5,9 @@
 // (connect.ts: --db, --store files, --root, --owner) write to one SQLite file,
 // with an offboarding between them; the log verifies clean. `workspaceOf`,
 // which the bench seams use over a log they opened, keeps no chain, so the
-// registered runs and X15's query counts are unchanged.
+// registered runs and X15's query counts are unchanged. Since card E1.9 a
+// served request's attestation (attest.ts, card E8.12) is chained with its
+// event: an attestation edited afterwards fails the log's verification.
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,6 +24,7 @@ import {
   verifyChain,
 } from "@engram/core";
 import { describe, expect, test } from "vitest";
+import { attested } from "../src/attest.ts";
 import { defaultDb, openWorkspace, workspaceOf } from "../src/workspace.ts";
 import { id } from "./helpers.ts";
 
@@ -127,5 +130,43 @@ describe("the shared opener keeps the chain", () => {
     });
     expect(keepsChain(ws.deps.db)).toBe(false);
     expect(Number(db.prepare("SELECT count(*) AS n FROM chain").get()?.n)).toBe(0);
+  });
+
+  test("a served request's attestation is chained with its event, and an edit to it is caught", async () => {
+    const home = mkdtempSync(join(tmpdir(), "engram-chain-home-"));
+    const root = mkdtempSync(join(tmpdir(), "engram-chain-root-"));
+    let n = 0;
+    const ws = openWorkspace({
+      db: defaultDb(home),
+      store: "files",
+      root,
+      owner: "dana",
+      cwd: root,
+      home,
+      env: {},
+      newId: () => id(++n),
+    });
+    try {
+      const served = await attested(
+        { surface: "http", method: "api_key", actor: DANA.id, issuer: null, subject: "k1" },
+        () => ws.plane.write(DANA, note(1, "person:dana", "a served note"), AT),
+      );
+      expect(served.event.decision).toBe("allow");
+      await ws.plane.write(DANA, note(2, "person:dana", "an in-process note"), AT);
+      const db = ws.open().db;
+      const r = verifyChain(db);
+      expect(r.first_break, JSON.stringify(r.first_break)).toBeNull();
+      expect(r.version).toBe(2);
+      expect(r.counts).toMatchObject({ attested: 1, attestations_uncovered: 0 });
+      db.prepare("UPDATE event_attestations SET actor = 'person:mallory' WHERE seq = ?").run(
+        served.event.seq,
+      );
+      expect(verifyChain(db).first_break).toMatchObject({
+        check: "attestations",
+        seq: served.event.seq,
+      });
+    } finally {
+      ws.close();
+    }
   });
 });

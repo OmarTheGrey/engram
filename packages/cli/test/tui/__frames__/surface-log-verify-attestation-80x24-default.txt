@@ -1,0 +1,34 @@
+ engram  Verify the log                        in process  person:dana (person)
+   2 more above: pgup
+
+ [ Verify ]
+
+ ✗ broken   exit 1  the chain or a checkpoint does not verify
+
+   ✓ ok    tables
+   ✓ ok    genesis
+   ✓ ok    links
+   ✓ ok    anchor
+   ✓ ok    commitments
+   ✗ fail  attestations: event 0's attestation row does not match the digest
+   chained with it: edited
+ first broken link: attestations, chain position 1, event seq 0
+ log fixture: 2 chain entries, 1 events chained, 0 unchained, 0 erased, 0
+ manifests, 0 checkpoints
+ chain version 2: 0 attestations chained, 0 not covered
+
+ The chain proves no event was changed or removed after it was written, nor the
+ attestation of who a served surface authenticated for it. A signed checkpoint
+ also proves who vouched for it.
+$ engram log verify --db engram.db   exit 1
+ ? help  ctrl+s verify  v plain  J json  ; commands  esc back
+--- styles
+r0 c0-79 inverse
+r3 c1-10 inverse
+r5 c1-1 fg #E86A1A
+r7 c3-3 fg #00A67A
+r8 c3-3 fg #00A67A
+r9 c3-3 fg #00A67A
+r10 c3-3 fg #00A67A
+r11 c3-3 fg #00A67A
+r12 c3-3 fg #E86A1A
