@@ -17,7 +17,6 @@ import type { Policy } from "../schema.ts";
  */
 export const NOT_BUILT_YET: readonly { path: readonly string[]; card: string }[] = [
   { path: ["erasure", "mode"], card: "E9.13" },
-  { path: ["approval"], card: "E2.19" },
 ];
 
 /** One option a policy sets that nothing builds yet. */

@@ -2571,6 +2571,9 @@ async function promotionsLandOnlyWherePermitted(name: string) {
  * (card E8.14);
  * `whoCanReadItem` and `whoCanRead` refuse an outsider as for an unknown id
  * and append no event (card E2.13, decision item 53);
+ * `approvals` lists only requests in scopes the caller may read, `refuse`
+ * refuses an outsider as for an unknown id with no item and no scope, and
+ * `expireRequests` sweeps only a scope the caller is a member of (card E2.19);
  * `explainAbsent` returns no item (card E2.17).
  */
 async function planeSurfaceLeaksNothing() {
@@ -2584,10 +2587,12 @@ async function planeSurfaceLeaksNothing() {
   };
   const { plane } = freshPlane(policy);
   expect(Object.keys(plane).sort(), "a new Plane method must be classified here").toEqual([
+    "approvals",
     "changeGrants",
     "checkWrite",
     "distill",
     "events",
+    "expireRequests",
     "explain",
     "explainAbsent",
     "export",
@@ -2597,6 +2602,7 @@ async function planeSurfaceLeaksNothing() {
     "read",
     "readById",
     "recordBypass",
+    "refuse",
     "retain",
     "revalidate",
     "simulate",
@@ -2771,6 +2777,44 @@ async function planeSurfaceLeaksNothing() {
     reason: empty.reason.replace("person:z", "person:s"),
   });
   expect(plane.events().length, "a who-can-read query appends no event").toBe(asked);
+  // The approval queue (card E2.19): the outsider's view lists nothing of
+  // the secret's scope; a refusal of the secret answers as for an unknown id,
+  // naming no scope, and returns no item; a sweep of its scope names nothing of it.
+  const queued = await plane.approvals(outsider, at);
+  leaks("approvals", queued);
+  expect(JSON.stringify(queued)).not.toContain("person:s");
+  const refused = await plane.refuse(outsider, secret.id, "no", at);
+  leaks("refuse", refused);
+  expect(refused.item).toBeNull();
+  expect([refused.event.scope_from, refused.event.scope_to]).toEqual([null, null]);
+  const refusedNothing = await plane.refuse(outsider, unknown, "no", at);
+  expect(refused.event.reason).toBe(refusedNothing.event.reason.replace(unknown, secret.id));
+  leaks("expireRequests", await plane.expireRequests(outsider, "person:s", at));
+  // The same under a policy with an approval block (verification note N7):
+  // past the off refusal, the outsider meets the reach and membership rules.
+  {
+    const routed: Policy = {
+      ...policy,
+      write: policy.write.map((r) => ({ ...r, requires_review: true })),
+      approval: { routes: [{ scope: "person", approvers: ["owner"], expires_after: 60 }] },
+    };
+    const { plane: queue } = freshPlane(routed);
+    const held = { ...secret, status: "candidate" } as MemoryItem;
+    expect((await queue.write(owner, held, at)).item?.status).toBe("candidate");
+    const listed = await queue.approvals(outsider, at);
+    leaks("approvals under a block", listed);
+    expect(listed).toEqual([]);
+    const no = await queue.refuse(outsider, secret.id, "no", at);
+    leaks("refuse under a block", no);
+    expect(no.item).toBeNull();
+    expect([no.event.scope_from, no.event.scope_to]).toEqual([null, null]);
+    const none = await queue.refuse(outsider, unknown, "no", at);
+    expect(no.event.reason).toBe(none.event.reason.replace(unknown, secret.id));
+    const swept = await queue.expireRequests(outsider, "person:s", "2026-10-26T12:00:00Z");
+    leaks("expireRequests under a block", swept);
+    expect(swept.decision).toBe("deny");
+    expect(JSON.stringify(swept)).not.toContain(secret.id);
+  }
   // simulate replays only the workload it is given, on scratch logs and
   // stores (card E8.9): the outsider's own read of the secret's words finds
   // nothing, and the real log gains no event.

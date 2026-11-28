@@ -31,6 +31,13 @@ export {
   adoptStoreItems,
 } from "./plane/adopt.ts";
 
+import {
+  type ExpiryReport,
+  expireRequests,
+  type QueuedRequest,
+  approvals as queuedRequests,
+  refuse,
+} from "./plane/approvals.ts";
 import { recordBypass } from "./plane/bypass.ts";
 import { type AbsenceExplanation, explainAbsent } from "./plane/explain-absent.ts";
 import { type ExportResult, exportBundle } from "./plane/export.ts";
@@ -59,6 +66,20 @@ export {
   InvalidCallError,
   UnknownReadError,
 } from "./actor.ts";
+export {
+  APPROVAL_EXPIRED_ID,
+  APPROVAL_MEMBERSHIP_ID,
+  APPROVAL_NO_REQUEST_ID,
+  APPROVAL_OFF_ID,
+  APPROVAL_REFUSED_ID,
+  APPROVAL_ROUTE_ID,
+  APPROVAL_STALE_ID,
+  type ApprovalRequest,
+  approvalQueue,
+  type ExpiryReport,
+  type QueuedRequest,
+  type RequestState,
+} from "./plane/approvals.ts";
 export {
   type BeforeRead,
   type BeforeReadReport,
@@ -289,6 +310,13 @@ export interface PromoteOptions {
    */
   replay?: ReplayEvidence;
   /**
+   * The version of the item the approver reviewed (card E2.19): when given,
+   * a promotion of any other version is refused (`engram/approval/stale`),
+   * so an approval never lands on content changed since it was reviewed. A
+   * value that is not a positive integer is refused with InvalidCallError.
+   */
+  reviewedVersion?: number;
+  /**
    * A user-sourced actor's reason for releasing the procedure safety scan's
    * hold (card D5, lint/procedural.ts): under `procedures.safety_scan: hold`
    * an allowed promotion of a procedural item with a critical finding is a
@@ -360,6 +388,42 @@ export interface Plane {
    * InvalidCallError before the log is touched.
    */
   changeGrants(actor: Actor, itemId: string, change: GrantChange, at: string): Promise<GrantResult>;
+  /**
+   * The approval queue at `at` as `actor` may see it (card E2.19,
+   * plane/approvals.ts): every request (a held write, or a promotion asked
+   * for that waits for a reviewer) on an item whose scope the actor may read
+   * as a member, keyed by item id and version, with its route, expiry and
+   * state, and whether the actor may decide it now. Approving is
+   * `promote(..., { review: true })` by an approver the policy's route
+   * names. Decides nothing and appends no event. An invalid actor or time is
+   * refused with InvalidCallError.
+   */
+  approvals(actor: Actor, at: string): Promise<QueuedRequest[]>;
+  /**
+   * An approver refuses a pending request on an item's current version,
+   * with a reason (card E2.19): the one into `options.target`, else into the
+   * item's own scope, else its only one. A held candidate refused in its own
+   * scope is retired under `engram/approval/refused`; a widening or a drift
+   * restore is refused and the item left as it is. Under a policy with no
+   * approval block it is one deny under `engram/approval/off`; so is
+   * expireRequests. Every outcome is one event. Runs in the write queue. An invalid
+   * actor, time, id or an empty reason is refused with InvalidCallError.
+   */
+  refuse(
+    actor: Actor,
+    itemId: string,
+    reason: string,
+    at: string,
+    options?: { reviewedVersion?: number; target?: string },
+  ): Promise<GateResult>;
+  /**
+   * Records each request on an item of `scope` past its route's
+   * `expires_after` at `at` as expired, one `promote` deny event each under
+   * `engram/approval/expired` (card E2.19). The actor must be a member of
+   * the scope, else one deny event (`engram/approval/membership`). Runs in
+   * the write queue; nothing runs on a timer.
+   */
+  expireRequests(actor: Actor, scope: string, at: string): Promise<ExpiryReport>;
   /**
    * Re-validates an admitted procedure on drift (card D4, ADR 0011 and
    * ADR 0050, proposed): the replay is presented, as for promote (ADR 0046),
@@ -554,6 +618,10 @@ export function createPlane(deps: PlaneDeps): Plane {
     lint: async (actor, at, scope, options) => lint(deps, actor, at, scope, options),
     changeGrants: async (actor, itemId, change, at) =>
       changeGrants(deps, actor, itemId, change, at),
+    approvals: (actor, at) => queuedRequests(deps, actor, at),
+    refuse: async (actor, itemId, reason, at, options) =>
+      refuse(deps, actor, itemId, reason, at, options),
+    expireRequests: async (actor, scope, at) => expireRequests(deps, actor, scope, at),
     revalidate: async (actor, itemId, at, options) => revalidate(deps, actor, itemId, at, options),
     simulate: (workload, policy) => simulate(deps, workload, policy),
     distill: async () => {

@@ -27,6 +27,14 @@
 //   engram/promote/replay-item                   a replay run for another item, or other content (D3-3)
 //   engram/promote/replay-split                  a replay whose induction tasks are not those of the
 //                                                item's own distill ref, or that replays one (D3-3)
+//   engram/approval/route                        a reviewer the policy's approval route for the target
+//                                                does not name (card E2.19): a route narrows who may approve
+//   engram/approval/expired                      the request for this version of the item expired
+//                                                unanswered (card E2.19); a new version is a new request
+//   engram/approval/refused                      an approver refused the request for this version
+//                                                (card E2.19, Plane.refuse); a new version is a new request
+//   engram/approval/stale                        the approver reviewed another version than the item's
+//                                                now (card E2.19; obsidian-wiki's stale-base refusal)
 // A promotion the target's write rule refuses is denied under that rule's own
 // id (`<policy id>/write/<level>`, `engram/write/membership`, ...), since a
 // promotion is evaluated as a write into the target scope (ADR 0026, item 5).
@@ -89,6 +97,47 @@ export const OWNER_PERSON_RULE = "owner accepts in own person scope";
 export const PROMOTE_VALIDATION_SOURCE_ID = "engram/promote/validation-source";
 export const PROMOTE_REPLAY_ITEM_ID = "engram/promote/replay-item";
 export const PROMOTE_REPLAY_SPLIT_ID = "engram/promote/replay-split";
+export const APPROVAL_ROUTE_ID = "engram/approval/route";
+export const APPROVAL_EXPIRED_ID = "engram/approval/expired";
+/** An approver's refusal of a request (card E2.19, Plane.refuse). */
+export const APPROVAL_REFUSED_ID = "engram/approval/refused";
+/** An approval or refusal of a version other than the one its approver reviewed (card E2.19). */
+export const APPROVAL_STALE_ID = "engram/approval/stale";
+
+/** One route of the policy's approval block (card E2.19). */
+type ApprovalRoute = NonNullable<Policy["approval"]>["routes"][number];
+
+/**
+ * The route the policy's approval block gives requests into `target` (card
+ * E2.19): the route naming the scope itself, else the one naming its level;
+ * undefined when none does, or the policy has no approval block, and then
+ * ADR 0026's reviewers decide as before. The loader refuses two routes for
+ * the same scope or level, so the order of the routes never decides.
+ */
+export function routeFor(policy: Policy, target: string): ApprovalRoute | undefined {
+  const routes = policy.approval?.routes ?? [];
+  return (
+    routes.find((r) => r.scope === target) ?? routes.find((r) => r.scope === scopeLevel(target))
+  );
+}
+
+/**
+ * Does `approver`, one entry of a route, name `actor` (card E2.19)?
+ * `person:<id>` names that principal, `role:<id>` every member of that
+ * role scope, and `owner` the item's owner only where ADR 0049 lets an owner
+ * accept (`accepting`: a semantic candidate in their own person scope). A
+ * route only narrows: whoever it names must still be a reviewer ADR 0026
+ * admits, which the evaluator checks first.
+ */
+export function approverNames(approver: string, actor: Actor, accepting: boolean): boolean {
+  if (approver === "owner") return accepting;
+  if (approver.startsWith("person:")) return actor.id === approver;
+  return actor.memberships.includes(approver);
+}
+
+/** The approvers of `route`, as a reason names them. */
+export const routeText = (route: ApprovalRoute) =>
+  `${route.approvers.join(", ")} (the approval route for ${route.scope})`;
 
 type Kind = MemoryItem["provenance"]["kind"];
 
@@ -204,6 +253,25 @@ export interface PromotionEvidence {
    * D3-3; distill/validate.ts, bindingProblem), with the rule that refuses it.
    */
   replayProblem?: { policy_id: string; reason: string };
+  /**
+   * The request for this version of the item is closed (card E2.19,
+   * plane/approvals.ts): it expired unanswered, or an approver refused it.
+   * When, by which event, and the event that opened it. Gathered by the
+   * plane only when the policy has an approval block.
+   */
+  closedRequest?: {
+    state: "expired" | "refused";
+    at: string;
+    by: string;
+    opened_by: string;
+  };
+  /**
+   * The version the approver reviewed, when they pinned it (card E2.19): a
+   * promotion of any other version is refused, not applied (the stale-base
+   * refusal of obsidian-wiki's staging, MIT, Ar9av/obsidian-wiki at
+   * 7da8def05ab4, obsidian_wiki/staging.py, ported).
+   */
+  reviewedVersion?: number;
 }
 
 export type PromotionCheck =
@@ -217,6 +285,7 @@ export type PromotionCheck =
   | "reviewer"
   | "validation-source"
   | "replay"
+  | "approval"
   | "no-evidence"
   | "review-needed"
   | "confirmed"
@@ -466,6 +535,20 @@ export function evaluatePromotion(
       `item ${item.id} is past its ttl: expired at ${expiry.at} (${expiry.policy_id})`,
       PROMOTE_EXPIRED_ID,
     );
+  // A request that expired or was refused closes this version (card E2.19).
+  const closed = evidence.closedRequest;
+  if (closed !== undefined)
+    return deny(
+      "approval",
+      `the request for item ${item.id} at version ${item.version}, opened by event ${closed.opened_by}, ${closed.state === "expired" ? `expired at ${closed.at} with no approver's decision` : `was refused at ${closed.at} by event ${closed.by}`}; this version is not promoted, and a new version is a new request`,
+      closed.state === "expired" ? APPROVAL_EXPIRED_ID : APPROVAL_REFUSED_ID,
+    );
+  if (evidence.reviewedVersion !== undefined && evidence.reviewedVersion !== item.version)
+    return deny(
+      "approval",
+      `${actor.id} reviewed version ${evidence.reviewedVersion} of item ${item.id}, which is at version ${item.version} now: it changed since it was reviewed, so nothing is promoted; review the current version`,
+      APPROVAL_STALE_ID,
+    );
   const hidden = hiddenCharacters(item.content);
   if (hidden > 0)
     return deny(
@@ -565,6 +648,15 @@ export function evaluatePromotion(
     const problem = reviewerProblem(actor, item, target, evidence.authors, counted.confirmers);
     if (problem) return deny("reviewer", problem, PROMOTE_REVIEWER_ID);
   }
+  // The approval queue's routing (card E2.19): a reviewer ADR 0026 admits
+  // approves only when the target's route names them.
+  const route = routeFor(policy, target);
+  if (evidence.review && route && !route.approvers.some((a) => approverNames(a, actor, accepting)))
+    return deny(
+      "approval",
+      `${actor.id} is not an approver of requests into ${target}: the policy routes them to ${routeText(route)}`,
+      APPROVAL_ROUTE_ID,
+    );
 
   // What evidence the promotion needs, and whether a review can supply it.
   const { confirmations: k, or_review } = policy.promotion.episodic_to_semantic;
@@ -611,7 +703,7 @@ export function evaluatePromotion(
     ...base,
     decision: "ask",
     check: "review-needed",
-    reason: `${why}; ${screened ? `${write.reason}, so` : guardHeld ? `the content guard holds it (${write.policy_id}), so` : `${target} requires review, so`} a reviewer (a user-sourced member of ${target} who does not own the item) must approve`,
+    reason: `${why}; ${screened ? `${write.reason}, so` : guardHeld ? `the content guard holds it (${write.policy_id}), so` : `${target} requires review, so`} a reviewer (a user-sourced member of ${target} who does not own the item) must approve${route ? `; the request is routed to ${routeText(route)}${route.expires_after === undefined ? "" : ` and expires ${route.expires_after} seconds after it opened`}` : ""}`,
     policy_id: promotionRuleId(policy, "review"),
   });
   if (met === null) {
