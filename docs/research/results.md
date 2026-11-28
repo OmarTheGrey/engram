@@ -16,9 +16,9 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | cost estimate | 4 | dollars and calls estimated from token counts and prices; no model called |
 | power computation | 2 | a simulation of the registered test that sets or checks a sample size |
 | engineering check | 4 | a check of a component's behaviour or speed that decides no hypothesis |
-| proof of concept | 1 | a count on fixtures or scripted models that shows the system working (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
+| proof of concept | 3 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
 
-25 results in all, one per MANIFEST row.
+27 results in all, one per MANIFEST row.
 
 ## What each hypothesis still needs
 
@@ -460,7 +460,7 @@ Recorded by [`docs/log/2026-11-28-rr-measurement-perf-budget.md`](../log/2026-11
 ### `research/results/h1-leakage.json`
 
 - **Question.** Do canaries written through every write path reach a non-member, an expired grantee, a former member or a partial grantee on any surface (the HTTP API, MCP, the CLI, the TUI, the pi extension)?
-- **Status.** proof of concept: a count on fixtures or scripted models that shows the system working (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. Card E8.16's suites on a fixture workspace; the file is under `h1-` for the results glob only. Answers that tell existence by their shape, not by a canary, are counted apart as characterised oracles.
 - **Made by.** `research/scripts/leakage.py` from `research/configs/leakage.json`, MANIFEST commit `3018f629`, sha256 `bc5c43f6e2ba848c2c0ba371d35b30ab0f7bf37ac93c0937018f578d7f1798fa`.
 
@@ -481,3 +481,39 @@ Recorded by [`docs/log/2026-11-28-rr-measurement-perf-budget.md`](../log/2026-11
 | the suite passed | true | `suite_passed` |
 
 Recorded by [`docs/log/2026-11-28-e8-16-measurement-leak-count-revised.md`](../log/2026-11-28-e8-16-measurement-leak-count-revised.md).
+
+### `research/results/h1-quint-trace-replay.json`
+
+- **Question.** Does the code follow the Quint model of the commit and erasure protocol, step by step, on the model's own traces?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. Card E1.8: 200 traces of `specs/replay.qnt` (good under the code's schedule, seed 1) replayed on real Plane handles; a divergence counts only when one of the card's findings explains it. Filed under `h1-` for the results glob only.
+- **Made by.** `research/scripts/quint_trace_replay.py` from `research/configs/quint-trace-replay.json`, MANIFEST commit `5d53e86f`, sha256 `c80cce59149fc69f048e04c14ae36c0815f56cc98008fbc675670ae4bcee4353`.
+
+| value | reads | key path |
+|---|---|---|
+| traces | 200 | `totals.traces` |
+| replayed to their end | 144 | `totals.replayed` |
+| steps matched | 10,183 | `totals.steps_matched` |
+| steps | 12,000 | `totals.steps` |
+| states compared | 7,783 | `totals.states_compared` |
+| diverged, unexplained | 0 | `totals.diverged_by_finding.unexplained` |
+
+Recorded by [`docs/log/2026-11-28-e1-8-measurement-trace-replay-status.md`](../log/2026-11-28-e1-8-measurement-trace-replay-status.md).
+
+### `research/results/h1-gate-mutation-audit.json`
+
+- **Question.** Do the invariants' property tests kill hand-written mutants of the write gate, the read filter, retention, promotion, adoption, offboarding, the trust floors and the log's chain, and which mutants survive?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. A proof of concept on the code's own tests (card X16); the file is under `h1-` for the results glob only.
+- **Made by.** `research/scripts/gate_mutation_audit.py` from `research/configs/gate-mutation-audit.json`, MANIFEST commit `0772cd3b`, sha256 `8e61f235b5dc2d7af647b27ecbe92b13b5db4769448438452f662ec20b873e05`.
+
+| value | reads | key path |
+|---|---|---|
+| mutants | 34 | `totals.mutants` |
+| killed | 32 | `totals.killed` |
+| survived | 2 | `totals.survived` |
+| kill rate | 0.941176 | `totals.kill_rate` |
+| two-handle offboarding walk, killed | 2 | `per_invariant.I1H.killed` |
+| log chain, killed | 2 | `per_invariant.I9.killed` |
+
+Recorded by [`docs/log/2026-11-28-x16-measurement-audit-after-review.md`](../log/2026-11-28-x16-measurement-audit-after-review.md).

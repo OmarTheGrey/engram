@@ -1,0 +1,9 @@
+{
+  "id": "I2-untrusted-confirms",
+  "invariant": "I2",
+  "area": "promotion",
+  "file": "packages/core/src/policy/promotion.ts",
+  "find": "    if (!CONFIRMING_KINDS.has(c.kind)) continue;\n",
+  "replace": "",
+  "what": "a restatement by a model or other untrusted source counts as a confirmation"
+}

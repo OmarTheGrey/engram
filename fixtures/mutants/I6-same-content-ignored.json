@@ -1,0 +1,9 @@
+{
+  "id": "I6-same-content-ignored",
+  "invariant": "I6",
+  "area": "adoption",
+  "file": "packages/core/src/plane/write.ts",
+  "find": "    ...also,\n    \"import\",",
+  "replace": "    \"import\",",
+  "what": "adoption ignores the kind of retired content a record re-files under a new id"
+}

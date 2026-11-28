@@ -1,0 +1,9 @@
+{
+  "id": "I2-forbidden-class-ignored",
+  "invariant": "I2",
+  "area": "write gate",
+  "file": "packages/core/src/policy/evaluate.ts",
+  "find": "if (rule.forbidden_classes.includes(item.class))",
+  "replace": "if (false)",
+  "what": "the write rule's forbidden classes are not checked"
+}

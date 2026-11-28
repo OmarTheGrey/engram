@@ -1055,6 +1055,74 @@
           "path": ["suite_passed"]
         }
       ]
+    },
+    {
+      "file": "research/results/h1-quint-trace-replay.json",
+      "hypothesis": "none",
+      "status": "proof of concept",
+      "prereg": null,
+      "question": "Does the code follow the Quint model of the commit and erasure protocol, step by step, on the model's own traces?",
+      "note": "Card E1.8: 200 traces of `specs/replay.qnt` (good under the code's schedule, seed 1) replayed on real Plane handles; a divergence counts only when one of the card's findings explains it. Filed under `h1-` for the results glob only.",
+      "headline": [
+        {
+          "label": "traces",
+          "path": ["totals", "traces"]
+        },
+        {
+          "label": "replayed to their end",
+          "path": ["totals", "replayed"]
+        },
+        {
+          "label": "steps matched",
+          "path": ["totals", "steps_matched"]
+        },
+        {
+          "label": "steps",
+          "path": ["totals", "steps"]
+        },
+        {
+          "label": "states compared",
+          "path": ["totals", "states_compared"]
+        },
+        {
+          "label": "diverged, unexplained",
+          "path": ["totals", "diverged_by_finding", "unexplained"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h1-gate-mutation-audit.json",
+      "hypothesis": "none",
+      "status": "proof of concept",
+      "prereg": null,
+      "question": "Do the invariants' property tests kill hand-written mutants of the write gate, the read filter, retention, promotion, adoption, offboarding, the trust floors and the log's chain, and which mutants survive?",
+      "note": "A proof of concept on the code's own tests (card X16); the file is under `h1-` for the results glob only.",
+      "headline": [
+        {
+          "label": "mutants",
+          "path": ["totals", "mutants"]
+        },
+        {
+          "label": "killed",
+          "path": ["totals", "killed"]
+        },
+        {
+          "label": "survived",
+          "path": ["totals", "survived"]
+        },
+        {
+          "label": "kill rate",
+          "path": ["totals", "kill_rate"]
+        },
+        {
+          "label": "two-handle offboarding walk, killed",
+          "path": ["per_invariant", "I1H", "killed"]
+        },
+        {
+          "label": "log chain, killed",
+          "path": ["per_invariant", "I9", "killed"]
+        }
+      ]
     }
   ]
 }

@@ -1,0 +1,9 @@
+{
+  "id": "I5-recency-order-flipped",
+  "invariant": "I5",
+  "area": "retention",
+  "file": "packages/core/src/policy/retention.ts",
+  "find": "changed(a) - changed(b) || byId(a, b);",
+  "replace": "changed(b) - changed(a) || byId(a, b);",
+  "what": "a recency budget evicts the newest item, not the oldest"
+}

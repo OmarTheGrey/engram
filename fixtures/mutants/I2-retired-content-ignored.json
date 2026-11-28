@@ -1,0 +1,9 @@
+{
+  "id": "I2-retired-content-ignored",
+  "invariant": "I2",
+  "area": "retention",
+  "file": "packages/core/src/policy/evaluate.ts",
+  "find": "if (RELEARNING_SOURCES.has(kind) && retired.size > 0) {",
+  "replace": "if (false) {",
+  "what": "a model, compaction or tool write may restate content retired in its scope"
+}

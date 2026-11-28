@@ -1,0 +1,9 @@
+{
+  "id": "I7-unrecorded-grants-kept",
+  "invariant": "I7",
+  "area": "adoption",
+  "file": "packages/core/src/plane/write.ts",
+  "find": "const kept = known ? item.grants.filter((g) => known.grants.some((h) => sameGrant(g, h))) : [];",
+  "replace": "const kept = item.grants;",
+  "what": "adoption keeps every grant the store's record carries"
+}
