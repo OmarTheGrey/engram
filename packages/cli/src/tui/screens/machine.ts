@@ -65,6 +65,11 @@ export const DOCTOR_HELP: Readonly<Record<string, { means: string; todo: string 
       "A Letta MemFS repository in a temporary folder: a write, a read and a delete, offline. It needs git.",
     todo: "Put git on the PATH, or leave this if you do not use --store letta.",
   },
+  "adapter mcp-mem": {
+    means:
+      "The MCP memory server's JSONL file in a temporary folder: a write, a read and a delete, another client's line kept as it was, offline.",
+    todo: "Run engram doctor in a shell to see the whole error; nothing was recorded.",
+  },
   "provider keys": {
     means:
       "Which provider key variables are set, by name only; their values are never read or shown.",
