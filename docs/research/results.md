@@ -539,7 +539,7 @@ Recorded by [`docs/log/2026-11-28-e1-7-measurement-trace-replay.md`](../log/2026
 | two-handle offboarding walk, killed | 2 | `per_invariant.I1H.killed` |
 | log chain, killed | 2 | `per_invariant.I9.killed` |
 
-Recorded by [`docs/log/2026-11-28-x16-measurement-audit-after-review.md`](../log/2026-11-28-x16-measurement-audit-after-review.md).
+Recorded by [`docs/log/2026-11-28-e1-7-measurement-mutation-audit.md`](../log/2026-11-28-e1-7-measurement-mutation-audit.md), [`docs/log/2026-11-28-x16-measurement-audit-after-review.md`](../log/2026-11-28-x16-measurement-audit-after-review.md).
 
 ### `research/results/h2-cedar-properties.json`
 
