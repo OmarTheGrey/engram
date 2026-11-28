@@ -61,6 +61,7 @@ export * from "./policy/promotion.ts";
 export * from "./policy/retention.ts";
 export * from "./portable.ts";
 export * from "./replay.ts";
+export * from "./residue.ts";
 export * from "./schema.ts";
 export * from "./simulate.ts";
 export * from "./supersede.ts";
