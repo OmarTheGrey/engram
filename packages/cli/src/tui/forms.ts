@@ -184,9 +184,17 @@ export class Form {
     return out;
   }
 
-  /** Whether the --at field is offered: on a read, else only with the test clock on (docs/design/tui.md 3.2). */
+  /**
+   * Whether the --at field is offered: on a read and on why not this item
+   * (card E2.17), where it is the time validity windows are judged at, else
+   * only with the test clock on (docs/design/tui.md 3.2).
+   */
   offersAt(): boolean {
-    return this.spec.name.startsWith("read") || this.get("test-clock") === true;
+    return (
+      this.spec.name.startsWith("read") ||
+      this.spec.name === "explain --absent" ||
+      this.get("test-clock") === true
+    );
   }
 
   /**

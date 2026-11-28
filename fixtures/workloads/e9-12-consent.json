@@ -1,0 +1,463 @@
+{
+  "id": "e9-12-consent",
+  "description": "Card E9.12's simulator workload: Dana, her tools and her agent write fourteen times into her person scope and once into team:core over a morning, and read once. Replayed by engram simulate under the twin profile and under fixtures/workloads/e9-12-consent-twin.yaml, the twin profile with three opt-outs: the topic health, the model source except calendar entries, and an Incognito hour except calendar entries. The proof of concept research/results/h1-consent-gate.json counts what each policy allowed and refused.",
+  "actors": {
+    "dana": {
+      "id": "person:dana",
+      "level": "person",
+      "memberships": [
+        "person:dana",
+        "team:core"
+      ],
+      "source": "user"
+    },
+    "dana-tool": {
+      "id": "person:dana",
+      "level": "person",
+      "memberships": [
+        "person:dana",
+        "team:core"
+      ],
+      "source": "tool"
+    },
+    "dana-agent": {
+      "id": "person:dana",
+      "level": "person",
+      "memberships": [
+        "person:dana",
+        "team:core"
+      ],
+      "source": "model"
+    }
+  },
+  "steps": [
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-12-01T08:00:00.000Z",
+      "item": {
+        "id": "01960000-0000-7000-8000-000000000001",
+        "class": "semantic",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "content": "Dentist appointment moved to Friday.",
+        "provenance": {
+          "kind": "user",
+          "ref": "fixture/e9-12",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.8,
+        "valid_from": "2026-12-01T08:00:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-12-01T08:01:00.000Z",
+      "item": {
+        "id": "01960000-0000-7000-8000-000000000002",
+        "class": "semantic",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "content": "Blood test results: my health is fine.",
+        "provenance": {
+          "kind": "user",
+          "ref": "fixture/e9-12",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.8,
+        "valid_from": "2026-12-01T08:01:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana-agent",
+      "at": "2026-12-01T08:02:00.000Z",
+      "item": {
+        "id": "01960000-0000-7000-8000-000000000003",
+        "class": "semantic",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "content": "Dana asked about HEALTH insurance options.",
+        "provenance": {
+          "kind": "model",
+          "ref": "fixture/e9-12",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.8,
+        "valid_from": "2026-12-01T08:02:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana-agent",
+      "at": "2026-12-01T08:03:00.000Z",
+      "item": {
+        "id": "01960000-0000-7000-8000-000000000004",
+        "class": "semantic",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "content": "Dana prefers healthy lunches.",
+        "provenance": {
+          "kind": "model",
+          "ref": "fixture/e9-12",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.8,
+        "valid_from": "2026-12-01T08:03:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana-agent",
+      "at": "2026-12-01T08:04:00.000Z",
+      "item": {
+        "id": "01960000-0000-7000-8000-000000000005",
+        "class": "semantic",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "content": "Team standup is at 09:30 every weekday.",
+        "provenance": {
+          "kind": "model",
+          "ref": "fixture/e9-12",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.8,
+        "valid_from": "2026-12-01T08:04:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana-agent",
+      "at": "2026-12-01T08:05:00.000Z",
+      "item": {
+        "id": "01960000-0000-7000-8000-000000000006",
+        "class": "semantic",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "content": "Calendar: the offsite is on the 12th.",
+        "provenance": {
+          "kind": "model",
+          "ref": "fixture/e9-12",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.8,
+        "valid_from": "2026-12-01T08:05:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana-tool",
+      "at": "2026-12-01T08:06:00.000Z",
+      "item": {
+        "id": "01960000-0000-7000-8000-000000000007",
+        "class": "semantic",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "content": {
+          "account": "bank account ending 4411",
+          "kind": "note"
+        },
+        "provenance": {
+          "kind": "tool",
+          "ref": "fixture/e9-12",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.8,
+        "valid_from": "2026-12-01T08:06:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana-tool",
+      "at": "2026-12-01T08:07:00.000Z",
+      "item": {
+        "id": "01960000-0000-7000-8000-000000000008",
+        "class": "semantic",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "content": "Flight to Cairo booked for travel on the 20th.",
+        "provenance": {
+          "kind": "tool",
+          "ref": "fixture/e9-12",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.8,
+        "valid_from": "2026-12-01T08:07:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana-agent",
+      "at": "2026-12-01T08:08:00.000Z",
+      "item": {
+        "id": "01960000-0000-7000-8000-000000000009",
+        "class": "semantic",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "content": "The h\u200dealth form is due Monday.",
+        "provenance": {
+          "kind": "model",
+          "ref": "fixture/e9-12",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.8,
+        "valid_from": "2026-12-01T08:08:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-12-01T08:09:00.000Z",
+      "item": {
+        "id": "01960000-0000-7000-8000-000000000010",
+        "class": "semantic",
+        "scope": "team:core",
+        "owner": "person:dana",
+        "content": "Team health check: retro on Thursday.",
+        "provenance": {
+          "kind": "user",
+          "ref": "fixture/e9-12",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.8,
+        "valid_from": "2026-12-01T08:09:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-12-01T10:00:00.000Z",
+      "item": {
+        "id": "01960000-0000-7000-8000-000000000011",
+        "class": "semantic",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "content": "Thinking about changing jobs.",
+        "provenance": {
+          "kind": "user",
+          "ref": "fixture/e9-12",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.8,
+        "valid_from": "2026-12-01T10:00:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana-agent",
+      "at": "2026-12-01T10:15:00.000Z",
+      "item": {
+        "id": "01960000-0000-7000-8000-000000000012",
+        "class": "semantic",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "content": "Dana searched for apartments in Giza.",
+        "provenance": {
+          "kind": "model",
+          "ref": "fixture/e9-12",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.8,
+        "valid_from": "2026-12-01T10:15:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana-tool",
+      "at": "2026-12-01T10:30:00.000Z",
+      "item": {
+        "id": "01960000-0000-7000-8000-000000000013",
+        "class": "semantic",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "content": "Calendar: interview at 15:00.",
+        "provenance": {
+          "kind": "tool",
+          "ref": "fixture/e9-12",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.8,
+        "valid_from": "2026-12-01T10:30:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-12-01T11:00:00.000Z",
+      "item": {
+        "id": "01960000-0000-7000-8000-000000000014",
+        "class": "semantic",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "content": "Back from lunch; review the release notes.",
+        "provenance": {
+          "kind": "user",
+          "ref": "fixture/e9-12",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.8,
+        "valid_from": "2026-12-01T11:00:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 1,
+        "lineage": [],
+        "status": "active",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "write",
+      "as": "dana",
+      "at": "2026-12-01T11:30:00.000Z",
+      "item": {
+        "id": "01960000-0000-7000-8000-000000000001",
+        "class": "semantic",
+        "scope": "person:dana",
+        "owner": "person:dana",
+        "content": "Dentist appointment moved to Friday.",
+        "provenance": {
+          "kind": "user",
+          "ref": "fixture/e9-12",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "actor": "person:dana"
+        },
+        "confidence": 0.8,
+        "valid_from": "2026-12-01T11:30:00.000Z",
+        "valid_to": null,
+        "ttl": null,
+        "grants": [],
+        "version": 2,
+        "lineage": [],
+        "status": "retired",
+        "store_ref": null,
+        "schema_version": 1
+      }
+    },
+    {
+      "op": "read",
+      "as": "dana",
+      "at": "2026-12-01T12:00:00.000Z"
+    }
+  ]
+}

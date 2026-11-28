@@ -49,6 +49,11 @@
 // (`grantsChanged`, `priorVersion`, `grantChangeProblem`; ADR 0034,
 // decision 6) and `withinValidity`, at the end of the file.
 //
+// The approval queue (card E2.19; a `decision` log entry records the
+// change) adds `approvalAdmits` to `promotionPermitted`, read only when the
+// policy has an approval block: a review lands by an approver the target's
+// route names, and never once the version's request expired or was refused.
+//
 // Trust floors (card E2.11, ADR 0040; a `decision` log entry records the
 // change) add invariant 8's readings, at the end of the file: under
 // trust.unattested_floor no allowed write records a kind more trusted than
@@ -58,6 +63,13 @@
 // (`protectionProblem`). `writeForbidden` judges a sourceless writer at the
 // least trusted kind when the floor is on, and `budgetVictims` takes the
 // items an eviction may choose. Trust is ranked by the oracle's own `TRUST`.
+//
+// Consent (card E9.12; a `decision` log entry records the change) adds
+// `consentForbids` and `phraseOf`, at the end of the file: no allowed write
+// may record content an active opt-out of the person scope covers, nor make
+// such content live again. They are not read by `writeForbidden`, so
+// invariant 2 is unchanged; the acceptance property
+// (test/property/consent.test.ts) judges the Plane by them.
 //
 // The grant cap (card E2.21, ADR 0034, decisions 3 and 6; a `decision` log
 // entry records the change) adds `expiryCapProblem`: under grants.expiry_cap
@@ -499,6 +511,8 @@ export function promotionPermitted(
       !actors.has(actor.id) &&
       actor.memberships.indexOf(target) !== -1);
   if (review && !reviewer) return false;
+  // The approval queue (card E2.19): only when the policy has an approval block.
+  if (!approvalAdmits(policy, actor, source, target, events, review, at, owner)) return false;
   const reviewed = review && reviewer;
   const rule = policy.write.filter((r) => r.scope === level(target))[0];
   if (rule?.requires_review && !reviewed) return false;
@@ -509,6 +523,93 @@ export function promotionPermitted(
   if (source.class === "procedural" && source.status === "candidate")
     return presented !== undefined && replayAdmits(policy, actor, source, presented);
   return reviewed;
+}
+
+/** The route for requests into `target`: the one naming it, else the one naming its level. */
+function routeOf(policy: Policy, target: string) {
+  const routes = policy.approval?.routes ?? [];
+  for (const r of routes) if (r.scope === target) return r;
+  for (const r of routes) if (r.scope === level(target)) return r;
+  return undefined;
+}
+
+/** Is `at` at least `seconds` after `from`? Judged as a duration, as `pastTtl` is. */
+function atLeastAfter(from: string, at: string, seconds: number): boolean {
+  const gap = wholeSeconds(at) - wholeSeconds(from) - seconds;
+  if (gap !== 0) return gap > 0;
+  const [fa, ff] = [fractionOf(at), fractionOf(from)];
+  const width = Math.max(fa.length, ff.length);
+  return fa.padEnd(width, "0") >= ff.padEnd(width, "0");
+}
+
+/**
+ * The approval queue's reading for a promotion (card E2.19; a `decision`
+ * log entry records it): under a policy with an approval block, a review
+ * lands only by an actor the target's route names (`person:<id>` that
+ * principal, `role:<id>` a member of that role scope, `owner` the owner where
+ * the one exception of ADR 0049 holds), and no promotion of the source's
+ * version into a target lands once its request into that target (opened by
+ * the first held write of that version when the target is its own scope, an
+ * allowed write or update leaving it a candidate, or the first `gate` ask
+ * into the target) has run past the target route's `expires_after`, or an
+ * event into that target has recorded it expired or refused. Routes are the
+ * policy's now, for past requests too (the plane's reading, card E2.19's ADR).
+ * A card D5 safety-scan release is not judged here (the route is read only
+ * with `review`): the approval property file judges releases with its own
+ * reading (verification note N3). Read from the events with the
+ * oracle's own loop, not the plane's projection.
+ */
+function approvalAdmits(
+  policy: Policy,
+  actor: Actor,
+  source: MemoryItem,
+  target: string,
+  events: readonly MemoryEvent[],
+  review: boolean,
+  at: string,
+  owner: boolean,
+): boolean {
+  if (policy.approval === undefined) return true;
+  const route = routeOf(policy, target);
+  if (review && route) {
+    let named = false;
+    for (const a of route.approvers) {
+      if (a === "owner") named = named || owner;
+      else if (a.slice(0, 7) === "person:") named = named || a === actor.id;
+      else named = named || actor.memberships.indexOf(a) !== -1;
+    }
+    if (!named) return false;
+  }
+  // The request on the source's version into this target (keyed by version
+  // and target, review finding F3 of card E2.19): opened by a held write of
+  // that version into its own scope, or by an ask into the target.
+  let version = 0;
+  let opened: string | undefined;
+  for (const e of events) {
+    if (e.item && e.item.id === source.id && e.decision === "allow") version = e.item.version;
+    if (version !== source.version) continue;
+    const held =
+      (e.op === "write" || e.op === "update") &&
+      e.decision === "allow" &&
+      e.item?.id === source.id &&
+      e.item.status === "candidate" &&
+      source.scope === target;
+    const asked =
+      e.op === "gate" && e.decision === "ask" && e.item_id === source.id && e.scope_to === target;
+    if (opened === undefined && (held || asked)) opened = e.ts;
+    if (
+      opened !== undefined &&
+      e.op === "promote" &&
+      e.decision === "deny" &&
+      e.item_id === source.id &&
+      e.scope_to === target &&
+      (e.policy_id === "engram/approval/expired" || e.policy_id === "engram/approval/refused")
+    )
+      return false;
+  }
+  if (opened === undefined) return true;
+  const expires = route?.expires_after;
+  return expires === undefined || !atLeastAfter(opened, at, expires);
 }
 
 /** A replay presented with a promotion (card D3), and the session index the plane was given. */
@@ -926,6 +1027,93 @@ export function protectionProblem(
     return `an eviction at ${by} by ${e.actor} removed active ${held} item ${before.id}`;
   }
   return undefined;
+}
+
+// Consent (card E9.12; a `decision` log entry records the change): the
+// oracle's own reading of when an opt-out covers a write, written apart from
+// policy/consent.ts and read from the rule's statement: no allowed write
+// puts covered content into the scope or makes it live. The only writes that
+// do neither are the rewrites listed in `QUIET`: in the item's own scope,
+// content reading the same (the oracle's `sameContent`), from a status to one
+// no more read than it (active to active, candidate or retired; candidate to
+// candidate or retired; retired to retired). Every other write is judged: a
+// first write in any status, a move, new content, an un-retire, a candidate
+// made active. An opt-out covers it when it names the item's scope, its source (if set) is
+// the recorded kind, the write's time is inside its window, its topic (if
+// set) is a phrase of the content and none of its carve-outs is. A phrase is
+// read by padding: the content's strings are folded (NFKC, without the
+// code points that render as nothing, NFKC again, lower case),
+// every character that is not a letter, mark or digit becomes a space, and
+// the folded topic, padded with a space on each side, must occur in a padded
+// string. Absent consent covers nothing.
+
+/** The status changes of a same-scope, same-content rewrite that put nothing new in the scope and make nothing more live. */
+const QUIET: ReadonlySet<string> = new Set([
+  "active>active",
+  "active>candidate",
+  "active>retired",
+  "candidate>candidate",
+  "candidate>retired",
+  "retired>retired",
+]);
+
+/** Folded words joined by single spaces, padded with a space at each end; "" when there is no word. */
+const padded = (s: string): string => {
+  const folded = [...s.normalize("NFKC")]
+    .filter((ch) => !IGNORABLE.has(ch) && !/^\p{Default_Ignorable_Code_Point}$/u.test(ch))
+    .join("")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}]+/gu, " ")
+    .trim();
+  return folded === "" ? "" : ` ${folded} `;
+};
+
+/** Every string a content holds: text, each key and leaf of a record (numbers and booleans as text). */
+const leaves = (v: unknown): string[] =>
+  typeof v === "string"
+    ? [v]
+    : typeof v === "number" || typeof v === "boolean"
+      ? [String(v)]
+      : Array.isArray(v)
+        ? v.flatMap(leaves)
+        : v !== null && typeof v === "object"
+          ? Object.entries(v).flatMap(([k, x]) => [k, ...leaves(x)])
+          : [];
+
+/** Is `topic` a phrase of `content`, read by padding? A topic with no word is a phrase of nothing. */
+export function phraseOf(content: unknown, topic: string): boolean {
+  const t = padded(topic);
+  return t !== "" && leaves(content).some((s) => padded(s).includes(t));
+}
+
+/**
+ * Invariant reading for consent: the opt-out of `policy` that the write of
+ * `item` (over `before`, the item of its id just before it) at `at` would
+ * record content under, as its index, or undefined when none covers it.
+ */
+export function consentForbids(
+  policy: Policy,
+  item: MemoryItem,
+  before: MemoryItem | undefined,
+  at: string,
+): number | undefined {
+  const quiet =
+    before !== undefined &&
+    before.scope === item.scope &&
+    sameContent(before.content, item.content) &&
+    QUIET.has(`${before.status}>${item.status}`);
+  if (quiet) return undefined;
+  const k = (policy.consent?.opt_outs ?? []).findIndex(
+    (o) =>
+      o.scope === item.scope &&
+      (o.source === undefined || o.source === item.provenance.kind) &&
+      (o.since === undefined || compareTimestamps(at, o.since) >= 0) &&
+      (o.until === undefined || compareTimestamps(at, o.until) < 0) &&
+      (o.topic === undefined || phraseOf(item.content, o.topic)) &&
+      !(o.except_topics ?? []).some((t) => phraseOf(item.content, t)),
+  );
+  return k === -1 ? undefined : k;
 }
 
 // Card E2.21 (ADR 0034, decisions 3 and 6): the grant cap and the first-write

@@ -28,7 +28,7 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h3-near-duplicate.json | research/configs/near-duplicate.json | research/scripts/near_duplicate.py | 8387b6a6 | f50c8f465a2479c84894d4a6fd0fcfbd55df71bcdcc7d3559515d9b46e9b8b3b | none |
 | research/results/h3-lint-nli.json | research/configs/h3-lint-nli.json | research/scripts/h3_lint_nli.py | 030a7fba | 22e3c1225171941d7fac6d426942dd0d52634499a6290d709f4f8f47888763db | none |
 | research/results/h3-fault-injection.json | research/configs/h3-fault-injection.json | research/scripts/h3_fault_injection.py | c209dd6c | 6bfb6faab7b74f34d5e474654aa25ec9b04fa74249cf05fc37f9b35dd85c9368 | none |
-| research/results/h1-leakage.json | research/configs/leakage.json | research/scripts/leakage.py | 3018f629 | bc5c43f6e2ba848c2c0ba371d35b30ab0f7bf37ac93c0937018f578d7f1798fa | none |
+| research/results/h1-leakage.json | research/configs/leakage.json | research/scripts/leakage.py | f0bcad2b | a23b1a8478d7904e6e694f8986089b1e54501dd7036221e6ce816a0ff16de119 | none |
 | research/results/h1-quint-trace-replay.json | research/configs/quint-trace-replay.json | research/scripts/quint_trace_replay.py | 13126b4c | 07be0d26f101a9f826fe022835f7869a915c37e4e9567f0c0d7bc8bcc0176a7c | none |
 | research/results/h1-gate-mutation-audit.json | research/configs/gate-mutation-audit.json | research/scripts/gate_mutation_audit.py | 50e3a293 | 842da60481d3b9b0cd630179e20ef72b3200fd64a4e7580f794c499477b50107 | none |
 | research/results/h2-cedar-properties.json | research/configs/h2-cedar-properties.json | research/scripts/h2_cedar_properties.py | 4dd709e1 | 9e6d4084b0e19a6e00c7c1605e73ba808dd552fdd44dd5e67663bffff11f5d86 | none |
@@ -36,4 +36,5 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h1-drift-fixture.json | research/configs/drift-fixture.json | research/scripts/drift_fixture.py | 2c3503b9 | 579fa43dffc7ca6123e2b9812a6f22886c1581a70dfd59e561f20ee62e6abb71 | none |
 | research/results/h5-procedure-scan.json | research/configs/procedure-scan.json | research/scripts/procedure_scan.py | b297e5b6 | 0ac5428238ea46f52fbd3d152f649f370935ebef2bee4a7ba95fb03e296cc39f | none |
 | research/results/h1-audit-report.json | research/configs/audit-report.json | research/scripts/audit_report.py | aeb88f23 | d503840658800b3cd4318fe4f660df3fe49ae89c5f3bec16f07a2b4714840c5e | none |
+| research/results/h1-consent-gate.json | research/configs/consent-gate.json | research/scripts/consent_gate.py | 3120749a | 3b0a06f43051c2594424e348d503a8764b8ec31d2023e70c6e87b5896d48ec14 | none |
 | research/results/h3-erasure-residue.json | research/configs/h3-erasure-residue.json | research/scripts/h3_erasure_residue.py | ef27c33b | a83e3187cf30d1518c39ebe13c13b5cb7be2dc02addd7a57d318588614f224f5 | none |

@@ -136,4 +136,29 @@ lints:
 # 2026-11-25; never in a registered preset, so H1 to H4 run without it.
 grants:
   expiry_cap: "on"
+# Consent (card E9.12, packages/core/src/policy/consent.ts): opt-outs a
+# person declares for their own person scope. Left absent here, so the
+# profile records as before; uncomment and put your own id for <you>.
+# A write that records content an active opt-out covers, or makes covered
+# content live again (an un-retire, a candidate made active), is denied
+# under engram/write/consent, with a reason naming the opt-out, never the
+# content. A topic matches whole words of the content, case-insensitively; a
+# source is a provenance kind; a window is since (inclusive) to until
+# (exclusive); except_topics carve writes out of an opt-out. An opt-out with
+# only a window is Incognito.
+# Limits. Consent is a control your own agent and tools meet, not a filter
+# a writer set on evading it cannot get past: plurals and inflections ("bank
+# accounts" for "bank account"), an accent inside a word, joined compounds
+# and camelCase ("healthcare", "bankAccount"), a digit glued to a word,
+# letters split by spaces or dots, look-alike letters from another script,
+# a topic split across two writes, and case folding beyond lower case
+# ("STRASSE") all escape a topic. A window is judged at the time a write
+# reaches the plane: what is produced during Incognito and written after it
+# (a store record adopted later, a session distilled or consolidated later)
+# is judged then, and the pi session itself is not under the gate.
+# consent:
+#   opt_outs:
+#     - { scope: person:<you>, topic: health }
+#     - { scope: person:<you>, source: model, except_topics: [calendar] }
+#     - { scope: person:<you>, since: "2026-12-01T00:00:00Z", until: "2026-12-02T00:00:00Z" }
 schema_version: 1

@@ -1,5 +1,6 @@
 // Human-readable output. Everything printed comes from what the Plane returned.
 import type {
+  AbsenceExplanation,
   Actor,
   Explanation,
   Grant,
@@ -142,6 +143,21 @@ export function whoCanReadLines(a: WhoCanReadAnswer, actor: Actor): string[] {
   for (const d of a.dormant) lines.push(`  dormant ${d.grant}: ${d.reason}`);
   if (a.grants_shown === "yours") lines.push("grants shown: only those naming you");
   return lines;
+}
+
+/**
+ * Why not this item (card E2.17, `engram explain --absent`): a heading with
+ * the item, the read's times and the asker, then the plane's answer: the
+ * stage that kept the item out and its rule, that the read returns it, or
+ * the refusal.
+ */
+export function absenceLines(a: AbsenceExplanation, actor: Actor, text?: string): string[] {
+  const query = text === undefined ? "no query text" : `query ${JSON.stringify(text)}`;
+  const valid = a.valid_at === a.at ? "" : `, validity windows at ${a.valid_at}`;
+  const head = `why not ${a.item_id} in a read at ${a.at}${valid} with ${query} as ${actor.id}: `;
+  if (!a.answered) return [`${head}refused`, `  ${a.reason}`];
+  if (a.absent === false) return [`${head}not absent`, `  ${a.reason}`];
+  return [`${head}absent at ${a.stage}`, `  ${a.reason} (${a.policy_id})`];
 }
 
 /** An event's scope as the inspector's timeline shows it: from and to when they differ. */

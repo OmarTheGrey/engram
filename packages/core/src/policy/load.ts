@@ -23,6 +23,7 @@ import { driftThresholdProblem } from "../distill/drift.ts";
 import { NLI_LINT_ID, nliThresholdProblems } from "../lint/nli.ts";
 import { LIFECYCLE_TRIGGERS, LINT_IDS, LINT_THRESHOLD_KEYS } from "../lint.ts";
 import { Policy, ScopeLevel } from "../schema.ts";
+import { consentProblems } from "./consent.ts";
 import { notBuiltOptions } from "./options.ts";
 
 export type PolicyPath = (string | number)[];
@@ -164,9 +165,12 @@ const NOT_ENFORCED_YET = {
 
 // The options card E2.14 of the second absorb plan added, which nothing
 // builds yet, are refused by `notBuiltOptions` (policy/options.ts), the check
-// Plane.simulate and exportCedar share with this loader. Built so far:
+// Plane.simulate and exportCedar share with this loader. Card E2.19 built
+// `approval`; its route checks are in semanticProblems. Built so far:
 // `lints.model.evidence`, quote grounding of the model lints (card L9,
 // lint/evidence.ts), loaded as written, "off" and absent alike.
+// `consent` is built too (card E9.12, policy/consent.ts); consentProblems
+// below reports an opt-out that could never cover a write.
 
 /** The blocks whose options are words, where YAML 1.1 may read a bare on or off as a boolean. */
 const OPTION_BLOCKS: readonly (readonly string[])[] = [
@@ -237,6 +241,31 @@ function semanticProblems(policy: Policy): Located[] {
     (i) => ["retention", i, "scope"],
     "retention rule",
   );
+  // Card E2.19: one approval route per scope or level, so the order of the
+  // routes never decides; `owner` (ADR 0049's owner acceptance) only on a
+  // person-scope route, the one place an owner may accept; and a person
+  // route names `owner`, since nobody else is a member of a person scope in
+  // practice, and a route that admits nobody only lets requests expire
+  // (review finding F9).
+  const routes = policy.approval?.routes ?? [];
+  unique(
+    routes,
+    (r) => r.scope,
+    (i) => ["approval", "routes", i, "scope"],
+    "approval route",
+  );
+  routes.forEach((r, i) => {
+    if (r.approvers.includes("owner") && r.scope !== "person" && !r.scope.startsWith("person:"))
+      out.push({
+        path: ["approval", "routes", i, "approvers"],
+        message: `owner approves only on a person-scope route (ADR 0049: an owner accepts in their own person scope); ${r.scope} is not one`,
+      });
+    if (!r.approvers.includes("owner") && (r.scope === "person" || r.scope.startsWith("person:")))
+      out.push({
+        path: ["approval", "routes", i, "approvers"],
+        message: `a person-scope route names owner: only the person is a member of their own scope, so ${r.approvers.join(", ")} alone would approve nothing and every request would expire`,
+      });
+  });
   const seenLints = new Set<string>();
   policy.lints.enabled.forEach((id, i) => {
     const path = ["lints", "enabled", i];
@@ -295,6 +324,8 @@ function semanticProblems(policy: Policy): Located[] {
     }
   }
   for (const { path, message } of notBuiltOptions(policy)) out.push({ path, atKey: true, message });
+  // Card E9.12: an opt-out that could never cover a write.
+  for (const problem of consentProblems(policy)) out.push(problem);
   // Card D4: drift retires on ADR 0011's two thresholds, so a policy that
   // turns it on must set both. A policy without procedures.drift (every
   // registered preset) is not judged by this rule.

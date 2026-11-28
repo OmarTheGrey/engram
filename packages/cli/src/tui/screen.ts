@@ -32,7 +32,9 @@ export type ScreenKind =
   | "events"
   | "policy"
   | "who"
-  | "supersede";
+  | "supersede"
+  // Card E2.17: why not this item.
+  | "why-not";
 
 /** The overlays, which take the keys while open. */
 export type OverlayKind = "help" | "palette" | "confirm";

@@ -72,6 +72,8 @@ export async function mcpCommand(args: string[], io: Io): Promise<number> {
         newId: io.newId,
         // Card L6's tool, off unless asked for: the four tools are condition C7's.
         supersede: values.supersede === true,
+        // Card E2.17's tool, off unless asked for, for the same reason.
+        whyNot: values["why-not"] === true,
       });
     };
     if (port === undefined || auth === undefined) {

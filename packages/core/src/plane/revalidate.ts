@@ -1,5 +1,5 @@
 // Re-validation on the plane (card D4 of the second absorb plan; ADR 0011, ADR
-// XXXX proposed, ADR 0046). The pure rule is distill/drift.ts; this file
+// 0050, ADR 0046). The pure rule is distill/drift.ts; this file
 // reads the last validation from the log and commits the decision as one
 // event, in one slot of the write queue and one transaction, as Plane.retain
 // does.
@@ -78,6 +78,13 @@ export interface RevalidateOptions {
    * only the period can make a re-validation due.
    */
   environment?: DriftEnvironment;
+  /**
+   * The presenter approves a restore as a reviewer (card E2.19): in a scope
+   * that requires review, a restore without it waits as a request in the
+   * approval queue, and an approver restores it by presenting with it.
+   * Only a restore reads it.
+   */
+  review?: boolean;
 }
 
 /** What one re-validation did. */
@@ -142,10 +149,15 @@ export function revalidate(
     if (!("restore" in decided)) return decided;
     // Still in the queue slot: the promotion gate judges and commits it.
     const { item, prefix } = decided.restore;
-    const result = await restoreRetired(deps, actor, item, at, options.replay, {
-      policy_id: driftRuleId(deps.policy, "restored"),
-      prefix,
-    });
+    const result = await restoreRetired(
+      deps,
+      actor,
+      item,
+      at,
+      options.replay,
+      { policy_id: driftRuleId(deps.policy, "restored"), prefix },
+      options.review === true,
+    );
     return {
       outcome: result.decision === "allow" ? "restored" : "refused",
       trigger: null,
