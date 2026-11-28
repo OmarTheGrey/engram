@@ -339,7 +339,7 @@ export interface Plane {
   changeGrants(actor: Actor, itemId: string, change: GrantChange, at: string): Promise<GrantResult>;
   /**
    * Re-validates an admitted procedure on drift (card D4, ADR 0011 and
-   * ADR XXXX, proposed): the replay is presented, as for promote (ADR 0046),
+   * ADR 0051, proposed): the replay is presented, as for promote (ADR 0046),
    * by a user-sourced member of the item's scope, and checked against the
    * item as an admission replay is. Due only under the policy's
    * `procedures.drift` (an environment hash change, or its period since the

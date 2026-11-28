@@ -1,4 +1,4 @@
-# ADR XXXX: A changed environment hash re-validates an admitted procedure; drift retires on the success floor after min-trials
+# ADR 0051: A changed environment hash re-validates an admitted procedure; drift retires on the success floor after min-trials
 
 Status: proposed, 2026-11-28
 Deciders: drafted by card D4 of the second absorb plan; for the lead's acceptance
