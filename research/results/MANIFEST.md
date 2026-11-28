@@ -34,3 +34,4 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h2-cedar-properties.json | research/configs/h2-cedar-properties.json | research/scripts/h2_cedar_properties.py | 4dd709e1 | 9e6d4084b0e19a6e00c7c1605e73ba808dd552fdd44dd5e67663bffff11f5d86 | none |
 | research/results/h3-l9-grounding.json | research/configs/l9-grounding.json | research/scripts/l9_grounding.py | 3786ab25 | c895152f6f361ce8c9962fb25a6b02487d7bc2b4d5eaa8fc724104bc493e9ced | none |
 | research/results/h1-drift-fixture.json | research/configs/drift-fixture.json | research/scripts/drift_fixture.py | 2c3503b9 | 579fa43dffc7ca6123e2b9812a6f22886c1581a70dfd59e561f20ee62e6abb71 | none |
+| research/results/h3-erasure-residue.json | research/configs/h3-erasure-residue.json | research/scripts/h3_erasure_residue.py | 977e291e | 953d4eb6ca1b05c0dc6b5c0125b8f715d013e4dbc8468ef88b8badbf4d5ddf35 | none |

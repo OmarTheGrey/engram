@@ -317,7 +317,12 @@ function refusingDelete(adapter: Adapter, refused: () => StoreRef | undefined): 
     write: (i) => adapter.write(i),
     read: (r) => adapter.read(r),
     list: (s) => adapter.list(s),
-    search: (q, s) => adapter.search(q, s),
+    ...(adapter.search
+      ? {
+          search: (q: string, s: readonly string[]) =>
+            adapter.search?.(q, s) ?? Promise.resolve([]),
+        }
+      : {}),
     async delete(ref) {
       const r = refused();
       if (r && r.adapter === ref.adapter && r.key === ref.key)
@@ -341,7 +346,12 @@ function movedRecord(adapter: Adapter, moved: () => StoreRef | undefined): Adapt
     ...adapter,
     write: (i) => adapter.write(i),
     list: (s) => adapter.list(s),
-    search: (q, s) => adapter.search(q, s),
+    ...(adapter.search
+      ? {
+          search: (q: string, s: readonly string[]) =>
+            adapter.search?.(q, s) ?? Promise.resolve([]),
+        }
+      : {}),
     read: async (ref) => (at(ref) ? undefined : adapter.read(ref)),
     delete: async (ref) => (at(ref) ? undefined : adapter.delete(ref)),
   };

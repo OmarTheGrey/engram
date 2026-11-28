@@ -15,10 +15,10 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | reach measurement | 5 | what the plane lets a reader reach on a benchmark's own data, with no model called |
 | cost estimate | 4 | dollars and calls estimated from token counts and prices; no model called |
 | power computation | 2 | a simulation of the registered test that sets or checks a sample size |
-| engineering check | 4 | a check of a component's behaviour or speed that decides no hypothesis |
+| engineering check | 5 | a check of a component's behaviour or speed that decides no hypothesis |
 | proof of concept | 7 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
 
-31 results in all, one per MANIFEST row.
+32 results in all, one per MANIFEST row.
 
 ## What each hypothesis still needs
 
@@ -596,3 +596,25 @@ Recorded by [`docs/log/2026-11-28-l9-measurement-grounding-after-review.md`](../
 | new model calls | 0 | `calls.new` |
 
 Recorded by [`docs/log/2026-11-28-d4-measurement-drift-fixture.md`](../log/2026-11-28-d4-measurement-drift-fixture.md).
+
+### `research/results/h3-erasure-residue.json`
+
+- **Question.** After 20 person scopes are offboarded under twin, how many of their 200 canary facts are still found, outside what the plane keeps by decision, in the projection, the explanations, the log's events, the store's records, the database's file and write-ahead log, and the store's files and history, on SQLite and embedded Postgres and on each of the four stores?
+- **Status.** engineering check: a check of a component's behaviour or speed that decides no hypothesis.
+- **Serves.** no hypothesis; pre-registration section "U7. The erasure-residue check (not scheduled)". Card X19's engineering check of proposal U7, which is proposed and not yet registered: the lead registers it as a descriptive arm by amendment once this check merges. It decides nothing. The live tiers (rows and records the plane reads) hold only the two records card E1.7 names (a store that refuses the delete, a record that moved); the bytes the engines do not zero (SQLite's and Postgres's pages and WAL, Mem0's SQLite files) and Letta's git history hold most of the rest. The search is verbatim and by hash; a byte hit of a retained canary counts as retained.
+- **Made by.** `research/scripts/h3_erasure_residue.py` from `research/configs/h3-erasure-residue.json`, MANIFEST commit `977e291e`, sha256 `953d4eb6ca1b05c0dc6b5c0125b8f715d013e4dbc8468ef88b8badbf4d5ddf35`.
+
+| value | reads | key path |
+|---|---|---|
+| SQLite and files: exposed canaries found as residue in a live tier | 2 | `runs.sqlite/files.live_tiers.residue.successes` |
+| SQLite and files: found as residue in any tier | 146 | `runs.sqlite/files.any_tier.residue.successes` |
+| SQLite and files: residue in the database file's unreclaimed bytes | 140 | `runs.sqlite/files.tiers.db-file.residue_unreclaimed` |
+| Postgres and files: residue in the heap files | 157 | `runs.postgres/files.tiers.db-file.residue.successes` |
+| Postgres and files: residue in the WAL | 160 | `runs.postgres/files.tiers.db-wal.residue.successes` |
+| SQLite and Mem0: residue in Mem0's own files | 139 | `runs.sqlite/mem0.tiers.store-files.residue.successes` |
+| SQLite and Letta: residue in the repository's git objects | 160 | `runs.sqlite/letta.tiers.store-history.residue.successes` |
+| SQLite and files: retained by decision in the projection, promoted | 20 | `runs.sqlite/files.tiers.projection.retained_by_decision.promoted` |
+| SQLite and files: never-exposed canaries found anywhere | 0 | `runs.sqlite/files.any_tier.never_exposed_found.successes` |
+| decides a hypothesis | false | `decides` |
+
+Recorded by [`docs/log/2026-11-28-x19-measurement-erasure-residue.md`](../log/2026-11-28-x19-measurement-erasure-residue.md).
