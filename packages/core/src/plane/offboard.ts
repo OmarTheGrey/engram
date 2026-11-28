@@ -118,6 +118,7 @@ import { type MemoryEvent, type MemoryItem, Principal, SCHEMA_VERSION, Scope } f
 import {
   type Basis,
   closesClause,
+  erasureOpen,
   HANDOVER_CONFLICT_ID,
   logHead,
   OFFBOARD_BEGIN_ID,
@@ -685,14 +686,24 @@ async function run(
         else swept++;
         continue;
       }
-      // Put back what the log now holds for it, as a stale writer does.
+      // Put back what the log now holds for it, as a stale writer does
+      // (commit.ts settle's `wanted`): the projected item when it lives at
+      // this ref and its scope is not being erased; otherwise nothing, so the
+      // record is deleted. A round whose read finds the item gone, because
+      // another offboarding erased it after the last round wrote it back,
+      // deletes what that round wrote (card E1.7, finding E1.5-1).
       for (let round = 0; round < 4; round++) {
-        const { again, now } = db.transaction(() => ({
-          again: logHead(db),
-          now: itemById(db, record.id),
-        }));
-        if (!now || now.store_ref?.key !== record_ref.key) break;
-        await adapter.write({ ...now, store_ref: null } as MemoryItem);
+        const { again, desired } = db.transaction(() => {
+          const now = itemById(db, record.id);
+          const keep =
+            now !== undefined &&
+            now.store_ref?.adapter === record_ref.adapter &&
+            now.store_ref.key === record_ref.key &&
+            !erasureOpen(db, now.scope);
+          return { again: logHead(db), desired: keep ? now : null };
+        });
+        if (desired) await adapter.write({ ...desired, store_ref: null } as MemoryItem);
+        else await adapter.delete(record_ref);
         if (!db.transaction(() => touchedSince(db, record.id, again))) break;
       }
     }

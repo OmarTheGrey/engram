@@ -143,7 +143,9 @@ import {
   ADOPT_ERASED_ID,
   ADOPTION_PREFIX,
   comparable,
+  ERASING_ID,
   erasureBegunSince,
+  erasureOpen,
   hashNote,
   itemHash,
   lastRemoval,
@@ -220,13 +222,25 @@ export async function adoptStoreItems(
    * a failure as one store-failure deny naming how (V-10), a success after a
    * failure as one more event saying so. A first success adds nothing: the
    * refusal already said the plane deletes the record.
+   *
+   * Just before the delete, under the log's lock, the decision is checked
+   * again (card E1.7, findings E1.5-8 and E18-F4): if the record's item
+   * changed, or an offboarding began erasing its scope, after `since` (the
+   * refusal's seq, or the listing's head for a purge an earlier adoption
+   * decided), nothing is deleted and false is returned: the record is left
+   * to the next adoption, as a listing older than a change is.
    */
   const purgeOutcome = async (
     item: MemoryItem,
     policy: string,
     note: string,
     previous: MemoryEvent | null | undefined,
-  ) => {
+    since: number,
+  ): Promise<boolean> => {
+    const changed = await inWriteQueue(db, () =>
+      db.transaction(() => stale(item.id, item.scope, since)),
+    );
+    if (changed) return false;
     let outcome: { reason: string; policy_id: string } | null = null;
     try {
       await adapter.delete(item.store_ref as NonNullable<MemoryItem["store_ref"]>);
@@ -244,7 +258,7 @@ export async function adoptStoreItems(
         policy_id: STORE_FAILURE_ID,
       };
     }
-    if (!outcome || outcome.reason === previous?.reason) return;
+    if (!outcome || outcome.reason === previous?.reason) return true;
     const recorded = outcome;
     await inWriteQueue(db, () =>
       appendEvent(db, {
@@ -261,6 +275,7 @@ export async function adoptStoreItems(
         schema_version: 1,
       }),
     );
+    return true;
   };
   const report: AdoptReport = {
     listed: listed.length,
@@ -356,13 +371,21 @@ export async function adoptStoreItems(
           e.reason.includes(PURGE_CLAUSE),
       );
     if (decided) {
-      await purgeOutcome(item, ADOPT_ERASED_ID, note, lastWrite);
-      report.unchanged++;
+      // Checked against the listing first: a change the log holds since it
+      // leaves the record to the next adoption (E18-F4).
+      if (await purgeOutcome(item, ADOPT_ERASED_ID, note, lastWrite, head)) report.unchanged++;
+      else report.deferred++;
       continue;
     }
     // A record to delete is gated again even when an earlier refusal of the
-    // same bytes stands (an erasing refusal, say).
-    if (lastWrite?.decision === "deny" && lastWrite.reason.endsWith(note) && !purgeable) {
+    // same bytes stands (an erasing refusal, say). So is a record refused
+    // only because its scope was being erased, once that erasure has
+    // completed: the refusal was for the time being (card E1.7, E18-F2).
+    const sameDenied =
+      lastWrite?.decision === "deny" &&
+      lastWrite.reason.endsWith(note) &&
+      !(lastWrite.policy_id === ERASING_ID && !erasureOpen(db, scope));
+    if (sameDenied && !purgeable) {
       report.unchanged++;
       continue;
     }
@@ -400,8 +423,9 @@ export async function adoptStoreItems(
     report.denied++;
     report.denials.push({ item_id: item.id, reason: event.reason, policy_id: event.policy_id });
     if (purge) {
-      // The refusal is committed; now the record goes.
-      await purgeOutcome(item, event.policy_id, note, null);
+      // The refusal is committed; now the record goes, unless its item
+      // changed since the refusal.
+      if (!(await purgeOutcome(item, event.policy_id, note, null, event.seq))) report.deferred++;
       continue;
     }
     // In the write queue, like every change to items; the projection is
@@ -411,6 +435,10 @@ export async function adoptStoreItems(
         const held = itemById(db, item.id);
         // Changed since this adoption's own deny, by another handle: leave it.
         if (!held || held.status === "retired" || stale(held.id, held.scope, event.seq)) return;
+        // Nothing in a person scope an offboarding is erasing changes until
+        // it completes, a retraction included: the erasure takes the item
+        // out (card E1.7, E18-F1).
+        if (erasureOpen(db, held.scope)) return;
         // The store's version, once its unrecorded grants are dropped, is
         // the plane's own (I-4); or it is denied only for the source
         // adoption gives it, which the plane's item does not have (I-3). The
@@ -436,6 +464,9 @@ export async function adoptStoreItems(
         if (held.store_ref?.adapter !== adapter.name) continue;
         // Written or changed since the listing, which may predate it.
         if (stale(held.id, held.scope)) continue;
+        // Being erased: the erasure takes it out, and until it completes
+        // nothing in the scope changes (card E1.7, E18-F1).
+        if (erasureOpen(db, held.scope)) continue;
         const diagnostic = unreadable.get(held.store_ref.key);
         retire(
           held,

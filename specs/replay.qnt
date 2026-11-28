@@ -24,7 +24,7 @@
 //    first read (write.ts decideAndWrite, commit.ts settle), a settle that
 //    goes round again and its next read, an erasure and the sweep's listing
 //    head (offboard.ts run), each decision of the sweep loop and the next
-//    one (or the report), the put-back loop's reads and checks, an
+//    one (or the report), the put-back loop's checks and its next read, an
 //    offboarding with nothing to erase and its erase transaction, and each
 //    record of an adoption and the next one (adopt.ts adoptStoreItems),
 //    except where a purge's store delete stands between them.
@@ -39,8 +39,9 @@
 //
 // The module `replay` is good's instance under this schedule: the traces of
 // specs/traces/ are its runs, and each is a run of good. Its run
-// `sweptIdPurgeRaceReplayTest`, and `replayThreeOffboardings`'s run, restate the
-// two known gaps' scenario tests in the order the code takes them.
+// `sweptIdPurgeRaceReplayTest`, and `replayThreeOffboardings`'s run, restate
+// the scenario tests of the two gaps card E1.5 found, as card E1.7 closed
+// them, in the order the code takes them.
 module replay {
   import commit(
     HANDLES = Set("h1", "h2", "h3"),
@@ -65,7 +66,6 @@ module replay {
     else {
       val p = pc.get(h)
       if (CONTINUES.contains(n)) h
-      else if (n == "obPutBackRead" and p.tag == "obSweep") h
       else if (n == "obBegin" and p.remaining == Set()) h
       else if (ADOPT_CONTINUES.contains(n) and p.tag == "adopt") h
       else ""
@@ -122,8 +122,9 @@ module replay {
 
   // good::sweptIdPurgeRaceTest in the order the code takes it: the
   // offboarding with nothing to erase lists the store at once, and the
-  // stale writer reads what to put back in its commit's stretch. The state
-  // it ends in is the one the model states: b projected, no store record.
+  // stale writer reads what to put back in its commit's stretch. Since card
+  // E1.7 the write under the swept id is refused, and the purge deletes the
+  // record dropped in by hand: b is no item and has no store record.
   run sweptIdPurgeRaceReplayTest =
     init
       .then(decide("h1", "b", USER)).then(storeWrite("h1"))
@@ -134,10 +135,11 @@ module replay {
       .then(outsideEdit("b", USER))
       .then(adoptList("h3")).then(adoptOne("h3", "b"))
       .expect(pc.get("h3").tag == "adoptPurge")
-      .then(decide("h2", "b", USER)).then(storeWrite("h2")).then(commit("h2"))
+      .then(decide("h2", "b", USER))
+      .expect(log[log.length() - 1].rule == WRITE_ERASED)
       .then(adoptPurge("h3")).then(adoptDone("h3"))
       .expect(all {
-        proj.get("b").live,
+        not(proj.get("b").live),
         not(store.get("b").present),
         HANDLES.forall(h => pc.get(h).tag == "idle"),
         safety,
@@ -307,12 +309,12 @@ module replayThreeOffboardings {
     CHECKED = true
   ).* from "./commit"
 
-  // knownGapThreeOffboardings::putBackAcrossThirdErasureTest in the order
-  // the code takes it: the first two offboardings, with nothing to erase,
-  // list the store at once; the put-back's last read finds b gone and the
-  // first offboarding reports in the same stretch. It ends where the model
-  // says the code ends: b erased, its erased content in the store, every
-  // handle idle.
+  // threeOffboardings::putBackAcrossThirdErasureTest in the order the code
+  // takes it: the first two offboardings, with nothing to erase, list the
+  // store at once. Since card E1.7 the put-back's last read finds b gone and
+  // deletes the record its previous round wrote, and the first offboarding
+  // reports in the stretch after that delete. It ends where the model says
+  // the code ends: b erased, no store record, every handle idle.
   run putBackAcrossThirdErasureReplayTest =
     init
       .then(decide("h3", "b", USER)).then(storeWrite("h3"))
@@ -327,15 +329,13 @@ module replayThreeOffboardings {
       .then(obPutBackRead("h1"))
       .then(obBegin("h2")).then(obDelete("h2", "b")).then(obErase("h2")).then(obSweepList("h2"))
       .then(obPutBackWrite("h1")).then(obPutBackCheck("h1")).then(obPutBackRead("h1"))
+      .then(obPutBackWrite("h1")).then(obPutBackCheck("h1"))
       .then(obReport("h1"))
       .then(obReport("h2"))
       .expect(all {
         erasedIds.contains("b"),
-        store.get("b").present,
-        erasedContent.contains(store.get("b").content),
+        not(store.get("b").present),
         HANDLES.forall(h => pc.get(h).tag == "idle"),
-        noStaleAppend,
-        noWriteWhileErasing,
-        not(erasureHolds),
+        safety,
       })
 }
