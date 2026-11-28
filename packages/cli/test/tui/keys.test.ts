@@ -170,10 +170,11 @@ describe("the frame's keys", () => {
     const wide = await usable({ columns: 120, rows: 40 });
     const text = await wide.text();
     expect(text).not.toContain("more below");
-    // Every Home row; the Codex hook and the installer are on the hook setup screen (card E8.17).
+    // Every Home row; the Codex hook and the installer are on the hook setup screen (card E8.17),
+    // why not this item on the item page and the read screen (card E2.17).
     for (const s of offered().filter((x) => x.home !== false)) expect(text).toContain(s.title);
     for (const s of offered().filter((x) => x.home === false))
-      expect(["hook codex", "hook install"]).toContain(s.name);
+      expect(["hook codex", "hook install", "explain --absent"]).toContain(s.name);
     await wide.quit();
   });
 
@@ -182,6 +183,8 @@ describe("the frame's keys", () => {
     for (const [typed, title] of [
       ["hook codex", "Codex hook setup"],
       ["hook install", "Install a hook"],
+      // Card E2.17.
+      ["explain --absent", "Why not this item"],
     ] as const) {
       await h.press(";");
       await h.type(typed);
