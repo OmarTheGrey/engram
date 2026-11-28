@@ -1,0 +1,25 @@
+{
+  "name": "audit-report",
+  "kind": "measurement",
+  "card": "E9.15",
+  "hypothesis": "none",
+  "status": "proof of concept",
+  "wording": "a signed, content-free audit report (an in-toto Statement in a DSSE envelope) of a window of a chained fixture log, verified against the log as exported, after a later write, and under each tampering of the report or the log: the verdict each case gives, the check it fails at, how many tamperings were detected, and the sha256 of the envelope, fixed by the log, the clock and the key. A proof of concept on one fixture log with no model in the loop, never a hypothesis result",
+  "filed_under": "research/results/h1-* only because research/tests/test_prereg.py maps every MANIFEST file to one hypothesis's results glob; the result decides no hypothesis, as card E8.16 filed its leak count",
+  "suite": ["packages/core/test/unit/audit/report.test.ts"],
+  "tampering": [
+    "a count in the statement changed, not re-signed",
+    "the statement re-signed under another key",
+    "a false count signed with the operator's key",
+    "a head beyond the chain, signed with the operator's key",
+    "an event edited in the log",
+    "an event edited and the chain rehashed",
+    "an event edited, the chain rehashed and the checkpoints deleted",
+    "another policy given to verify"
+  ],
+  "limits": [
+    "One fixture log of seven events under the test policy, on SQLite, with a seeded salt source and a fixed Ed25519 key; the core suite also runs the acceptance cases on Postgres, which this record does not cover.",
+    "The tamperings are those a person with database access and the code but not the operator's private key can make, plus a report re-signed by the key holder with a false count; an operator who holds the key and rewrites the whole log before exporting is detected only by a checkpoint held outside the database (ADR 0038).",
+    "The oracle's count is the dogfood report's with no actor declared: the log records no memberships, so the fixture's read of a team item by a team member is counted as one read violation, as the report's note says."
+  ]
+}
