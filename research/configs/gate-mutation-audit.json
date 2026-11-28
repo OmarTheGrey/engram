@@ -1,0 +1,77 @@
+{
+  "name": "gate-mutation-audit",
+  "kind": "measurement",
+  "hypothesis": "none",
+  "status": "proof of concept",
+  "card": "X16",
+  "wording": "how many hand-written mutants of the write gate, the read filter, retention, promotion, adoption, offboarding, the trust floors and the log's chain the invariants' property tests kill, per invariant: a proof of concept that the invariants bite, on the code's own tests with no model, never a hypothesis result",
+  "mutants": "fixtures/mutants",
+  "audited": ["packages"],
+  "copy_exclude": ["docs", "research"],
+  "env": {
+    "ENGRAM_OFFLINE": "1",
+    "ENGRAM_PG": "skip"
+  },
+  "run_timeout_s": 900,
+  "guards": [
+    "no tracked file the copy takes (everything but docs/ and research/) has uncommitted changes when the run starts",
+    "every invariant's test passes on the unmutated copy before any mutant runs",
+    "each mutant's find string occurs exactly once in its file",
+    "each mutant is applied only in a scratch copy outside the repository, and its file's bytes are restored after its run",
+    "the working tree's status is unchanged after every mutant",
+    "a kill is a failed assertion in exactly the named test, recorded with its first line; a crash, a module that does not load, a timeout or a wrong selection stops the run",
+    "every invariant has at least one killed mutant"
+  ],
+  "invariants": [
+    {
+      "id": "I1",
+      "file": "packages/core/test/property/invariants.test.ts",
+      "name": "invariant 1: no read returns an item the actor's scope and grants exclude"
+    },
+    {
+      "id": "I1H",
+      "file": "packages/core/test/property/invariants.test.ts",
+      "name": "invariant 1 across two handles: no reader gets an erased item back, and the store holds the projection, whatever the interleaving"
+    },
+    {
+      "id": "I2",
+      "file": "packages/core/test/property/invariants.test.ts",
+      "name": "invariant 2: no write lands in a scope whose policy forbids its class or source"
+    },
+    {
+      "id": "I3",
+      "file": "packages/core/test/property/invariants.test.ts",
+      "name": "invariant 3: every read or write appends exactly one event, and a denial carries a reason and a policy id"
+    },
+    {
+      "id": "I4",
+      "file": "packages/core/test/property/invariants.test.ts",
+      "name": "invariant 4: replaying the events of any write sequence gives the same state, store and reads"
+    },
+    {
+      "id": "I5",
+      "file": "packages/core/test/property/invariants.test.ts",
+      "name": "invariant 5: after any write sequence no scope holds more active items of a class than its budget, every retire or evict event carries a reason and a policy id, and replay reproduces them"
+    },
+    {
+      "id": "I6",
+      "file": "packages/core/test/property/invariants.test.ts",
+      "name": "invariant 6: adoption never records a provenance kind more trusted than the plane holds for the item's id"
+    },
+    {
+      "id": "I7",
+      "file": "packages/core/test/property/invariants.test.ts",
+      "name": "invariant 7: adoption never records a grant the plane does not hold for the item's id"
+    },
+    {
+      "id": "I8",
+      "file": "packages/core/test/property/invariants.test.ts",
+      "name": "invariant 8: with the trust options on, no committed item is more trusted than its actor's attested source, and no allowed write or eviction by a less trusted source changes or removes a more trusted active item unless its owner acted as user"
+    },
+    {
+      "id": "I9",
+      "file": "packages/core/test/property/chain.test.ts",
+      "name": "every injected tamper is detected, and an offboarding's erasure still verifies"
+    }
+  ]
+}

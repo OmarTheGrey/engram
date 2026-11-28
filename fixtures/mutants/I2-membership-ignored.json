@@ -1,0 +1,9 @@
+{
+  "id": "I2-membership-ignored",
+  "invariant": "I2",
+  "area": "write gate",
+  "file": "packages/core/src/policy/evaluate.ts",
+  "find": "if (!actor.memberships.includes(item.scope))",
+  "replace": "if (false)",
+  "what": "a writer who is not a member of the item's scope may write into it"
+}

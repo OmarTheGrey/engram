@@ -1,0 +1,9 @@
+{
+  "id": "I3-read-two-events",
+  "invariant": "I3",
+  "area": "read filter",
+  "file": "packages/core/src/plane/read.ts",
+  "find": "const appended = appendEvent(db, {\n      id: newId(),\n      ts: at,\n      op: \"read\",",
+  "replace": "appendEvent(db, {\n      id: newId(),\n      ts: at,\n      op: \"read\",\n      item_id: null,\n      actor: actor.id,\n      scope_from: null,\n      scope_to: null,\n      decision: \"allow\",\n      reason,\n      policy_id: readRuleId(policy, actor),\n      item_ids: [],\n      schema_version: SCHEMA_VERSION,\n    });\n    const appended = appendEvent(db, {\n      id: newId(),\n      ts: at,\n      op: \"read\",",
+  "what": "a read appends a second read event before its own"
+}

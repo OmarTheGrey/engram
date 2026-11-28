@@ -1,0 +1,9 @@
+{
+  "id": "I1-ttl-inclusive",
+  "invariant": "I1",
+  "area": "retention",
+  "file": "packages/core/src/policy/evaluate.ts",
+  "find": "if (expiry !== null && compareTimestamps(expiry.at, at) <= 0)\n    return result(",
+  "replace": "if (expiry !== null && compareTimestamps(expiry.at, at) < 0)\n    return result(",
+  "what": "an item is still read at the instant its ttl runs out"
+}
