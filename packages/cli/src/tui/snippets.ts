@@ -19,7 +19,7 @@ import { spawn } from "node:child_process";
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { delimiter as hostDelimiter, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { redactSecrets } from "../setup.ts";
+import { redactSecrets, UsageError } from "../setup.ts";
 
 type Env = Readonly<Record<string, string | undefined>>;
 
@@ -167,6 +167,43 @@ export const hookSettings = (launch: Launch, argv: readonly string[]) => ({
   },
 });
 
+/** A word as `sh -lc` reads it: bare when it is plainly safe, else single-quoted. */
+const posixWord = (w: string) =>
+  /^[A-Za-z0-9_@%+=:,./-]+$/.test(w) ? w : `'${w.replaceAll("'", `'\\''`)}'`;
+/** A word as `cmd.exe /c` reads it: bare when it is plainly safe, else double-quoted. */
+const cmdWord = (w: string) => {
+  if (/^[A-Za-z0-9_@+=:,./\\-]+$/.test(w)) return w;
+  if (/["%!^&|<>\r\n]/.test(w))
+    throw new UsageError(`${JSON.stringify(w)} cannot be written safely into a cmd.exe line`);
+  return `"${w}"`;
+};
+
+/**
+ * Codex's hook handler (card E8.17, fixtures/harness/codex/.codex/hooks.json):
+ * one command line, which Codex runs with `sh -lc`, or on Windows with
+ * `cmd.exe /c` from `commandWindows` when given (openai/codex ebd0765aafa2,
+ * codex-rs/hooks); `commandWindows` is written only when its quoting differs.
+ * With `onFailure` "block", a hook that fails blocks the call.
+ */
+export function codexHookCommand(launch: Launch, argv: readonly string[]) {
+  const all = [launch.command, ...launch.prefix, ...argv];
+  const command = all.map(posixWord).join(" ");
+  const windows = all.map(cmdWord).join(" ");
+  return {
+    type: "command" as const,
+    command,
+    ...(windows === command ? {} : { commandWindows: windows }),
+    onFailure: "block" as const,
+  };
+}
+
+/** `.codex/hooks.json` holding the PreToolUse entry, exactly as the fixture holds it. */
+export const codexHooksJson = (launch: Launch, argv: readonly string[]) => ({
+  hooks: {
+    PreToolUse: [{ matcher: "*", hooks: [codexHookCommand(launch, argv)] }],
+  },
+});
+
 /** `.mcp.json` for Claude Code, in the fixture's shape. */
 export const mcpJson = (launch: Launch, argv: readonly string[]) => ({
   mcpServers: { engram: { command: launch.command, args: [...launch.prefix, ...argv] } },
@@ -280,34 +317,43 @@ export interface Sample {
   expect: "deny" | "nothing";
 }
 
+/** The harnesses the hook screens set up, as the hook names them. */
+export type SetupHarness = "claude-code" | "codex";
+
+/** A harness's name in the screens' words. */
+export const HARNESS_NAME: Readonly<Record<SetupHarness, string>> = {
+  "claude-code": "Claude Code",
+  codex: "Codex",
+};
+
 /**
  * The two samples of 8.15: a Read inside the first store root (or, with no
  * root, a store's own command), which the hook should deny; and a Read of a
- * file that touches no store, which it should let through.
+ * file that touches no store, which it should let through. Codex has no Read
+ * tool (card E8.17): its samples are its Bash tool, `cat` of the same files.
  */
-export function hookSamples(project: string, roots: readonly string[]): Sample[] {
+export function hookSamples(
+  project: string,
+  roots: readonly string[],
+  harness: SetupHarness = "claude-code",
+): Sample[] {
   const root = roots[0];
+  const read = (file: string): [string, Record<string, unknown>] =>
+    harness === "codex"
+      ? [`Bash cat ${file}`, { tool_name: "Bash", tool_input: { command: `cat '${file}'` } }]
+      : [`Read ${file}`, { tool_name: "Read", tool_input: { file_path: file } }];
   let inside: Record<string, unknown>;
   let label: string;
   if (root === undefined) {
     inside = { tool_name: "Bash", tool_input: { command: "mem0 add x" } };
     label = "Bash mem0 add x";
-  } else {
-    const file = join(resolve(project, root), "user_role.md");
-    inside = { tool_name: "Read", tool_input: { file_path: file } };
-    label = `Read ${file}`;
-  }
-  const readme = join(project, "README.md");
+  } else [label, inside] = read(join(resolve(project, root), "user_role.md"));
+  const [freeLabel, free] = read(join(project, "README.md"));
   return [
     { label, input: { hook_event_name: "PreToolUse", ...inside, cwd: project }, expect: "deny" },
     {
-      label: `Read ${readme}`,
-      input: {
-        hook_event_name: "PreToolUse",
-        tool_name: "Read",
-        tool_input: { file_path: readme },
-        cwd: project,
-      },
+      label: freeLabel,
+      input: { hook_event_name: "PreToolUse", ...free, cwd: project },
       expect: "nothing",
     },
   ];
@@ -387,15 +433,23 @@ export interface SampleResult {
   stdout: string;
 }
 
-/** What Claude Code does with a hook that fails, by its version (code.claude.com/docs/en/hooks). */
-const FAILED_HOOK =
-  "With onFailure block (Claude Code v2.1.295 or later) Claude Code would block every tool call; before v2.1.295 it would let every tool call through.";
+/**
+ * What the harness does with a hook that fails: Claude Code by its version
+ * (code.claude.com/docs/en/hooks); Codex with onFailure block blocks the
+ * call (HookFailurePolicy at openai/codex ebd0765aafa2).
+ */
+const FAILED: Readonly<Record<SetupHarness, string>> = {
+  "claude-code":
+    "With onFailure block (Claude Code v2.1.295 or later) Claude Code would block every tool call; before v2.1.295 it would let every tool call through.",
+  codex: "With onFailure block Codex would block every tool call.",
+};
 
-const DID_NOT_RUN = (code: string) =>
-  `the hook did not run (${code}). ${FAILED_HOOK} Fix the command before pasting it.`;
-
-/** What a hook's run means to Claude Code, from its exit code and its stdout only. */
-function judgeHook(sample: Sample, r: Spawned): SampleResult {
+/** What a hook's run means to the harness, from its exit code and its stdout only. */
+function judgeHook(sample: Sample, r: Spawned, harness: SetupHarness): SampleResult {
+  const FAILED_HOOK = FAILED[harness];
+  const who = HARNESS_NAME[harness];
+  const DID_NOT_RUN = (code: string) =>
+    `the hook did not run (${code}). ${FAILED_HOOK} Fix the command before pasting it.`;
   const base = { label: sample.label, code: r.code, stdout: r.stdout };
   if (!r.started || r.error !== undefined)
     return {
@@ -407,7 +461,7 @@ function judgeHook(sample: Sample, r: Spawned): SampleResult {
   if (r.code !== 0) {
     const detail =
       r.code === 2
-        ? `exit 2: Claude Code would block every tool call and show this hook's stderr: ${r.stderr.trim().split("\n")[0] ?? ""}`
+        ? `exit 2: ${who} would block every tool call and show this hook's stderr: ${r.stderr.trim().split("\n")[0] ?? ""}`
         : r.code === null
           ? DID_NOT_RUN("it was stopped")
           : r.code === 127
@@ -439,7 +493,7 @@ function judgeHook(sample: Sample, r: Spawned): SampleResult {
       ...base,
       outcome: "failed",
       expected: false,
-      detail: "exit 0, but its output is not the JSON Claude Code reads",
+      detail: `exit 0, but its output is not the JSON ${who} reads`,
     };
   // Only a deny blocks: allow skips Claude Code's own prompt, ask and defer let the person or
   // the next hook decide (review E8.15d-1).
@@ -448,7 +502,7 @@ function judgeHook(sample: Sample, r: Spawned): SampleResult {
       ...base,
       outcome: "failed",
       expected: false,
-      detail: `exit 0, but permissionDecision ${decision}: Claude Code would not block this call`,
+      detail: `exit 0, but permissionDecision ${decision}: ${who} would not block this call`,
     };
   return {
     ...base,
@@ -458,17 +512,22 @@ function judgeHook(sample: Sample, r: Spawned): SampleResult {
   };
 }
 
-/** Runs the scratch hook once per sample (8.15), each input on stdin. */
+/** Runs the scratch hook once per sample (8.15), each input on stdin, judged as the harness reads it. */
 export async function tryHook(
   s: Scratch,
   samples: readonly Sample[],
   timeoutMs = 45_000,
   children?: Children,
+  harness: SetupHarness = "claude-code",
 ): Promise<SampleResult[]> {
   const out: SampleResult[] = [];
   for (const sample of samples)
     out.push(
-      judgeHook(sample, await spawnOnce(s, JSON.stringify(sample.input), timeoutMs, children)),
+      judgeHook(
+        sample,
+        await spawnOnce(s, JSON.stringify(sample.input), timeoutMs, children),
+        harness,
+      ),
     );
   return out;
 }

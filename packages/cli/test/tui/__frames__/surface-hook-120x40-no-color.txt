@@ -1,10 +1,11 @@
  engram  Claude Code hook setup                                          in process  log :memory:  person:dana (person)
  > Store roots     /src/lantern/memory  [                                          ]  written absolute; enter adds
    Protected files [                                          ]  the log is protected already
-   Block events as [ person:dana                              ]  default agent:claude-code
+   Block events as [ person:dana                              ]  default agent:claude-code, or agent:codex
+   Harness         (o) Claude Code, .claude/settings.json   ( ) Codex, .codex/hooks.json
    ▸ More flags: 5, set: --db
 
- [ Copy the entry ]  [ Try it on a scratch log ]
+ [ Copy the entry ]  [ Try it on a scratch log ]  [ Install into .claude/settings.json ]
 
  engram is not on your PATH; the snippet uses the full path of this CLI.
  With "onFailure": "block", a hook that fails blocks the call; Claude Code reads it from v2.1.295 on, and before that a
@@ -16,7 +17,6 @@
 
  ✓ Read /src/lantern/memory/user_role.md   exit 0, blocked: permissionDecision deny
  ✓ Read /src/lantern/README.md   exit 0, allowed: the hook printed nothing
-
 
 
 
