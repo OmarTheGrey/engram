@@ -16,6 +16,7 @@ commands:
   supersede <itemId>  propose end dates for the versions an item supersedes; apply accepted ones
   grants <itemId>   add or remove grants on an item, as its owner
   explain <readId>  the explanations a read recorded
+  explain --absent <id> [query]  why an item is not in the read a query would make now: the first stage that kept it out
   events            the events the actor may see, each with its decision, rule and reason
   retain            sweep one scope's retention: expired items retired, budgets enforced
   lint              run the policy's deterministic lints over a scope, each finding with its reason
@@ -28,6 +29,8 @@ commands:
   serve             serve the HTTP API to authenticated callers, or on loopback with --insecure-loopback
   mcp               the MCP server for Claude Code and Codex, as one fixed actor
   hook claude-code  a Claude Code PreToolUse hook that blocks store bypasses
+  hook codex        a Codex PreToolUse hook that blocks store bypasses
+  hook install <harness>  merge the hook into claude-code's or codex's settings, idempotently, with a backup
   key               create, list or revoke the local API keys a server accepts
   doctor            check the log, policy, store, adapters, provider keys, pins and Node
   discover          count harness memory files outside every store root, never their content
@@ -117,6 +120,15 @@ events options:
   with --db, --policy and --as or --owner: the events naming a scope the actor may read
   as a member, and those it made that name no scope; an item is shown only as a read
   would return it. The log must exist; nothing is appended
+
+explain --absent options:
+  --absent <id> [query]       why the item is not in the read the query (and --at, the time
+                              validity windows are judged at) would make now: the first stage
+                              that kept it out (match, status, ttl, validity, the rank cut), or
+                              that the read returns it. Answered only to an actor who may read
+                              the item by id; anyone else is refused as for an unknown id.
+                              No sweep, no event; exit 1 when refused. engram mcp --why-not
+                              lists the same answer as the memory_why_not tool
 
 retain options:
   --scope <scope>             the scope to sweep, as a user-sourced member of it; exit 1 if refused
@@ -230,6 +242,21 @@ log checkpoint options:
   nothing is signed unless the whole log verifies first, every earlier signature under
   this --key and every --checkpoint given; the key is the operator's to hold, and a
   signature proves only that its holder saw that head
+
+hook codex options (card E8.17): as hook claude-code's, read the way Codex sends them:
+  Bash checked as POSIX and PowerShell, apply_patch by its file headers; --root and a
+  relative --db resolve against the folder Codex starts the hook in; protects the log,
+  .codex/config.toml, .codex/hooks.json and those of $CODEX_HOME (default ~/.codex);
+  --as defaults to agent:codex; a block answers permissionDecision deny with the reason
+
+hook install options (card E8.17): engram hook install claude-code | codex
+  --project <folder>          the project whose .claude/settings.json or .codex/hooks.json
+                              takes the entry (default the current folder)
+  --user                      the user's ~/.claude/settings.json or $CODEX_HOME/hooks.json instead
+  --root, --protect, --as, --server or --db and --policy: written into the entry, paths absolute
+  writes that one file (and its folder), keeping every other entry; an earlier engram hook
+  entry is replaced, never duplicated; a changed file is backed up beside it first; a second
+  run writes nothing; refuses a link or a file that is not JSON, writing nothing
 
 key options:
   create --keys <file> --as <principal> --source <kind> --expires <iso>  [--level] [--member]...

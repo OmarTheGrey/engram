@@ -247,6 +247,14 @@ const USER_OPS = (readId: string): UserOp[] => [
     http: { path: `/explain/${readId}`, body: { actor: DANA } },
   },
   {
+    name: "explain --absent, as the owner",
+    argv: ["explain", "--absent", byLabel("dana-person").id, "canary", ...as(DANA)],
+    http: {
+      path: "/explain-absent",
+      body: { actor: DANA, item_id: byLabel("dana-person").id, text: "canary" },
+    },
+  },
+  {
     name: "promote, refused without a review",
     argv: ["promote", byLabel("dana-person").id, "--to", "team:x", ...as(DANA)],
     http: {
@@ -519,6 +527,12 @@ const PROBES: Record<string, (a: Actor) => string[][]> = {
       `${a.id},class=semantic,mode=read,expires=2026-12-01T00:00:00Z`,
     ]),
   explain: () => [seededReadId(), MISSING_READ].map((id) => ["explain", id]),
+  // Card E2.17: why an item is not in a read, with the read's text and without.
+  "explain --absent": () =>
+    ids.flatMap((id) => [
+      ["explain", "--absent", id],
+      ["explain", "--absent", id, "canary"],
+    ]),
   events: () => [["events"]],
   retain: () => [...SCOPES, "team:nobody"].map((s) => ["retain", "--scope", s]),
   lint: () => [...SCOPES, "team:nobody"].map((s) => ["lint", "--scope", s]),
