@@ -392,6 +392,48 @@
       "outcome": "replayed",
       "steps": 31
     },
+    "putBackCrashReplayTest.itf.json.gz": {
+      "action": "adoptRefuseErased(h3, b)",
+      "compared": 22,
+      "final": {
+        "marks": [],
+        "proj": {
+          "a": {
+            "content": -1,
+            "kind": 0,
+            "live": false,
+            "meta": 0
+          },
+          "b": {
+            "content": -1,
+            "kind": 0,
+            "live": false,
+            "meta": 0
+          }
+        },
+        "store": {
+          "a": {
+            "content": -1,
+            "kind": 0,
+            "meta": 0,
+            "present": false
+          },
+          "b": {
+            "content": 1,
+            "kind": 3,
+            "meta": 0,
+            "present": true
+          }
+        }
+      },
+      "finding": "E18-F7",
+      "folded": 7,
+      "matched": 28,
+      "outcome": "diverged",
+      "step": 29,
+      "steps": 31,
+      "what": "whether handle h3 is inside a call"
+    },
     "sweptIdPurgeRaceReplayTest.itf.json.gz": {
       "compared": 15,
       "final": {
@@ -1856,5 +1898,5 @@
     }
   },
   "traces_dir": "specs/traces",
-  "traces_sha256": "8ca0aa4905663226af31b91322b62aaf0b2e3907031cf24330f23cc59f292a46"
+  "traces_sha256": "6a751bcecfb5bbb8bd9dd060dae68884e67e516b34f3a94fa3f5299a85d2d44b"
 }

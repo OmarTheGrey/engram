@@ -510,7 +510,7 @@ Recorded by [`docs/log/2026-11-28-e8-16-measurement-leak-count-revised.md`](../l
 - **Question.** Does the code follow the Quint model of the commit and erasure protocol, step by step, on the model's own traces?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. Card E1.8: 200 traces of `specs/replay.qnt` (good under the code's schedule, seed 1) replayed on real Plane handles; a divergence counts only when one of the card's findings explains it. Rerun by card E1.7 after it closed the two erasure gaps and findings E18-F1, E18-F2 and E18-F4 in the code, with the traces regenerated from the changed model. Filed under `h1-` for the results glob only.
-- **Made by.** `research/scripts/quint_trace_replay.py` from `research/configs/quint-trace-replay.json`, MANIFEST commit `73dd0d02`, sha256 `b1ef437de813678751e65ed15533ee598f2b77063e3c20015762a67c0513ab4d`.
+- **Made by.** `research/scripts/quint_trace_replay.py` from `research/configs/quint-trace-replay.json`, MANIFEST commit `5549e891`, sha256 `07be0d26f101a9f826fe022835f7869a915c37e4e9567f0c0d7bc8bcc0176a7c`.
 
 | value | reads | key path |
 |---|---|---|
