@@ -12,10 +12,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** On B5's states the deterministic lints detect no deletion and no supersession, and repair nothing; the hash chain detects every log edit, but B5's runner logs keep no chain.
+**What.** A design observation, its numbers fixed by the faults' shapes: on B5's states the lints detect no deletion or supersession and repair nothing; the chain detects every edit that does not re-chain; B5's runner logs keep no chain.
 
-**Why.** The lints check fields (a blank ref, a passed validity end), not history: a vanished item leaves no orphan when nothing names it by id, and a reopened validity window looks like any open one. Only replay against an intact log restores state, and only the chain tells an intact log from an edited one.
+**Why.** The lints check fields, not history: a deleted item raises an orphan only on an item naming it by id, which no B5 item does, and a reopened validity window looks like any open one. An editor who re-chains the log gets UNSIGNED, the controls' verdict, unless a checkpoint is held outside the database.
 
-**Result.** `research/results/h3-fault-injection.json`: log faults recovered 0 of 990 after the lints, verification failed on 1,485 of 1,485 edited logs and on 0 of 500 controls.
+**Result.** `research/results/h3-fault-injection.json`: 0 of 990 log faults recovered after the lints; verification failed on every edited log and on no control.
 
-**Consequence.** H3's recovery claim, in its fault-injection form, rests on replay and the chain rather than on the lints. Whether runner logs should keep the chain is the lead's question; nothing registered changes here.
+**Consequence.** A state-recovery claim of this kind would rest on replay and a checkpointed chain, not on the lints; it says nothing of H3's utility recovery. Whether runner logs should keep the chain is the lead's question.
