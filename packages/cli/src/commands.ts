@@ -33,6 +33,9 @@ import {
   mapLineage,
   Scope,
   type SimReport,
+  type SubjectAccessReport,
+  subjectAccessOf,
+  subjectRefusal,
   Timestamp,
   type WhoCanReadAnswer,
 } from "@engram/core";
@@ -1147,6 +1150,14 @@ export function whoCanReadCommand(args: string[], io: Io): Promise<number> {
  * line, then one row per item core's bundleRows picks, each with its decision
  * events. Optionally encrypted with age and armored. To stdout, or to --out
  * with a one-line summary. Exit 0.
+ *
+ * With `--subject person:<id>` (card E9.16), a subject access export: the
+ * actor is the subject (core's subjectRefusal; --as defaults to it), the
+ * bundle goes to --out unchanged, so it imports as any bundle, and stdout
+ * gets core's subject access report (subjectAccessOf): the bundle's counts,
+ * the decisions on it, and the items derived from it in other scopes, named
+ * where the subject may ask for them by id, counted otherwise. The closure
+ * reads the log on this machine, so never with --server.
  */
 export const EXPORT = plane({
   options: OPTIONS.export,
@@ -1159,8 +1170,26 @@ export const EXPORT = plane({
           ? undefined
           : readPassphrase(io.cwd, values["passphrase-file"]),
     };
+    const subject = values.subject;
+    if (subject !== undefined) {
+      if (values.out === undefined)
+        throw new UsageError(
+          "--subject needs --out <file>: the bundle goes to the file and the report to stdout",
+        );
+      if (serverOf(io, values) !== undefined)
+        throw new UsageError(
+          "--subject reads the log on this machine for the closure report: not with --server",
+        );
+    }
     // Export writes nothing: the actor names no source (decision D4).
-    const actor = buildActor(values, values.owner);
+    const actor = buildActor(
+      subject !== undefined && values.as === undefined && values.owner === undefined
+        ? { ...values, as: subject }
+        : values,
+      values.owner,
+    );
+    const refusal = subject === undefined ? undefined : subjectRefusal(actor, subject);
+    if (refusal !== undefined) throw new UsageError(refusal);
     return {
       io,
       flags: { db: values.db, policy: values.policy, server: values.server },
@@ -1169,6 +1198,7 @@ export const EXPORT = plane({
       json: false,
       keys,
       out: values.out,
+      subject,
     };
   },
   request: (_p, actor) => ({ actor: must(actor) }),
@@ -1177,7 +1207,7 @@ export const EXPORT = plane({
       rows: BundleRow[];
     } & Omit<BundleHeader, "rows">,
   // The bundle is the output: to stdout, or written to --out with a summary line.
-  async print(p, actor, answer) {
+  async print(p, actor, answer, conn) {
     const { rows, ...header } = answer;
     const bundle = await encryptBundle(bundleText(header, rows), p.keys);
     const events = rows.reduce((n, r) => n + r.events.length, 0);
@@ -1189,12 +1219,40 @@ export const EXPORT = plane({
         : p.keys.recipients.length > 0
           ? `, encrypted to ${plural(p.keys.recipients.length, "recipient")}`
           : "";
-    return {
-      code: 0,
-      out: `exported ${plural(rows.length, "item")} with ${plural(events, "event")} as ${must(actor).id} under ${header.policy} to ${p.out}${sealed}\n`,
-    };
+    const line = `exported ${plural(rows.length, "item")} with ${plural(events, "event")} as ${must(actor).id} under ${header.policy} to ${p.out}${sealed}\n`;
+    if (p.subject === undefined || !conn.workspace) return { code: 0, out: line };
+    const ws = conn.workspace;
+    const report = subjectAccessOf(
+      ws.open(true).db,
+      ws.policy,
+      must(actor),
+      rows,
+      header.exported_at,
+    );
+    return { code: 0, out: `${line}${subjectText(report)}` };
   },
 });
+
+/** The subject access report as `engram export --subject` prints it. */
+export function subjectText(r: SubjectAccessReport): string {
+  const counts = (m: Record<string, number>) =>
+    Object.entries(m)
+      .map(([k, n]) => `${k} ${n}`)
+      .join(", ") || "none";
+  const lines = [
+    `subject access export for ${r.subject} at ${r.at} under ${r.policy.id} v${r.policy.version}`,
+    `  items: ${r.items.total} (${counts(r.items.by_status)}); by class: ${counts(r.items.by_class)}; by scope level: ${counts(r.items.by_level)}`,
+    `  decisions on them: ${r.decisions.total}`,
+  ];
+  for (const [op, by] of Object.entries(r.decisions.by_op)) lines.push(`    ${op}: ${counts(by)}`);
+  const d = r.derived;
+  lines.push(`derived items in other scopes: ${d.shown.length + d.withheld}`);
+  for (const x of d.shown)
+    lines.push(`  ${x.id}${x.from.length === 0 ? "" : ` from ${x.from.join(", ")}`}`);
+  if (d.withheld > 0) lines.push(`  ${d.withheld} more out of your reach: counted, not named`);
+  for (const n of r.notes) lines.push(`note: ${n}`);
+  return `${lines.join("\n")}\n`;
+}
 
 /** One planned row of an import: where it came from, its source and the scope it goes to. */
 interface Planned {
