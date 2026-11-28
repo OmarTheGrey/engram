@@ -1,0 +1,30 @@
+{
+  "key": "65ebfb0981fa4659666f46a19ca2beec0a79fc78afac3cff6eb83a5806e2881a",
+  "context": {
+    "item": "x19/person:p14",
+    "condition": "summary",
+    "preset": "twin",
+    "store": "none"
+  },
+  "request": {
+    "model": "scripted/x19-summary",
+    "system": "You summarise a person's notes in one sentence for their own memory.",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Notes of person:p14:\n- person:p14 wrote down canary-xeric-vole-9961 as a note.\n- person:p14 wrote down canary-humble-hare-3256 as a note.\n- person:p14 wrote down canary-silken-yak-3165 as a note.\n- person:p14 wrote down canary-amber-urchin-1499 as a note.\n- person:p14 wrote down canary-brisk-dingo-9922 as a note.\n- person:p14 wrote down canary-umber-yak-2941 as a note.\n- person:p14 wrote down canary-dusky-yak-6216 as a note.\n- person:p14 wrote down canary-olive-marten-3896 as a note.\n- person:p14 wrote down canary-lunar-marten-3365 as a note.\n- person:p14 wrote down canary-gentle-urchin-4707 as a note."
+      }
+    ],
+    "seed": 20261128,
+    "temperature": 0,
+    "maxTokens": 256
+  },
+  "response": {
+    "text": "person:p14 keeps canary-xeric-vole-9961 and canary-humble-hare-3256 among their notes.",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}

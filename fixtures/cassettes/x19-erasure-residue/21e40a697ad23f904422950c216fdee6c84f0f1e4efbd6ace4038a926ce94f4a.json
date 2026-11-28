@@ -1,0 +1,30 @@
+{
+  "key": "21e40a697ad23f904422950c216fdee6c84f0f1e4efbd6ace4038a926ce94f4a",
+  "context": {
+    "item": "x19/person:p20",
+    "condition": "summary",
+    "preset": "twin",
+    "store": "none"
+  },
+  "request": {
+    "model": "scripted/x19-summary",
+    "system": "You summarise a person's notes in one sentence for their own memory.",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Notes of person:p20:\n- person:p20 wrote down canary-russet-koala-7857 as a note.\n- person:p20 wrote down canary-dapper-egret-6925 as a note.\n- person:p20 wrote down canary-nimble-ibis-3822 as a note.\n- person:p20 wrote down canary-nimble-lemur-5230 as a note.\n- person:p20 wrote down canary-mellow-kestrel-1128 as a note.\n- person:p20 wrote down canary-civic-newt-0761 as a note.\n- person:p20 wrote down canary-jovial-lynx-8321 as a note.\n- person:p20 wrote down canary-yonder-dingo-2960 as a note.\n- person:p20 wrote down canary-russet-newt-3612 as a note.\n- person:p20 wrote down canary-ivory-egret-8447 as a note."
+      }
+    ],
+    "seed": 20261128,
+    "temperature": 0,
+    "maxTokens": 256
+  },
+  "response": {
+    "text": "person:p20 keeps canary-russet-koala-7857 and canary-dapper-egret-6925 among their notes.",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}

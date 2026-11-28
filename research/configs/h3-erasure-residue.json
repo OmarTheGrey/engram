@@ -1,0 +1,22 @@
+{
+  "name": "h3-erasure-residue",
+  "kind": "measurement",
+  "hypothesis": "none",
+  "status": "engineering check",
+  "proposal": "U7",
+  "seed": 20261128,
+  "confidence": 0.95,
+  "backends": ["sqlite", "postgres"],
+  "stores": ["files", "mem0", "letta", "mcp-memory"],
+  "cassettes": "fixtures/cassettes/x19-erasure-residue",
+  "limits": [
+    "An engineering check, not a hypothesis result: proposal U7 is in the pre-registration's section of proposed amendments, not yet registered. The lead decided on 2026-11-25 to register it as a descriptive arm by amendment once this check merges (docs/log/2026-11-25-ans-2026-11-25-decision-u6-u7.md); until then it decides nothing and adds nothing to Holm.",
+    "The search is verbatim and by hash (each canary's text, and its fact's strict and merging content hashes as hex). Recovery of an erased fact by a model composing fragments, AfterDeleteBench's attack, is not measured.",
+    "A hit in the database's or the store's bytes cannot be attributed to an item: it counts as retained by decision when the same needle is retained by decision in a live tier (the projection, the events, the store's records) and found there as nothing else, and as residue otherwise. So a stale copy of a retained canary's bytes is counted as retained.",
+    "Postgres runs with autovacuum off, so the bytes do not depend on when its timer fires, and its files are read after a CHECKPOINT. A vacuum marks dead tuples' space reusable without zeroing it, so the heap's residue is not expected to fall to zero with it on; that is not measured. A value Postgres compresses (TOAST, pglz, over about 2 kB) is not found verbatim in its bytes; the check's event bodies are smaller.",
+    "SQLite runs in WAL mode, as the plane opens it, read while open: the main file holds the pages the automatic checkpoint has copied, the WAL the rest. Its free pages are not zeroed (secure_delete is off by default).",
+    "The store's files are read as files; what a file system keeps of a deleted file's blocks, and any backup or copy outside the folder, are not searched. Letta's history is every object git keeps (git cat-file --batch-all-objects), reachable or not.",
+    "The shared store ref is a fixture event (policy x19/fixture/shared-ref) appended to the log, as the core tests build one: no plane path writes two items at one ref, which adoption alone makes. The promotion into the team is made by a reviewer the harness makes a member of every person scope, since under twin only such a reviewer can widen an item out of a person scope.",
+    "Card E1.7's put-back leftover (a sweep's put-back whose delete fails) is not replayed: its race needs paused stores on two log handles. Its end state, a record under an erased id after an erasure that found no record at its ref, is the moved-record case here (person 2, slot 5), and is pinned by packages/core/test/unit/plane/erasure-gaps.test.ts, 'known limit'."
+  ]
+}
