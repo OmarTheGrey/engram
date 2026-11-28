@@ -19,7 +19,7 @@ One line per dependency: name, version, reason, licence. Added in the same PR as
 | @earendil-works/pi-ai | 1.3.0 | model access and the faux provider behind the scripted model; pi-extension, runner and @engram/model (ADR 0033) only | MIT |
 | typebox | 1.3.27 | tool parameter schemas for pi tools, the version pi itself uses; pi-extension, the runner's ungoverned C2 and C3 tools (card RN1), and memory_write and memory_read in packages/tag (card E8.14) | MIT |
 | zod | 4.6.7 | the schema in packages/core (ADR 0002) and its JSON Schema export; also the GateMem file loader and run config in packages/bench (card B1), the runner config in packages/runner (card RN1) and the remember and recall tools' input schemas in packages/ai-sdk (card E8.14) | MIT |
-| ajv | 8.20.0 | dev: validates fixtures against the generated JSON Schema (draft 2020-12) | MIT |
+| ajv | 8.20.0 | dev: validates fixtures against the generated JSON Schema (draft 2020-12); in packages/mcp too (card E8.17), the Codex hook's inputs and answers against Codex's copied draft-07 hook schemas | MIT |
 | ajv-formats | 3.0.1 | dev: date-time and uuid formats for ajv | MIT |
 | datamodel-code-generator | 0.86.0 | dev: generates research/engram_types from sdk/schema | MIT |
 | typing-extensions | >=4.12 (uv.lock) | runtime import of the generated research/engram_types | PSF-2.0 |

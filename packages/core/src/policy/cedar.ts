@@ -50,6 +50,10 @@
 //     loop over a string Cedar's language cannot express, so exportCedar
 //     refuses a policy that declares one; an empty `opt_outs` refuses no
 //     write and exports as if absent;
+//   - the lints (`lints`, `lints.model.evidence` of card L9 included): a
+//     lint decides no read or write, so the export is the same with or
+//     without them, and a policy turning quote grounding on is exported as
+//     faithfully as one leaving it out;
 //   - instants finer than a nanosecond: an instant is two Longs, epoch seconds
 //     and nanoseconds, and the encoder refuses a finer one.
 //

@@ -10,7 +10,16 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { Api, AssistantMessage, Context, Model } from "@earendil-works/pi-ai";
-import { LINT_PROMPTS, LINT_SCHEMAS, MODEL_LINT_SETTINGS } from "@engram/core";
+import {
+  appendEvent,
+  GROUNDED_PROMPTS,
+  LINT_PROMPTS,
+  LINT_SCHEMAS,
+  MODEL_LINT_SETTINGS,
+  migrate,
+  openSqlite,
+  planModelLints,
+} from "@engram/core";
 import { memoryCache } from "@engram/model";
 import { afterAll, describe, expect, test } from "vitest";
 import type { LiveModels } from "../src/answers.ts";
@@ -23,11 +32,13 @@ import {
   readLintConfig,
   runLintConfig,
   scriptedLintCall,
+  withEvidence,
 } from "../src/lint-faults.ts";
 
 const REPO = resolve(import.meta.dirname, "../../..");
 const FIXTURE = join(REPO, "research/configs/l3-lint-fixture.json");
 const PILOT = join(REPO, "research/configs/l3-pilot.json");
+const GROUNDING = join(REPO, "research/configs/l9-grounding-fixture.json");
 
 const temp: string[] = [];
 const scratch = () => {
@@ -176,6 +187,121 @@ describe("the pipeline config's replay (card L3 acceptance)", () => {
     expect(r.stdout).toContain("model calls: 0 new, 51 from cassettes");
     expect(r.stdout).toContain("these are not results");
     expect(readFileSync(join(out, "results.jsonl"), "utf8").trim().split("\n")).toHaveLength(12);
+  });
+});
+
+// Card L9 of the second absorb plan: the same fixtures and seeds with
+// `lints.model.evidence: "on"`, answered by card L9's scripted model (card
+// L3's verdicts in the grounded shape, four planted quotes).
+describe("the grounding config's replay (card L9 acceptance)", () => {
+  test("sets the option on each fixture's policy, its id and the rest kept; card L3's config does not", () => {
+    const config = readLintConfig(GROUNDING);
+    expect(config).toMatchObject({ kind: "pipeline", evidence: "on", seeds: [1, 2, 3] });
+    expect(readLintConfig(FIXTURE).evidence).toBeUndefined();
+    for (const { fixture } of loadFaultFixtures(config)) {
+      const on = withEvidence(fixture.policy);
+      expect(on.lints.model).toEqual({ evidence: "on" });
+      expect({ ...on, lints: { ...on.lints, model: undefined } }).toEqual({
+        ...fixture.policy,
+        lints: { ...fixture.policy.lints, model: undefined },
+      });
+      expect(fixture.policy.lints.model).toBeUndefined();
+    }
+  });
+
+  test("replays its committed cassettes offline with zero new calls, as a fresh recording from the script would", async () => {
+    const config = readLintConfig(GROUNDING);
+    const replay = await runLintConfig(config, { offline: true });
+    expect(replay.calls).toEqual({ new: 0, cached: 51 });
+    const recorded = await runLintConfig(config, { cache: memoryCache(), offline: false });
+    expect(recorded.calls).toEqual({ new: 51, cached: 0 });
+    expect(replay.rows).toEqual(recorded.rows);
+  });
+
+  test("gives card L3's verdicts, less the three flags whose quotes the check does not find", async () => {
+    const [plain, grounded] = await Promise.all(
+      [FIXTURE, GROUNDING].map(
+        async (c) => (await runLintConfig(readLintConfig(c), { offline: true })).rows,
+      ),
+    );
+    const said = (o: string) => (o === "ungrounded" ? "flag" : o);
+    for (const g of grounded as LintRow[]) {
+      const p = byFixtureSeed(plain as LintRow[], g.fixture, g.seed);
+      expect(g.judgments.map((j) => [j.unit, said(j.outcome)])).toEqual(
+        p.judgments.map((j) => [j.unit, j.outcome]),
+      );
+    }
+    const ungrounded = (grounded as LintRow[]).flatMap((r) =>
+      r.judgments
+        .filter((j) => j.outcome === "ungrounded")
+        .map((j) => [
+          r.fixture,
+          r.seed,
+          j.item_id.slice(-2),
+          j.grounding?.find((q) => !q.found)?.reason,
+        ]),
+    );
+    expect(ungrounded).toEqual([
+      ["contradiction.near-miss", 3, "02", "the quote is not in the item"],
+      [
+        "unsupported-claim.flag",
+        1,
+        "06",
+        "the quote is shorter than 12 characters and proves nothing",
+      ],
+      ["unsupported-claim.flag", 2, "04", "the quote is not in the item"],
+    ]);
+    // Seed 2's Friday quote has doubled whitespace and a line break: found after folding.
+    const folded = byFixtureSeed(grounded as LintRow[], "contradiction.flag", 2).findings[0];
+    expect(folded?.evidence.slice(-2)).toEqual([
+      'quote of 01950000-0000-7000-8000-000000000001: "The release freeze starts on Friday"',
+      'quote of 01950000-0000-7000-8000-000000000003: "The release freeze starts on Monday"',
+    ]);
+    // The claim's quote is shown; its source, outside team:core, is not.
+    const laptop = byFixtureSeed(grounded as LintRow[], "unsupported-claim.flag", 2).findings.find(
+      (f) => f.item_id.endsWith("06"),
+    );
+    expect(laptop?.evidence.slice(-2)).toEqual([
+      "reason not shown: the source is outside team:core",
+      'quote of 01950000-0000-7000-8000-000000000006: "Dana\'s laptop runs Windows"',
+    ]);
+    expect(JSON.stringify(laptop)).not.toContain("Linux");
+  });
+
+  test("its requests are card L3's but for the grounded prompt, schema and token limit", () => {
+    for (const { fixture: f } of loadFaultFixtures(readLintConfig(GROUNDING))) {
+      const plan = (policy: typeof f.policy) => {
+        const db = openSqlite(":memory:");
+        try {
+          migrate(db);
+          for (const { seq: _seq, ...e } of f.events) appendEvent(db, e);
+          return planModelLints(
+            { db, policy },
+            f.actor,
+            f.at,
+            f.scope,
+            { model: "scripted/lint-1", seed: 1 },
+            {
+              reach: "scope-registered",
+            },
+          );
+        } finally {
+          db.close();
+        }
+      };
+      const plain = plan(f.policy);
+      const on = plan(withEvidence(f.policy));
+      expect(on.map((u) => u.request.messages)).toEqual(plain.map((u) => u.request.messages));
+      for (const u of on) expect(u.request.system).toBe(GROUNDED_PROMPTS[u.lint_id]);
+      for (const u of plain) expect(u.request.system).toBe(LINT_PROMPTS[u.lint_id]);
+    }
+  });
+
+  test("make run replays it from the cassettes and says zero new calls", () => {
+    const out = scratch();
+    const r = runScript(["--config", GROUNDING, "--out", out], { ENGRAM_OFFLINE: "1" });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain("model calls: 0 new, 51 from cassettes");
   });
 });
 

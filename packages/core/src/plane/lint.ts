@@ -12,7 +12,8 @@
 // findings are recorded exactly as the deterministic ones, with the call's
 // usage on the event (ADR 0017), and every unit they sent is returned in the
 // report's `judgments`, refusals and malformed replies included, which are not
-// findings and append no event.
+// findings and append no event, and so are flags the quote check of
+// `lints.model.evidence` downgrades to `ungrounded` (card L9, lint/evidence.ts).
 //
 // The NLI tier of the contradiction lint (card L7, lint/nli.ts) runs before
 // the model-based lints when the policy lists both `contradiction-nli` and

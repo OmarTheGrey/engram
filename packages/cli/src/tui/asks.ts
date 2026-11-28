@@ -9,6 +9,7 @@
 // decides every call.
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { installTarget } from "../hook-install.ts";
 import { type CommandSpec, REGISTRY, type Values, type Writes } from "../registry.ts";
 import type { Io } from "../run.ts";
 import type { ConfirmRequest } from "./screen.ts";
@@ -76,7 +77,7 @@ export function confirmationFor(
   writes: Writes,
   flags: Values,
   actor: string,
-  io: Pick<Io, "home" | "cwd">,
+  io: Pick<Io, "home" | "cwd"> & Partial<Pick<Io, "env">>,
 ): ConfirmRequest | undefined {
   if (isRead(spec)) {
     if (writes !== "state") return undefined;
@@ -130,6 +131,24 @@ export function confirmationFor(
       };
     }
     case "file": {
+      if (spec.name === "hook install") {
+        // Card E8.17: the one settings file the installer merges into, named before it runs.
+        const harness = argv[2] === "codex" ? "codex" : "claude-code";
+        const file = installTarget(
+          harness,
+          { user: flags.user === true, project: resolve(io.cwd, String(flags.project ?? ".")) },
+          { ...io, env: io.env ?? {} },
+        );
+        return {
+          ...base,
+          lines: [
+            `Merges the engram hook ${harness} entry into ${file}, keeping every other entry.`,
+            existsSync(file)
+              ? `${file} exists: it is backed up beside itself first, and left as it is when it already holds this entry.`
+              : `${file} does not exist yet: it will be created.`,
+          ],
+        };
+      }
       const out = argv[argv.indexOf("--out") + 1] ?? "";
       return {
         ...base,

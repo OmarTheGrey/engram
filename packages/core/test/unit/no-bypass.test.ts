@@ -84,6 +84,25 @@ describe("shellBypass and toolBypass", () => {
     });
   });
 
+  // Card E8.17's review: PowerShell's backtick and cmd's caret escape a letter
+  // of a path word; the path check reads the command with them removed too,
+  // as the store-name check already did, under every shell flavour.
+  it.each([
+    "Get-Content mem`ory\\a.md",
+    'Get-Content "mem`ory\\a.md"',
+    "Remove-Item -Recurse mem`ory",
+    "type mem^ory\\a.md",
+    'type "m^e^m^o^r^y\\a.md"',
+  ])("names the root's store for %s, an escaped letter in a path word", (command) => {
+    for (const shell of ["posix", "powershell", "cmd"] as const)
+      expect(shellBypass(command, { ...check, shell })?.route, shell).toBe("path");
+  });
+
+  it("guards a protected file behind a backtick escape", () => {
+    const protect = { cwd, roots: [join(cwd, ".codex", "hooks.json")], rootStore: "engram" };
+    expect(shellBypass("Remove-Item .co`dex\\hooks.json", protect)?.store).toBe("engram");
+  });
+
   it.each([
     "cd memory && cat a.md",
     "cat memor*/a.md",

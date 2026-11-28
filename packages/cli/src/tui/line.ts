@@ -36,12 +36,15 @@ import { savedPath, writeSaved } from "./saved.ts";
 import type { Ran } from "./screen.ts";
 import {
   absolutePaths,
+  codexHookCommand,
   codexToml,
+  HARNESS_NAME,
   hookCommand,
   hookSamples,
   type Launch,
   mcpJson,
   resolveLaunch,
+  type SetupHarness,
   scratchLaunch,
   thisHost,
   tryHook,
@@ -58,7 +61,16 @@ export const LINE_INTRO =
 const SETUP: Readonly<Record<string, string>> = {
   mcp: "mcp setup",
   "hook claude-code": "hook setup",
+  "hook codex": "codex hook setup",
 };
+
+/** The harness a hook entry sets up (card E8.17); undefined for every other command. */
+const hookHarness = (spec: CommandSpec): SetupHarness | undefined =>
+  spec.name === "hook claude-code"
+    ? "claude-code"
+    : spec.name === "hook codex"
+      ? "codex"
+      : undefined;
 const menuName = (spec: CommandSpec) => SETUP[spec.name] ?? spec.name;
 
 /** The commands in the menu's order: Home's six groups, each in the registry's order. */
@@ -582,7 +594,8 @@ class LineSession {
 
   private async byPrompts(spec: CommandSpec): Promise<void> {
     if (spec.name === "mcp") return this.mcpSetup();
-    if (spec.name === "hook claude-code") return this.hookSetup();
+    const harness = hookHarness(spec);
+    if (harness !== undefined) return this.hookSetup(harness);
     this.say(spec.summary);
     const { main, advanced } = questionsOf(spec);
     const values = new Map<string, string | string[] | boolean>();
@@ -639,9 +652,10 @@ class LineSession {
       );
       return;
     }
-    if (spec.name === "hook claude-code") {
+    const harness = hookHarness(spec);
+    if (harness !== undefined) {
       this.say(
-        "engram hook is setup only here: hook setup prints its configuration; Claude Code runs the hook",
+        `engram hook is setup only here: ${SETUP[spec.name]} prints its configuration; ${HARNESS_NAME[harness]} runs the hook`,
       );
       return;
     }
@@ -838,10 +852,11 @@ class LineSession {
     for (const said of scratch.replaced) this.say(said);
   }
 
-  private async hookSetup(): Promise<void> {
-    const spec = entries().find((s) => s.name === "hook claude-code") as CommandSpec;
+  private async hookSetup(harness: SetupHarness = "claude-code"): Promise<void> {
+    const spec = entries().find((s) => s.name === `hook ${harness}`) as CommandSpec;
+    const who = HARNESS_NAME[harness];
     this.say(
-      "hook setup: engram hook is never run here; Claude Code runs it before each tool call.",
+      `${SETUP[spec.name]}: engram hook is never run here; ${who} runs it before each tool call.`,
     );
     const root = this.ws.get("root");
     const roots: string[] = [];
@@ -868,9 +883,11 @@ class LineSession {
     const as = (await this.ask(`block events as (default ${this.ws.actorLabel()})`)).trim();
     if (as !== "") local.set("as", as, "set");
     const own = protect.flatMap((p) => ["--protect", p]);
+    // Codex starts its hook in the session's folder: paths resolve there (card E8.17).
+    const project = harness === "codex" ? resolve(this.io.cwd) : this.project();
     const args = absolutePaths(
-      this.withServer(["hook", "claude-code", ...own, ...local.argsFor(spec)]),
-      this.project(),
+      this.withServer(["hook", harness, ...own, ...local.argsFor(spec)]),
+      project,
     );
     const message = checkArgv(spec, args, this.io);
     if (message !== undefined) {
@@ -885,16 +902,26 @@ class LineSession {
         "No store roots: the hook guards the stores' own commands only (mem0, letta and the rest), not reads or edits of a store's files.",
       );
     this.say(
-      'With "onFailure": "block", a hook that fails blocks the call; Claude Code reads it from v2.1.295 on, and before that a failed hook lets the call through.',
+      harness === "codex"
+        ? 'With "onFailure": "block", a hook that fails blocks the call. Codex runs a hook only once you trust it in /hooks, and again after each change to it; engram hook install codex merges this entry for you.'
+        : 'With "onFailure": "block", a hook that fails blocks the call; Claude Code reads it from v2.1.295 on, and before that a failed hook lets the call through.',
     );
-    this.say(".claude/settings.json, hooks.PreToolUse:");
-    this.out(`${JSON.stringify({ matcher: "*", hooks: [hookCommand(launch, args)] }, null, 2)}\n`);
+    const build = harness === "codex" ? codexHookCommand : hookCommand;
+    this.say(
+      `${harness === "codex" ? ".codex/hooks.json" : ".claude/settings.json"}, hooks.PreToolUse:`,
+    );
+    this.out(`${JSON.stringify({ matcher: "*", hooks: [build(launch, args)] }, null, 2)}\n`);
     this.serverNote();
     if (!(await this.yesNo("try it on a scratch log"))) return;
-    const project = this.project();
     const scratch = scratchLaunch(launch, args, this.io.env, project);
     const absolute = roots.map((r) => (isAbsolute(r) ? r : resolve(project, r)));
-    for (const r of await tryHook(scratch, hookSamples(project, absolute))) {
+    for (const r of await tryHook(
+      scratch,
+      hookSamples(project, absolute, harness),
+      undefined,
+      undefined,
+      harness,
+    )) {
       const ok = r.expected && r.outcome !== "failed";
       this.say(`${ok ? "ok" : "fail"}: ${stripControls(r.label)}   ${stripControls(r.detail)}`);
     }

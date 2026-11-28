@@ -23,6 +23,7 @@ export * from "./events.ts";
 export * from "./export/otel.ts";
 export * from "./items.ts";
 export * from "./lint/det.ts";
+export * from "./lint/evidence.ts";
 export * from "./lint/intervals.ts";
 export * from "./lint/model.ts";
 export * from "./lint/nli.ts";
