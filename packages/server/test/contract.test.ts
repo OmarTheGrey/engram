@@ -522,6 +522,24 @@ describe("the routes, through the generated client, on the fake store", () => {
     expect(workspace.plane.events(), "the workspace's own log is untouched").toEqual([]);
   });
 
+  // Card E2.14: the request body's candidate never meets the loader, so the
+  // plane holds it to the loader's refusal of the options nothing builds yet.
+  it("simulate: a candidate setting an option nothing builds yet is 400, naming its card", async () => {
+    const { client, workspace } = testWorkspace();
+    const workload = { id: "w", actors: { dana: { ...dana, source: "user" as const } }, steps: [] };
+    const { error, response } = await client.POST("/api/v1/simulate", {
+      body: {
+        workload,
+        policy: { ...workspace.policy, id: "candidate", grants: { expiry_cap: "on" } },
+      },
+    });
+    expect(response.status).toBe(400);
+    const body = C.ErrorResponse.parse(error).error;
+    expect(body.code).toBe("invalid_call");
+    expect(body.message).toContain("grants.expiry_cap is not built yet: card E2.21");
+    expect(workspace.plane.events(), "nothing is logged").toEqual([]);
+  });
+
   it("simulate: a step naming no actor of the workload is 400", async () => {
     const { client } = testWorkspace();
     const { error, response } = await client.POST("/api/v1/simulate", {

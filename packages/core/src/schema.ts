@@ -13,7 +13,9 @@ import { z } from "zod";
  * purely additive, optional field with no default, of a contract that is
  * never persisted (today the policy document alone), whose absence parses
  * and serialises byte for byte as before. The policy's `content_guards` and
- * `trust` blocks (card E2.8) were added so. A change to a persisted
+ * `trust` blocks (card E2.8) were added so, and so were `lints.model`,
+ * `procedures`, `consent`, `erasure`, `approval` and `grants` (card E2.14 of
+ * the second absorb plan). A change to a persisted
  * contract (MemoryItem, MemoryEvent, LintFinding, Explanation) still bumps
  * the version and adds a migration.
  */
@@ -195,9 +197,9 @@ export const TrustSwitch = z.enum(["off", "on"]);
  * Deterministic content guards at the write gate (ADR 0039). Optional, with
  * no default, and so is every option in it: an absent block or option is
  * off, and a policy without the block parses to the object it parsed to
- * before (ADR 0002, decision D2). Enforced by nothing yet, so the loader
- * refuses any value but `off` until its card lands: E2.9 for `secrets`,
- * `pii` and `max_content_bytes`, E2.10 for `injection_screen`.
+ * before (ADR 0002, decision D2). Every option is enforced: `secrets`, `pii`
+ * and `max_content_bytes` by card E2.9 (policy/secrets.ts),
+ * `injection_screen` by card E2.10 (policy/injection-screen.ts).
  */
 export const ContentGuards = z.strictObject({
   /** Credentials and keys in content. */
@@ -218,14 +220,128 @@ export const ContentGuards = z.strictObject({
 
 /**
  * Trust floors (ADR 0040). Optional, with no default, as `ContentGuards` is;
- * absent means off. Enforced by nothing yet, so the loader refuses `on`
- * until card E2.11 lands.
+ * absent means off. Both are enforced, by card E2.11 (policy/trust.ts).
  */
 export const Trust = z.strictObject({
   /** A write whose actor has no attested source is recorded at the least trusted kind. */
   unattested_floor: TrustSwitch.optional(),
   /** A less trusted source never rewrites, retires or evicts a more trusted active item. */
   protect_trusted: TrustSwitch.optional(),
+});
+
+/** An opt-in switch of the second absorb plan's options (card E2.14). */
+export const OptionSwitch = z.enum(["off", "on"]);
+
+// Card E2.14 of the second absorb plan: the options seven later cards build
+// on, added under ADR 0002's decision D2. Each is optional with no default,
+// and absent means today's behaviour. Nothing builds any of them yet, so the
+// loader (policy/load.ts, NOT_BUILT_YET) refuses every present value, naming
+// the card that builds it; that card lifts its own refusal.
+
+/** Options of the model-based lints (ADR 0008). */
+export const ModelLintOptions = z.strictObject({
+  /**
+   * Quote-grounding: each flag carries the quoted span behind it, and a flag
+   * whose quote is not found is not a finding (card L9). Absent is off.
+   */
+  evidence: OptionSwitch.optional(),
+});
+
+/** The procedure safety scan's outcome on a critical finding (card D5). */
+export const SafetyScanMode = z.enum(["off", "report", "hold"]);
+
+/**
+ * When an admitted procedure is re-validated by replay (card D4, ADR 0011).
+ * Only when: whether it then retires is ADR 0011's rule, a smoothed success
+ * rate below `lints.thresholds` `replay-drift.success-floor` after
+ * `replay-drift.min-trials`, which every registered preset already sets.
+ */
+export const DriftOptions = z.strictObject({
+  /** Re-validate when the procedure's environment hash changes. Absent is off. */
+  environment_change: OptionSwitch.optional(),
+  /** Re-validate once this many seconds pass after the last validation; absent is never. */
+  period: Ttl.optional(),
+});
+
+/** Options of procedural memory beyond its admission rule (ADRs 0011 and 0026). */
+export const ProcedureOptions = z.strictObject({
+  /**
+   * A deterministic scan of a candidate procedure at admission: `report`
+   * annotates, `hold` also holds a candidate with a critical finding so
+   * replay cannot admit it (card D5). Absent is off.
+   */
+  safety_scan: SafetyScanMode.optional(),
+  /** Re-validation and retirement of admitted procedures (card D4). Absent is off. */
+  drift: DriftOptions.optional(),
+});
+
+/** A person scope, `person:<id>`. */
+export const PersonScope = z.string().regex(/^person:[A-Za-z0-9._\-/]+$/);
+
+/**
+ * One opt-out a person declares for their person scope (card E9.12): writes
+ * on a topic, from a source, or every write within a window. Each field it
+ * sets narrows it; `except_topics` names topics it does not cover (EverOS's
+ * carve-outs). No field is a Python keyword, so the generated type is a class.
+ */
+export const OptOut = z.strictObject({
+  scope: PersonScope,
+  topic: z.string().min(1).optional(),
+  source: ProvenanceKind.optional(),
+  /** The window's start, inclusive; absent means from the beginning. */
+  since: Timestamp.optional(),
+  /** The window's end, exclusive; absent means open. */
+  until: Timestamp.optional(),
+  except_topics: z.array(z.string().min(1)).optional(),
+});
+
+/** Consent at the write gate (card E9.12). Absent means no opt-outs. */
+export const Consent = z.strictObject({ opt_outs: z.array(OptOut) });
+
+/** How offboarding erases a person scope (ADR 0010, card E9.13). */
+export const ErasureMode = z.enum(["redact", "shred"]);
+export const ErasureOptions = z.strictObject({
+  /** Absent is today's redaction. */
+  mode: ErasureMode.optional(),
+});
+
+/**
+ * Who a route names as an approver: `owner` (the item's owner, which is ADR
+ * 0049's owner acceptance and so applies only on a person-scope route), every
+ * member of a role (`role:<id>`), or one person (`person:<id>`). Typed now,
+ * while every value is refused, so a typo such as `rol:lead` or an agent is
+ * never an approver; widening it is a schema pull request.
+ */
+export const Approver = z.union([
+  z.literal("owner"),
+  z.string().regex(/^(?:role|person):[A-Za-z0-9._\-/]+$/),
+]);
+
+/**
+ * One route of the approval queue (card E2.19): the requests of a scope
+ * level, or of one scope, go to its approvers, and are denied by a recorded
+ * event once `expires_after` seconds pass. A route narrows ADR 0026's
+ * eligible reviewers (a user-sourced member who is neither the item's owner
+ * nor its author) and never widens them; `owner` is the one exception ADR
+ * 0049 makes, inside the owner's own person scope.
+ */
+export const ApprovalRoute = z.strictObject({
+  scope: z.union([ScopeLevel, Scope]),
+  approvers: z.array(Approver).min(1),
+  expires_after: Ttl.optional(),
+});
+
+/** The approval queue's routing (card E2.19). Absent is today's review (ADR 0026). */
+export const Approval = z.strictObject({ routes: z.array(ApprovalRoute) });
+
+/** Options of grants beyond the item's own (ADR 0034). */
+export const GrantOptions = z.strictObject({
+  /**
+   * A grant's expiry at most 365 days after its write, and a first write
+   * held to every grant rule (ADR 0034, decisions 3 and 6; card E2.21, part
+   * 2). Absent is off.
+   */
+  expiry_cap: OptionSwitch.optional(),
 });
 
 /** Typed policy objects evaluated by one pure function (ADR 0006). */
@@ -248,9 +364,15 @@ export const Policy = z.strictObject({
   lints: z.strictObject({
     enabled: z.array(z.string().min(1)),
     thresholds: z.record(z.string(), z.number()),
+    model: ModelLintOptions.optional(),
   }),
   content_guards: ContentGuards.optional(),
   trust: Trust.optional(),
+  procedures: ProcedureOptions.optional(),
+  consent: Consent.optional(),
+  erasure: ErasureOptions.optional(),
+  approval: Approval.optional(),
+  grants: GrantOptions.optional(),
   schema_version: schemaVersion,
 });
 
@@ -300,6 +422,9 @@ export type MemoryEvent = z.infer<typeof MemoryEvent>;
 export type Policy = z.infer<typeof Policy>;
 export type ContentGuards = z.infer<typeof ContentGuards>;
 export type Trust = z.infer<typeof Trust>;
+export type ProcedureOptions = z.infer<typeof ProcedureOptions>;
+export type Consent = z.infer<typeof Consent>;
+export type Approval = z.infer<typeof Approval>;
 export type Grant = z.infer<typeof Grant>;
 export type Explanation = z.infer<typeof Explanation>;
 export type LintFinding = z.infer<typeof LintFinding>;
