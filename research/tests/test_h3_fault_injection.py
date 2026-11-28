@@ -55,6 +55,8 @@ def test_the_result_says_it_is_unregistered_and_projection_faults_recover_by_con
     assert r["status"] == "proof of concept"
     assert any("not H3's test" in s for s in r["limits"])
     assert any("recovered by replay by construction" in s for s in r["limits"])
+    assert any("fixed by the fault's shape" in s for s in r["limits"])
+    assert any("re-chains the log gets UNSIGNED" in s for s in r["limits"])
 
 
 def test_every_base_gives_six_pairs_and_a_clean_control() -> None:

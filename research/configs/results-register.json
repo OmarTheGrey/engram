@@ -599,36 +599,54 @@
       "hypothesis": "H3",
       "status": "proof of concept",
       "prereg": "#### U6. The paired fault-injection arm, for H3 (not scheduled)",
-      "question": "When deletion, temporal-supersession and missing-metadata faults corrupt LongMemEval's 500 memory states, written as card B5 writes them, at the projection or in the log, how often does the read change, how often does the plane's own enforcement restore it, and do the deterministic lints or the log's hash chain see the fault?",
-      "note": "Card X18's engineering check of proposal U6, which is not registered (the lead registered U7 only): it supports H3 and is not H3's test. Model-free. A projection fault is recovered by replay by construction, so its recovery rate is a regression check of the replay property; the log faults carry the information.",
+      "title": "Paired fault injection over LongMemEval",
+      "question": "When deletion, temporal-supersession and missing-metadata faults corrupt the memory states of the pinned S split's 500 questions, written as card B5 writes them, at the projection or in the log, how often does the read change, how often does the plane's own enforcement restore it, and do the deterministic lints or the log's hash chain see the fault?",
+      "note": "Card X18's check of proposal U6, which is not registered (the lead registered U7 only): a proof of concept that supports H3 and is not H3's test, measuring state recovery, not H3's utility recovery. Model-free. Every column is fixed by the fault's shape (the result's limits): projection faults recover by replay by construction, and the lints never rewrite. Verification catches an edit that does not re-chain the log; a re-chained log reads UNSIGNED, as the controls do, unless a checkpoint is held outside the database.",
+      "meter": {
+        "part": ["by_place", "log", "verify_detection", "successes"],
+        "whole": ["by_place", "log", "verify_detection", "n"],
+        "label": "log edits verification caught (edits that do not re-chain)"
+      },
       "headline": [
         {
           "label": "pairs faulted",
           "path": ["pairs", "targeted"]
         },
         {
-          "label": "projection faults: change rate",
-          "path": ["by_place", "projection", "change", "rate"]
+          "label": "projection deletion: recovery by replay",
+          "path": ["cells", "deletion", "projection", "recovery", "rate"]
         },
         {
-          "label": "projection faults: recovery rate by replay",
-          "path": ["by_place", "projection", "recovery", "rate"]
+          "label": "log deletion: change rate",
+          "path": ["cells", "deletion", "log", "change", "rate"]
         },
         {
-          "label": "log faults: change rate",
-          "path": ["by_place", "log", "change", "rate"]
+          "label": "log deletion: recovery after the deterministic lints",
+          "path": ["cells", "deletion", "log", "recovery", "rate"]
         },
         {
-          "label": "log faults: recovery rate after the deterministic lints",
-          "path": ["by_place", "log", "recovery", "rate"]
+          "label": "log deletion: lint detection",
+          "path": ["cells", "deletion", "log", "lint_detection", "rate"]
         },
         {
-          "label": "log faults: share `engram log verify` detects",
+          "label": "log supersession: change rate",
+          "path": ["cells", "temporal-supersession", "log", "change", "rate"]
+        },
+        {
+          "label": "log supersession: lint detection",
+          "path": ["cells", "temporal-supersession", "log", "lint_detection", "rate"]
+        },
+        {
+          "label": "log missing metadata: change rate",
+          "path": ["cells", "missing-metadata", "log", "change", "rate"]
+        },
+        {
+          "label": "log missing metadata: lint detection",
+          "path": ["cells", "missing-metadata", "log", "lint_detection", "rate"]
+        },
+        {
+          "label": "log edits `engram log verify` detects (no re-chain)",
           "path": ["by_place", "log", "verify_detection", "rate"]
-        },
-        {
-          "label": "log faults: share a deterministic lint detects",
-          "path": ["by_place", "log", "lint_detection", "rate"]
         },
         {
           "label": "unedited control logs that fail verification",
