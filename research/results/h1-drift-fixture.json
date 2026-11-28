@@ -1,0 +1,67 @@
+{
+  "admission": {
+    "rate": 0.733333,
+    "successes": 11.0,
+    "trials": 15
+  },
+  "calls": {
+    "cached": 508,
+    "new": 0
+  },
+  "changed_tasks": [
+    "synthetic/remove-dead-code-15"
+  ],
+  "counts": {
+    "kept": 0,
+    "mismatches": 0,
+    "restored": 1,
+    "retired": 1,
+    "revalidations": 2
+  },
+  "drift": {
+    "environment_change": "on"
+  },
+  "floor": 0.7,
+  "held_out_tasks": 5,
+  "hypothesis": "none",
+  "min_trials": 10,
+  "name": "drift-fixture",
+  "policy": "preset.medium.drift",
+  "procedure": "edit-a-file-and-check-the-edit",
+  "revalidations": [
+    {
+      "environment_changed": true,
+      "event": {
+        "decision": "allow",
+        "op": "retire",
+        "policy_id": "preset.medium.drift/drift/environment-changed"
+      },
+      "expected": "retired",
+      "name": "drift",
+      "outcome": "retired",
+      "rate": 0.533333,
+      "status_after": "retired",
+      "successes": 8.0,
+      "trials": 15,
+      "trigger": "environment-changed"
+    },
+    {
+      "environment_changed": true,
+      "event": {
+        "decision": "allow",
+        "op": "promote",
+        "policy_id": "preset.medium.drift/drift/restored"
+      },
+      "expected": "active",
+      "name": "restore",
+      "outcome": "restored",
+      "rate": 0.733333,
+      "status_after": "active",
+      "successes": 11.0,
+      "trials": 15,
+      "trigger": null
+    }
+  ],
+  "run_config": "research/configs/d4-drift-fixture.json",
+  "status": "proof of concept"
+}
