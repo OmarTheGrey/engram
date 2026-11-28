@@ -54,9 +54,14 @@ class Promotion(TypedDict, closed=True):
     procedural: Procedural
 
 
+class Model(TypedDict, closed=True):
+    evidence: NotRequired[Literal["off", "on"]]
+
+
 class Lints(TypedDict, closed=True):
     enabled: list[str]
     thresholds: dict[str, float]
+    model: NotRequired[Model]
 
 
 class ContentGuards(TypedDict, closed=True):
@@ -71,6 +76,52 @@ class Trust(TypedDict, closed=True):
     protect_trusted: NotRequired[Literal["off", "on"]]
 
 
+class Drift(TypedDict, closed=True):
+    environment_change: NotRequired[Literal["off", "on"]]
+    period: NotRequired[int]
+
+
+class Procedures(TypedDict, closed=True):
+    safety_scan: NotRequired[Literal["off", "report", "hold"]]
+    drift: NotRequired[Drift]
+
+
+class OptOut(TypedDict, closed=True):
+    scope: str
+    topic: NotRequired[str]
+    source: NotRequired[
+        Literal["user", "document", "tool", "model", "import", "compaction", "external"]
+    ]
+    since: NotRequired[str]
+    until: NotRequired[str]
+    except_topics: NotRequired[list[str]]
+
+
+class Consent(TypedDict, closed=True):
+    opt_outs: list[OptOut]
+
+
+class Erasure(TypedDict, closed=True):
+    mode: NotRequired[Literal["redact", "shred"]]
+
+
+type Approver = str
+
+
+class Route(TypedDict, closed=True):
+    scope: Literal["person", "role", "team", "org"] | str
+    approvers: list[Approver]
+    expires_after: NotRequired[int]
+
+
+class Approval(TypedDict, closed=True):
+    routes: list[Route]
+
+
+class Grants(TypedDict, closed=True):
+    expiry_cap: NotRequired[Literal["off", "on"]]
+
+
 class Policy(TypedDict, closed=True):
     id: str
     version: int
@@ -81,4 +132,9 @@ class Policy(TypedDict, closed=True):
     lints: Lints
     content_guards: NotRequired[ContentGuards]
     trust: NotRequired[Trust]
+    procedures: NotRequired[Procedures]
+    consent: NotRequired[Consent]
+    erasure: NotRequired[Erasure]
+    approval: NotRequired[Approval]
+    grants: NotRequired[Grants]
     schema_version: Literal[1]

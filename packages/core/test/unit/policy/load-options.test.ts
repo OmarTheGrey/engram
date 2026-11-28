@@ -162,10 +162,10 @@ const NOT_BUILT: [option: string, card: string, key: string, texts: string[]][] 
       withBlocks("consent:\n  opt_outs: []\n"),
       withBlocks("consent:\n  opt_outs:\n    - { scope: person:omar, topic: health }\n"),
       withBlocks(
-        "consent:\n  opt_outs:\n    - { scope: person:omar, source: tool, except: [calendar] }\n",
+        "consent:\n  opt_outs:\n    - { scope: person:omar, source: tool, except_topics: [calendar] }\n",
       ),
       withBlocks(
-        'consent:\n  opt_outs:\n    - { scope: person:omar, from: "2026-12-01T00:00:00Z", until: "2026-12-02T00:00:00Z" }\n',
+        'consent:\n  opt_outs:\n    - { scope: person:omar, since: "2026-12-01T00:00:00Z", until: "2026-12-02T00:00:00Z" }\n',
       ),
     ],
   ],

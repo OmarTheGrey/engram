@@ -276,17 +276,18 @@ export const PersonScope = z.string().regex(/^person:[A-Za-z0-9._\-/]+$/);
 /**
  * One opt-out a person declares for their person scope (card E9.12): writes
  * on a topic, from a source, or every write within a window. Each field it
- * sets narrows it; `except` names topics it does not cover.
+ * sets narrows it; `except_topics` names topics it does not cover (EverOS's
+ * carve-outs). No field is a Python keyword, so the generated type is a class.
  */
 export const OptOut = z.strictObject({
   scope: PersonScope,
   topic: z.string().min(1).optional(),
   source: ProvenanceKind.optional(),
   /** The window's start, inclusive; absent means from the beginning. */
-  from: Timestamp.optional(),
+  since: Timestamp.optional(),
   /** The window's end, exclusive; absent means open. */
   until: Timestamp.optional(),
-  except: z.array(z.string().min(1)).optional(),
+  except_topics: z.array(z.string().min(1)).optional(),
 });
 
 /** Consent at the write gate (card E9.12). Absent means no opt-outs. */
