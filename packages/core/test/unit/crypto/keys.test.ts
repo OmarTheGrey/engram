@@ -3,6 +3,7 @@
 // draws no randomness and reads no clock: the fake provider's bytes are
 // seeded and every time is passed in.
 import { expect, test } from "vitest";
+import type { KeyProvider } from "../../../src/crypto/keys.ts";
 import {
   DATA_KEY_BYTES,
   DataKeyError,
@@ -15,7 +16,7 @@ import {
   shredDataKeys,
 } from "../../../src/crypto/keys.ts";
 import { MIGRATIONS, migrate } from "../../../src/db/migrate.ts";
-import { forEachBackend } from "../../db/backends.ts";
+import { forEachBackend, sqliteBackend } from "../../db/backends.ts";
 import { fakeKeyProvider } from "../../fakes/key-provider.ts";
 
 const T0 = "2026-11-28T10:00:00.000Z";
@@ -34,6 +35,48 @@ test("the wrap's associated data names the scope and the version, so a row moved
   expect(text(dataKeyAad(ALICE, 1))).toBe("engram.data-key.v1\u0000person:alice\u00001");
   expect(text(dataKeyAad(ALICE, 2))).not.toBe(text(dataKeyAad(ALICE, 1)));
   expect(text(dataKeyAad(BOB, 1))).not.toBe(text(dataKeyAad(ALICE, 1)));
+});
+
+test("the fake provider draws a fresh nonce per wrap: two wraps of one key differ", () => {
+  // What ADR XXXX decision 3 asks of every nonce-based provider (E9.13's too).
+  const p = fakeKeyProvider();
+  const key = new Uint8Array(32).fill(7);
+  const aad = dataKeyAad(ALICE, 1);
+  const a = p.wrap(key, aad);
+  const b = p.wrap(key, aad);
+  expect(Buffer.from(a).equals(Buffer.from(b))).toBe(false);
+  expect(Buffer.from(a.subarray(0, 12)).equals(Buffer.from(b.subarray(0, 12)))).toBe(false);
+  expect(p.unwrap(a, aad, "kek-1")).toEqual(key);
+  expect(p.unwrap(b, aad, "kek-1")).toEqual(key);
+});
+
+test("ensureDataKey reads and inserts under the log's lock: a racer between the read and the insert waits and fails, and the first key stands", () => {
+  // SQLite only: the racer is the other handle of one file, called from
+  // inside the first handle's transaction, so it meets BEGIN IMMEDIATE's lock
+  // at once (a short busy timeout). Without the transaction the racer would
+  // insert version 1 first and the first handle's insert would fail.
+  const [a, b] = sqliteBackend.pair();
+  migrate(a);
+  b.exec("PRAGMA busy_timeout = 50");
+  const base = fakeKeyProvider();
+  let racer: unknown;
+  const racing: KeyProvider = {
+    ...base,
+    newDataKey() {
+      try {
+        ensureDataKey(b, fakeKeyProvider({ seed: "racer" }), ALICE, T1);
+      } catch (e) {
+        racer = e;
+      }
+      return base.newDataKey();
+    },
+  };
+  const made = ensureDataKey(a, racing, ALICE, T0);
+  expect(String(racer)).toMatch(/locked|busy/i);
+  expect(openDataKey(b, base, ALICE)?.key).toEqual(made.key);
+  expect(Number(b.prepare("SELECT count(*) AS n FROM data_keys").get()?.n)).toBe(1);
+  a.close();
+  b.close();
 });
 
 forEachBackend((backend) => {
@@ -211,5 +254,59 @@ forEachBackend((backend) => {
     expect(() => next.unwrap(Buffer.from(backup, "hex"), aad, "kek-1")).toThrow();
     // A second rotation finds nothing left under kek-1.
     expect(rewrapDataKeys(db, old, next)).toEqual([]);
+  });
+  test("core checks what the provider gives it: an unwrapped key of the wrong length, a wrap no longer than the key, a wrap that does not open again", () => {
+    const db = fresh();
+    const p = fakeKeyProvider();
+    ensureDataKey(db, p, ALICE, T0);
+    const short: KeyProvider = { ...p, unwrap: (w, a, k) => p.unwrap(w, a, k).subarray(0, 16) };
+    expect(() => openDataKey(db, short, ALICE)).toThrow(/32 bytes/);
+    const bare: KeyProvider = { ...p, wrap: (key) => key, unwrap: (w) => w };
+    expect(() => ensureDataKey(db, bare, BOB, T0)).toThrow(/longer than the key/);
+    const lossy: KeyProvider = { ...p, unwrap: () => new Uint8Array(32) };
+    expect(() => ensureDataKey(db, lossy, BOB, T0)).toThrow(/opens to a different key/);
+    expect(dataKeyState(db, BOB)).toEqual({ state: "none" });
+  });
+
+  test("a row whose algorithm is not the provider's does not open", () => {
+    const db = fresh();
+    const p = fakeKeyProvider();
+    ensureDataKey(db, p, ALICE, T0);
+    expect(() => openDataKey(db, { ...p, alg: "aes-256-kw" }, ALICE)).toThrow(
+      /wrapped with aes-256-gcm/,
+    );
+    db.prepare("UPDATE data_keys SET alg = 'none' WHERE scope = ?").run(ALICE);
+    expect(() => openDataKey(db, p, ALICE)).toThrow(DataKeyError);
+  });
+
+  test("times are core's ISO 8601 UTC timestamps", () => {
+    const db = fresh();
+    const p = fakeKeyProvider();
+    for (const at of ["2026-11-28T12:00:00+02:00", "2026-11-28", "Sat, 28 Nov 2026 10:00:00 GMT"])
+      expect(() => ensureDataKey(db, p, ALICE, at)).toThrow(DataKeyError);
+    expect(dataKeyState(db, ALICE)).toEqual({ state: "none" });
+  });
+
+  test("a rotation refuses the same operator key, and one whose new wraps do not open commits nothing", () => {
+    const db = fresh();
+    const old = fakeKeyProvider({ seed: "old", kek: "kek-1" });
+    const alice = ensureDataKey(db, old, ALICE, T0);
+    ensureDataKey(db, old, BOB, T0);
+    expect(() => rewrapDataKeys(db, old, fakeKeyProvider({ seed: "x", kek: "kek-1" }))).toThrow(
+      /new operator key/,
+    );
+    const good = fakeKeyProvider({ seed: "new", kek: "kek-2" });
+    const broken: KeyProvider = {
+      ...good,
+      unwrap: () => {
+        throw new Error("wrong key");
+      },
+    };
+    expect(() => rewrapDataKeys(db, old, broken)).toThrow(/does not open again/);
+    const lossy: KeyProvider = { ...good, unwrap: () => new Uint8Array(32) };
+    expect(() => rewrapDataKeys(db, old, lossy)).toThrow(/different key/);
+    expect(dataKeyState(db, ALICE)).toMatchObject({ state: "live", kek: "kek-1" });
+    expect(dataKeyState(db, BOB)).toMatchObject({ state: "live", kek: "kek-1" });
+    expect(openDataKey(db, old, ALICE)?.key).toEqual(alice.key);
   });
 });

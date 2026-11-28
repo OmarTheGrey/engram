@@ -21,7 +21,7 @@
 // every random byte comes from the provider. Core does no key I/O: the
 // operator key lives behind the provider.
 import type { Db } from "../db/db.ts";
-import { PersonScope } from "../schema.ts";
+import { PersonScope, Timestamp } from "../schema.ts";
 
 /** A data key's length in bytes: 256 bits. */
 export const DATA_KEY_BYTES = 32;
@@ -31,7 +31,15 @@ export const DATA_KEY_BYTES = 32;
  * (key-encryption key) stays inside it; core sees its id only. `wrap` and
  * `unwrap` must be authenticated encryption over the associated data core
  * passes, so a wrapped key moved to another scope or version, or edited,
- * fails to unwrap.
+ * fails to unwrap. Nonces: a nonce-based wrap (AES-256-GCM) draws a fresh
+ * random 96-bit nonce for every wrap and stores it with the wrapped bytes,
+ * since one nonce reused under one operator key leaks the XOR of the two data
+ * keys and lets wraps be forged; a misuse-resistant wrap (AES-GCM-SIV, or
+ * AES-KW per RFC 5649 with the associated data bound in) needs none. Core
+ * cannot check this; the provider's own tests must (two wraps of one key
+ * differ). The interface is synchronous (ADR 0024) and is called inside the
+ * log's transaction, so a provider over a network key service must present a
+ * local, synchronous wrap, for instance by holding an unwrapped operator key.
  */
 export interface KeyProvider {
   /** The id of the operator key that wraps new data keys, recorded per row. */
@@ -90,8 +98,8 @@ function checkScope(scope: string): void {
 }
 
 function checkTime(at: string): void {
-  if (typeof at !== "string" || Number.isNaN(Date.parse(at)))
-    throw new DataKeyError(`not a time: ${JSON.stringify(at)}`);
+  if (!Timestamp.safeParse(at).success)
+    throw new DataKeyError(`not an ISO 8601 UTC time: ${JSON.stringify(at)}`);
 }
 
 function checkKey(key: unknown, what: string): Uint8Array {
@@ -132,6 +140,10 @@ function latest(db: Db, scope: string): KeyRow | undefined {
 
 function opened(provider: KeyProvider, scope: string, row: KeyRow): DataKey {
   if (row.wrapped === null) throw new DataKeyShreddedError(scope, row.version);
+  if (row.alg !== provider.alg)
+    throw new DataKeyError(
+      `the data key of ${scope} (version ${row.version}) was wrapped with ${row.alg}, not this provider's ${provider.alg}`,
+    );
   let key: Uint8Array;
   try {
     key = provider.unwrap(unhex(row.wrapped), dataKeyAad(scope, row.version), row.kek);
@@ -141,6 +153,38 @@ function opened(provider: KeyProvider, scope: string, row: KeyRow): DataKey {
     );
   }
   return { scope, version: row.version, kek: row.kek, key: checkKey(key, "an unwrapped data key") };
+}
+
+/**
+ * `key` wrapped by `provider` for `scope` and `version`, checked before it is
+ * stored: longer than the key, and opening again under the provider to the
+ * same key. A provider with a wrong key or a broken wrap is refused here, so
+ * it never commits bytes that do not open (a rotation is followed by
+ * destroying the old operator key, after which nothing could recover them).
+ */
+function wrapChecked(
+  provider: KeyProvider,
+  key: Uint8Array,
+  scope: string,
+  version: number,
+): Uint8Array {
+  const aad = dataKeyAad(scope, version);
+  const wrapped = provider.wrap(key, aad);
+  if (!(wrapped instanceof Uint8Array) || wrapped.length <= DATA_KEY_BYTES)
+    throw new DataKeyError("a provider's wrapped key must be longer than the key it wraps");
+  let back: Uint8Array;
+  try {
+    back = provider.unwrap(wrapped, aad, provider.kek);
+  } catch (e) {
+    throw new DataKeyError(
+      `a key wrapped under operator key ${provider.kek} does not open again: ${(e as Error).message}`,
+    );
+  }
+  if (!(back instanceof Uint8Array) || !Buffer.from(back).equals(Buffer.from(key)))
+    throw new DataKeyError(
+      `a key wrapped under operator key ${provider.kek} opens to a different key`,
+    );
+  return wrapped;
 }
 
 /** What the table says of `scope`'s latest key; never key bytes. */
@@ -174,7 +218,8 @@ export function openDataKey(db: Db, provider: KeyProvider, scope: string): DataK
  * wrapped under its operator key and stored at `at`, in one transaction, so
  * two handles of one log that ensure at once agree on one key. A scope whose
  * key was shredded is not re-keyed (DataKeyShreddedError): ADR 0010's
- * amendment of 2026-11-21 keeps an offboarded person scope empty.
+ * amendment of 2026-11-21 keeps an offboarded person scope empty until the
+ * person is added again, which a later card builds as version n+1.
  */
 export function ensureDataKey(db: Db, provider: KeyProvider, scope: string, at: string): DataKey {
   checkScope(scope);
@@ -184,9 +229,7 @@ export function ensureDataKey(db: Db, provider: KeyProvider, scope: string, at: 
     if (row) return opened(provider, scope, row);
     const key = checkKey(provider.newDataKey(), "a provider's new data key");
     const version = 1;
-    const wrapped = provider.wrap(key, dataKeyAad(scope, version));
-    if (!(wrapped instanceof Uint8Array) || wrapped.length <= DATA_KEY_BYTES)
-      throw new DataKeyError("a provider's wrapped key must be longer than the key it wraps");
+    const wrapped = wrapChecked(provider, key, scope, version);
     db.prepare(
       "INSERT INTO data_keys (scope, version, kek, alg, wrapped, created_at, shredded_at) VALUES (?, ?, ?, ?, ?, ?, NULL)",
     ).run(scope, version, provider.kek, provider.alg, hex(wrapped), at);
@@ -232,6 +275,10 @@ export function rewrapDataKeys(
   from: KeyProvider,
   to: KeyProvider,
 ): { scope: string; version: number }[] {
+  if (to.kek === from.kek)
+    throw new DataKeyError(
+      `a rotation needs a new operator key, and ${to.kek} is the one it replaces`,
+    );
   return db.transaction(() => {
     const rows = db
       .prepare(
@@ -253,9 +300,7 @@ export function rewrapDataKeys(
         created_at: String(r.created_at),
         shredded_at: null,
       });
-      const wrapped = to.wrap(key, dataKeyAad(scope, version));
-      if (!(wrapped instanceof Uint8Array) || wrapped.length <= DATA_KEY_BYTES)
-        throw new DataKeyError("a provider's wrapped key must be longer than the key it wraps");
+      const wrapped = wrapChecked(to, key, scope, version);
       update.run(to.kek, to.alg, hex(wrapped), scope, version);
       done.push({ scope, version });
     }
