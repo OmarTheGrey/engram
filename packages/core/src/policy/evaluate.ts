@@ -186,7 +186,7 @@ export function grantDefect(
   const limit = cap && at !== undefined ? addSeconds(at, GRANT_EXPIRY_CAP_SECONDS) : null;
   if (limit !== null && grant.expires !== undefined && compareTimestamps(grant.expires, limit) > 0)
     return {
-      problem: `the ${grantText(grant)} expires after ${limit}, the limit of 365 days (31,536,000 seconds) after this change at ${at}; it is refused, not shortened: give it an expiry at or before ${limit} and renew it then`,
+      problem: `the ${grantText(grant)} expires after ${limit}, the limit of 365 days (31,536,000 seconds) after this change at ${at}; it is refused, not shortened`,
       policy_id: GRANT_EXPIRY_CAP_ID,
     };
   if (alongside.some((h) => sameGrant(grant, h)))

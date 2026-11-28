@@ -8,7 +8,7 @@
  Add a grant
  > To             [                                          ]  who it is for...
      Class [ semantic ]   Mode [ read ]   space or left and right choose
-   Expires        [                                          ]  UTC date or t...
+   Expires        [                                          ]  max 365 days ...
    [ Add to the change ]   [ Apply the change ]   ctrl+s
    ~ Advanced: id, the test clock and this command's workspace flags
 
@@ -18,8 +18,8 @@
  deny: add[0]: the grant to person:sam (class semantic, mode read, expires
    2028-01-01T00:00:00Z) expires after 2027-10-25T12:00:00.000Z, the limit of
    365 days (31,536,000 seconds) after this change at 2026-10-25T12:00:00.000Z;
-   it is refused, not shortened: give it an expiry at or before
-   2027-10-25T12:00:00.000Z and renew it then
+   it is refused, not shortened
+ policy engram/write/grant-expiry-cap
 $ engram grants 01940000-0000-7000-...er dana --db engram.db --root mem   exit 1
  ctrl+g help  ctrl+s apply  enter on a grant chooses it  u undo  tab next  al...
 --- styles

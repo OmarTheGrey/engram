@@ -246,7 +246,7 @@ const CAP_EVENT = event(14, {
   decision: "deny",
   policy_id: "engram/write/grant-expiry-cap",
   reason:
-    "add[0]: the grant to person:sam (class semantic, mode read, expires 2028-01-01T00:00:00Z) expires after 2027-10-25T12:00:00.000Z, the limit of 365 days (31,536,000 seconds) after this change at 2026-10-25T12:00:00.000Z; it is refused, not shortened: give it an expiry at or before 2027-10-25T12:00:00.000Z and renew it then",
+    "add[0]: the grant to person:sam (class semantic, mode read, expires 2028-01-01T00:00:00Z) expires after 2027-10-25T12:00:00.000Z, the limit of 365 days (31,536,000 seconds) after this change at 2026-10-25T12:00:00.000Z; it is refused, not shortened",
 });
 const CAPPED = ran(
   [

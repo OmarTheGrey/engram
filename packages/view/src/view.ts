@@ -219,7 +219,7 @@ export const GRANT_MODES = ["read", "read_write"] as const;
 export const GRANT_EXPIRY_NOTE =
   "The twin and knowledge profiles take an expiry at most 365 days after the change; a later one is refused, never shortened.";
 /** The same, short enough for the terminal editor's hint. */
-export const GRANT_EXPIRY_HINT = "UTC date or time; twin and knowledge cap it at 365 days";
+export const GRANT_EXPIRY_HINT = "max 365 days (twin, knowledge); a UTC date or time";
 
 /** The add-grant form as typed: an empty class or expiry means none. */
 export interface GrantDraft {
