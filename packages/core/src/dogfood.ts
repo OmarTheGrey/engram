@@ -198,6 +198,9 @@ export const ENGRAM_RULES: readonly string[] = [
   "engram/promote/validation-source",
   "engram/promote/widening-source",
   "engram/read/default-deny",
+  // Card E2.17: the match and rank-cut stages of a why-not answer, never an event's rule.
+  "engram/read/match",
+  "engram/read/rank-cut",
   "engram/read/status",
   "engram/read/ttl",
   "engram/read/validity",
