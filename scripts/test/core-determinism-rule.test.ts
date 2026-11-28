@@ -25,18 +25,52 @@ const EXEMPT: Readonly<Record<string, readonly string[]>> = {
   "src/db/postgres-worker.ts": ["Date.now"],
 };
 
-/** The refused forms, each a name and a pattern over blanked code. */
+/** The objects whose members read the clock or draw randomness. */
+const SOURCES = String.raw`(?:Date|Math|performance|process|crypto|Intl|Temporal|globalThis)`;
+/** Their members that do. */
+const MEMBERS = String.raw`(?:now|random|hrtime|randomUUID|randomBytes|randomInt|randomFill|randomFillSync|getRandomValues|pseudoRandomBytes)`;
+/** `globalThis.` before a name, or nothing. */
+const G = String.raw`(?:globalThis\s*\??\.\s*)?`;
+
+/**
+ * The refused forms, each a name and a pattern over blanked code. What a text
+ * rule cannot see is named in docs/conventions/testing.md and in crosswalk
+ * claim C44's limits: an alias of Math, performance, process or crypto through
+ * another name, a stored Intl formatter's format(), eval or Function, Reflect,
+ * and code core imports from a dependency.
+ */
 const RULES: ReadonlyArray<readonly [string, RegExp]> = [
   ["Date.now", /\bDate\s*\??\.\s*now\b/g],
-  ["new Date()", /\bnew\s+Date\s*\(\s*\)|\bnew\s+Date\b(?!\s*[(\w])/g],
-  ["Date()", /(?<!\bnew\s+)(?<![\w$.])Date\s*\(/g],
+  [
+    "new Date()",
+    new RegExp(
+      String.raw`\bnew\s+(?:\(\s*${G}Date\s*\)|${G}Date)\s*\(\s*\)|\bnew\s+(?:\(\s*${G}Date\s*\)|${G}Date\b)(?!\s*[(\w.])`,
+      "g",
+    ),
+  ],
+  ["Date()", new RegExp(String.raw`(?<!\bnew\s+)(?<![\w$.])${G}Date\s*\(`, "g")],
   ["performance.now", /\bperformance\s*\??\.\s*now\b/g],
-  ["process.hrtime", /\bprocess\s*\??\.\s*hrtime\b/g],
+  ["hrtime", /\bhrtime\b/g],
   ["Math.random", /\bMath\s*\??\.\s*random\b/g],
   [
     "crypto random",
     /\b(?:randomUUID|randomBytes|randomInt|randomFill|randomFillSync|getRandomValues|pseudoRandomBytes)\b/g,
   ],
+  // A member read by a computed name: after blanking, `Date['now']` is `Date[     ]`.
+  ["computed access", new RegExp(String.raw`\b${SOURCES}\s*(?:\?\.)?\s*\[`, "g")],
+  [
+    "destructured",
+    new RegExp(String.raw`\{[^{}]*\b${MEMBERS}\b[^{}]*\}\s*=\s*${G}${SOURCES}\b`, "g"),
+  ],
+  // Date passed or bound as a value, so its now() is reached through another name.
+  // A type alias (`type D = Date;`) is a type, not a value.
+  [
+    "Date as a value",
+    new RegExp(String.raw`(?:(?<!\btype\s+[\w$]+\s*)=|[(,?])\s*${G}Date\s*(?=[;,)])`, "g"),
+  ],
+  // An argument-free format() of a fresh DateTimeFormat formats the current time.
+  ["Intl clock", /\bDateTimeFormat\s*\([^()]*\)\s*\.\s*format(?:ToParts)?\s*\(\s*\)/g],
+  ["Temporal.Now", /\bTemporal\s*\??\.\s*Now\b/g],
 ];
 
 const KEYWORDS_BEFORE_REGEX = new Set([
@@ -72,6 +106,8 @@ function blank(src: string): string {
   /** The last significant code character and word, to tell a regex from a division. */
   let prev = "";
   let prevWord = "";
+  /** An operand just ended (a name, a literal, a closing bracket), not a keyword such as return. */
+  const operandEnded = () => prev === "a" && !KEYWORDS_BEFORE_REGEX.has(prevWord);
   const regexMayStart = () =>
     prev === "" || "(,=:[!&|?{};+-*%<>~^".includes(prev) || KEYWORDS_BEFORE_REGEX.has(prevWord);
 
@@ -154,6 +190,14 @@ function blank(src: string): string {
       prevWord = src.slice(i, j);
       prev = "a";
       i = j;
+    } else if (operandEnded() && c === "!" && src[i + 1] !== "=") {
+      // A non-null assertion (`x!`) ends an operand; `!=` and `!==` are operators.
+      prevWord = "";
+      i++;
+    } else if (operandEnded() && (c === "+" || c === "-") && src[i + 1] === c) {
+      // A postfix ++ or -- ends an operand.
+      prevWord = "";
+      i += 2;
     } else {
       if (c === "}" && templates.length > 0)
         templates[templates.length - 1] = (templates[templates.length - 1] ?? 0) - 1;
@@ -208,7 +252,8 @@ const REFUSED_PROBES: ReadonlyArray<readonly [string, string]> = [
   ["new Date()", "export const d = new Date;\n"],
   ["Date()", "export const s = Date();\n"],
   ["performance.now", "export const t = performance.now();\n"],
-  ["process.hrtime", "export const t = process.hrtime.bigint();\n"],
+  ["hrtime", "export const t = process.hrtime.bigint();\n"],
+  ["hrtime", 'import { hrtime } from "node:process";\nexport const t = hrtime();\n'],
   ["Math.random", "export const r = Math.random();\n"],
   // biome-ignore lint/suspicious/noTemplateCurlyInString: probe source text, not a template
   ["Math.random", "export const s = `${Math.random()}`;\n"],
@@ -220,6 +265,26 @@ const REFUSED_PROBES: ReadonlyArray<readonly [string, string]> = [
     "crypto random",
     'import { randomBytes } from "node:crypto";\nexport const b = randomBytes(8);\n',
   ],
+  // A division after a non-null assertion or a postfix ++ or -- is not a regex (review finding 1).
+  ["Date.now", "export const r = (total: number) => total! / Date.now();\n"],
+  ["Date.now", "export const z = (arr: number[]) => arr[0]! / Date.now();\n"],
+  ["Date.now", "let i = 0;\nexport const x = i++ / 2 + Date.now() / 3;\n"],
+  ["Date.now", "let a = 0;\nexport const x = a-- / Date.now();\n"],
+  // Aliased and indirect forms a text rule can see (review finding 2).
+  ["computed access", "export const t = Date['now']();\n"],
+  ["computed access", 'export const r = Math["random"]();\n'],
+  ["computed access", "export const r = globalThis['Math'].random;\n"],
+  ["destructured", "const { now } = Date;\nexport const t = now();\n"],
+  ["destructured", "const { random: r } = Math;\nexport const x = r();\n"],
+  ["destructured", "const { hrtime } = process;\nexport const t = hrtime;\n"],
+  ["Date as a value", "const D = Date;\nexport const t = D.now();\n"],
+  ["Date as a value", "export const f = (make: (c: DateConstructor) => number) => make(Date);\n"],
+  ["new Date()", "export const d = new globalThis.Date();\n"],
+  ["new Date()", "export const d = new (Date)();\n"],
+  ["Date()", "export const s = globalThis.Date();\n"],
+  ["Intl clock", "export const s = new Intl.DateTimeFormat('en').format();\n"],
+  ["Intl clock", "export const s = Intl.DateTimeFormat().formatToParts();\n"],
+  ["Temporal.Now", "export const t = Temporal.Now.instant();\n"],
 ];
 
 const PASSING_PROBES: readonly string[] = [
@@ -239,6 +304,16 @@ const PASSING_PROBES: readonly string[] = [
   "export const myDate = (x: number) => x;\nexport const y = myDate(1);\n",
   "export const half = (a: number, b: number) => a / b / 2;\nexport const r = (Date: string) => Date;\n",
   'import { createHash } from "node:crypto";\nexport const h = createHash("sha256");\n',
+  "export const ok = (x: number | undefined) => x! / 2 + /re/.test('a') ? 1 : 0;\n",
+  "export const n = (a: boolean) => !a ? /x/.source : '';\n",
+  "export const ne = (a: number, b: number) => a !== b;\n",
+  "export const d = (at: string) => new globalThis.Date(at);\n",
+  "export type Clockless = { at: Date; f: () => Date };\ntype D = Date;\nexport const x: D | undefined = undefined;\n",
+  "export const m = (x: Map<string, Date>, y: Array<[string, Date]>) => [x, y];\n",
+  "export const fmt = (ms: number) => new Intl.DateTimeFormat('en').format(ms);\n",
+  "const { env } = process;\nexport const e = env;\n",
+  "export const k = (s: string) => {\n  return !/x/.test(s) ? 1 : 0;\n};\n",
+  "export const j = (s: string) => {\n  return ++s.length / 2;\n};\n",
 ];
 
 describe("the core determinism rule", () => {
@@ -266,7 +341,7 @@ describe("the core determinism rule", () => {
     ]);
   });
 
-  test("the transport's Date.now calls are found at the lines crosswalk claim C44 names, so each file is read to its end", () => {
+  test("the transport's Date.now calls are found at lines 34, 41, 54 and 211, 229, so each file is read to its end", () => {
     const lines = (file: string) =>
       findings(readFileSync(join(root, "packages", "core", file), "utf8")).map((f) => f.line);
     expect(lines("src/db/postgres-worker.ts")).toEqual([34, 41, 54]);
