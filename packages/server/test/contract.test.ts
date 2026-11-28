@@ -571,13 +571,13 @@ describe("the routes, through the generated client, on the fake store", () => {
     const { error, response } = await client.POST("/api/v1/simulate", {
       body: {
         workload,
-        policy: { ...workspace.policy, id: "candidate", grants: { expiry_cap: "on" } },
+        policy: { ...workspace.policy, id: "candidate", erasure: { mode: "shred" } },
       },
     });
     expect(response.status).toBe(400);
     const body = C.ErrorResponse.parse(error).error;
     expect(body.code).toBe("invalid_call");
-    expect(body.message).toContain("grants.expiry_cap is not built yet: card E2.21");
+    expect(body.message).toContain("erasure.mode is not built yet: card E9.13");
     expect(workspace.plane.events(), "nothing is logged").toEqual([]);
   });
 
