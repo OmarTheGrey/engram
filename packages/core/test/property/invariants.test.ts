@@ -2293,7 +2293,12 @@ async function promotionsLandOnlyWherePermitted(name: string) {
     const trustedActors = new Set(
       sameText.filter((w) => TRUSTED.includes(w.kind)).map((w) => w.actor),
     ).size;
-    const anyActors = new Set(sameText.map((w) => w.actor)).size;
+    // Distinct actors of the active same-content writes, whatever their kind:
+    // a refusal counts as the trusted-kind rule's alone only when these reach
+    // k (card X16: retired confirmers never confirm, so counting them let
+    // the guard be met by refusals the rule does not decide).
+    const activeAnyActors = new Set(sameText.filter((w) => isActive(w.item_id)).map((w) => w.actor))
+      .size;
 
     if (result.decision === "deny" && result.event.policy_id === "engram/promote/expired")
       seen.expired++;
@@ -2329,7 +2334,7 @@ async function promotionsLandOnlyWherePermitted(name: string) {
         projected.class === "episodic" &&
         !promoter.review;
       if (evidenceOnly && trustedItems >= k && trustedActors < k) seen.sameActorOnly++;
-      if (evidenceOnly && anyActors >= k && trustedActors < k) seen.untrustedOnly++;
+      if (evidenceOnly && activeAnyActors >= k && activeTrustedActors < k) seen.untrustedOnly++;
       // Only confirmers retired since stood in the way (P5-17).
       if (evidenceOnly && trustedActors >= k && activeTrustedActors < k) seen.retiredOnly++;
       if (
@@ -2388,6 +2393,83 @@ async function promotionsLandOnlyWherePermitted(name: string) {
     numRuns: RUNS,
     seed: seedFor(name),
   });
+  // The trusted-kind rule where nothing else decides (card X16, mutant
+  // I2-untrusted-confirms): an episodic item written as user in person:a,
+  // k = 2, and one active restatement by another actor with source import,
+  // which the target's rule admits with no review. Only the user write
+  // confirms, so the promotion must be refused for want of evidence; a
+  // count that let the import restatement confirm would land an item the
+  // oracle forbids. The walk meets this case too rarely to rely on it.
+  const fixed = fc.sample(arbPromotionCase, {
+    seed: seedFor(`${name}, import restatement`),
+    numRuns: 1,
+  })[0] as PromotionCase;
+  const before = seen.untrustedOnly;
+  await check({
+    ...fixed,
+    policy: {
+      target: "person:a",
+      policy: {
+        ...fixed.policy.policy,
+        write: [
+          ...fixed.policy.policy.write.filter((r) => r.scope !== "person"),
+          {
+            scope: "person",
+            allowed_sources: ["user", "document", "tool", "import"],
+            confidence_floor: 0,
+            forbidden_classes: [],
+            requires_review: false,
+          },
+        ],
+        read: {
+          matrix: [{ reader: "person", may_read: ["person", "role", "team", "org"] }],
+          honour_grants: true,
+        },
+        promotion: {
+          episodic_to_semantic: { confirmations: 2, or_review: false },
+          procedural: { replay_k: 4, replay_n: 5 },
+        },
+      } as Policy,
+    },
+    source: {
+      class: "episodic",
+      status: "active",
+      scope: "person:a",
+      owner: "person:a",
+      author: undefined,
+      kind: "user",
+      confidence: 1,
+      ttl: null,
+      grantTo: undefined,
+      hidden: false,
+    },
+    restatements: [
+      {
+        actor: "person:b",
+        kind: "import",
+        loud: false,
+        same: true,
+        inScope: true,
+        retired: false,
+        byAuthor: false,
+        inTarget: false,
+      },
+    ],
+    promoter: {
+      id: "person:a",
+      level: "person",
+      source: "user",
+      extra: [],
+      joins: true,
+      review: false,
+    },
+    after: 0,
+    replay: { ...fixed.replay, use: false },
+  });
+  expect(
+    seen.untrustedOnly,
+    "an import restatement beside one user write is refused under engram/promote/no-evidence",
+  ).toBe(before + 1);
   expect(
     Object.values(replaySeen).every((n) => n > 0),
     `invariant 2 over promotions needs replay admissions and refusals by the presenter's source, another item's replay, a split that is not the ref's, one only the ref's tasks refuse, too few passes, one only the no-worse rule refuses, and a replay off the registered seeds; it saw ${JSON.stringify(replaySeen)}`,
