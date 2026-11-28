@@ -5,6 +5,7 @@
 import type { CommandSpec, Values } from "../../registry.ts";
 import type { Ctx, Screen } from "../screen.ts";
 import {
+  AuditVerifyScreen,
   ExportScreen,
   ImportScreen,
   KeyCreateScreen,
@@ -36,6 +37,8 @@ export const SURFACE_SCREENS: Readonly<Record<string, Make>> = {
   "key create": (s, c, v) => new KeyCreateScreen(c, v, undefined, s),
   "key revoke": (s, c, v, p) => new KeyRevokeScreen(s, c, v, p),
   "log verify": (s, c, v, p) => new LogVerifyScreen(s, c, v, p),
+  // Card E9.15: reached from the log verify screen and the palette.
+  "audit verify": (s, c, v, p) => new AuditVerifyScreen(s, c, v, p),
 };
 
 /** A command's hand-made screen, or undefined for its generated form. */

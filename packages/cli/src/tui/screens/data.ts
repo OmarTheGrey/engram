@@ -466,7 +466,21 @@ export class LogVerifyScreen extends SurfaceScreen {
     ];
   }
   protected override buttons(): Button[] {
-    return [{ id: "button:run", label: "Verify", press: (c) => this.run(c) }];
+    // The signed audit report (card E9.15) is reached from here: Home is full.
+    const db = () => (this.form.get("db") as string | undefined) || undefined;
+    return [
+      { id: "button:run", label: "Verify", press: (c) => this.run(c) },
+      {
+        id: "button:audit-export",
+        label: "Export an audit report",
+        press: (c) => c.openCommand(spec("audit export"), { db: db() }),
+      },
+      {
+        id: "button:audit-verify",
+        label: "Verify an audit report",
+        press: (c) => c.openCommand(spec("audit verify"), { db: db() }),
+      },
+    ];
   }
   protected override status(ctx: Ctx, result: RunResult): string {
     const verdict = /^engram log verify: (\w+)/.exec(clean(result.out))?.[1];
@@ -496,6 +510,88 @@ export class LogVerifyScreen extends SurfaceScreen {
       "",
       ...para(
         "The chain proves no event was changed or removed after it was written. A signed checkpoint also proves who vouched for it.",
+        width,
+      ),
+    );
+    return [{ kind: "text", lines }];
+  }
+  protected override async jsonOf(ctx: Ctx, result: RunResult) {
+    // Verifying reads the log only, so its --json view is a second verification.
+    return (await ctx.peek([...result.argv, "--json"])).out;
+  }
+  protected override keyHints(): string {
+    return "ctrl+s verify  v plain  J json";
+  }
+}
+
+const AUDIT_VERDICT: Record<string, { kind: StatusKind; word: string; said: string }> = {
+  OK: {
+    kind: "ok",
+    word: "verified",
+    said: "signed by the pinned key, and the log recomputed says the same",
+  },
+  FAILED: {
+    kind: "fail",
+    word: "refuted",
+    said: "a check failed: the report or the log was changed",
+  },
+  UNSIGNED: {
+    kind: "warn",
+    word: "unsigned",
+    said: "the log agrees, but no key was pinned, so the signature was not checked",
+  },
+};
+
+/**
+ * Verify an audit report (card E9.15): the verdict, each check in order, then
+ * the statement's counts as `engram audit verify` prints them. Nothing is
+ * decided here: the lines are the command's own.
+ */
+export class AuditVerifyScreen extends SurfaceScreen {
+  override title(): string {
+    return "Verify an audit report";
+  }
+  protected override top(): Row[] {
+    return [
+      { kind: "field", id: "report", label: "Report", hint: "the file audit export wrote" },
+      { kind: "field", id: "key", label: "Public key" },
+      { kind: "field", id: "db", label: "Log", hint: "read only; nothing is migrated" },
+      { kind: "field", id: "policy" },
+      { kind: "field", id: "as", label: "Viewer", hint: "as the report was exported for" },
+      { kind: "field", id: "member", label: "Viewer's scopes" },
+    ];
+  }
+  protected override buttons(): Button[] {
+    return [{ id: "button:run", label: "Verify", press: (c) => this.run(c) }];
+  }
+  protected override status(ctx: Ctx, result: RunResult): string {
+    const verdict = /^engram audit verify: (\w+)/.exec(clean(result.out))?.[1];
+    const v = verdict === undefined ? undefined : AUDIT_VERDICT[verdict];
+    if (v === undefined) return super.status(ctx, result);
+    return ` ${ctx.theme.status(v.kind, v.word)}   exit ${result.code}  ${v.said}`;
+  }
+  protected override rich(ctx: Ctx, width: number, result: RunResult): Row[] {
+    const t = ctx.theme;
+    const lines: string[] = [];
+    for (const l of clean(result.out).replace(/\n$/, "").split("\n").slice(1)) {
+      const check = /^ {2}(ok {2}|fail) {2}(.*)$/.exec(l);
+      if (check === null) lines.push(...para(l, width, "   "));
+      else {
+        const ok = check[1]?.trim() === "ok";
+        lines.push(
+          ...para(
+            `${t.status(ok ? "ok" : "fail", ok ? "ok  " : "fail")}  ${check[2] ?? ""}`,
+            width,
+            "   ",
+          ),
+        );
+      }
+    }
+    if (clean(result.err) !== "") lines.push(...this.plainLines({ ...result, out: "" }, width));
+    lines.push(
+      "",
+      ...para(
+        "A report holds counts, hashes and seqs only, never content or names. Its counts are recomputed from the log to the report's head.",
         width,
       ),
     );

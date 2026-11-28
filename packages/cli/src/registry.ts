@@ -814,7 +814,11 @@ export const OPTIONS = {
     policy: { ...POLICY, help: "the policy whose hash the report names and the oracle judges by" },
     as: { ...AS, help: "a viewer: count only the events it may see", defaultText: "the whole log" },
     level: { ...LEVEL, help: "the viewer's level" },
-    member: { ...MEMBER, help: "a scope the viewer belongs to; repeatable" },
+    member: {
+      ...MEMBER,
+      help: "a scope the viewer belongs to; repeatable",
+      defaultText: "the viewer's own scope",
+    },
   },
   "audit verify": {
     report: flag({
@@ -835,7 +839,11 @@ export const OPTIONS = {
     policy: { ...POLICY, help: "the policy the report was issued under" },
     as: { ...AS, help: "the viewer the report was issued for", defaultText: "the whole log" },
     level: { ...LEVEL, help: "the viewer's level" },
-    member: { ...MEMBER, help: "a scope the viewer belongs to; repeatable" },
+    member: {
+      ...MEMBER,
+      help: "a scope the viewer belongs to; repeatable",
+      defaultText: "the viewer's own scope",
+    },
     json: JSON_OUT,
   },
   doctor: {
@@ -2000,7 +2008,7 @@ export const HELP_FIRST_LINE =
 /** The shared blocks of HELP, around the commands' own sections. */
 const SHARED: Record<string, (specs: readonly CommandSpec[]) => readonly string[]> = {
   client: () => [
-    "every command but doctor, serve, mcp, hook, key, log, audit and import is one call to the",
+    "every command but doctor, serve, mcp, hook, key, log and import is one call to the",
     "HTTP API (import makes one write call per row): in process",
     "over the workspace its flags name, or to a running server:",
     "  --server <url>              call engram serve at <url> (default $ENGRAM_SERVER_URL);",
