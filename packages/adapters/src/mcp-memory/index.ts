@@ -202,7 +202,9 @@ export function createMcpMemoryAdapter(options: McpMemoryAdapterOptions): McpMem
   const base = basename(file);
   const person = `person:${options.owner}`;
   if (!Scope.safeParse(person).success) {
-    throw new Error(`mcp-memory adapter: owner ${JSON.stringify(options.owner)} is not a person id`);
+    throw new Error(
+      `mcp-memory adapter: owner ${JSON.stringify(options.owner)} is not a person id`,
+    );
   }
   const confidence = options.importConfidence ?? 0.5;
   let identity: string | undefined;
@@ -388,7 +390,9 @@ export function createMcpMemoryAdapter(options: McpMemoryAdapterOptions): McpMem
       if (line.kind === "item" || line.kind === "entity") {
         const entity = line.kind === "item" ? `${NAME_PREFIX}${line.id}` : line.name;
         const type =
-          line.kind === "item" ? String(line.record.entityType ?? ENGRAM_ENTITY_TYPE) : line.entityType;
+          line.kind === "item"
+            ? String(line.record.entityType ?? ENGRAM_ENTITY_TYPE)
+            : line.entityType;
         const observations =
           line.kind === "item" ? (line.record.observations as string[]) : line.observations;
         for (const observation of observations) {
@@ -437,7 +441,10 @@ export function createMcpMemoryAdapter(options: McpMemoryAdapterOptions): McpMem
         await access(file, constants.W_OK);
       } catch (e) {
         if (!isMissing(e))
-          throw new UnsafeMemoryFileError(file, "is read-only to this process and is never replaced");
+          throw new UnsafeMemoryFileError(
+            file,
+            "is read-only to this process and is never replaced",
+          );
       }
     }
     const text = lines.length === 0 ? "" : `${lines.map((l) => l.text).join("\n")}\n`;
@@ -494,7 +501,10 @@ export function createMcpMemoryAdapter(options: McpMemoryAdapterOptions): McpMem
             if (n === first && (line.kind === "item" || line.kind === "copy")) {
               // Every member keeps its place and value but `engram`: a client's
               // observations, its own fields, the entity type it may have set.
-              lines.push({ text: JSON.stringify({ ...line.record, engram: fields }), kind: "kept" });
+              lines.push({
+                text: JSON.stringify({ ...line.record, engram: fields }),
+                kind: "kept",
+              });
             } else if (!mine(line)) lines.push(line);
           }
           if (first === -1) {
