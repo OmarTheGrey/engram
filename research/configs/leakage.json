@@ -17,6 +17,8 @@
   "limits": [
     "A fixture workspace: thirteen canaries in one log, under the medium preset, at one clock; the probes cover every route, tool and command, not every argument a caller could send.",
     "Memberships are self-asserted on every surface without credentials (ADR 0027): a former member is probed as the harness presents them after offboarding, without the scope they left. A caller who still asserts the scope is a member by assertion; only verified actors (card E8.12) close that.",
-    "A leak is a canary string or a hidden item id found in an answer. An answer that tells existence by its shape rather than by a canary (a different status or wording for a denied id than for a missing one) is counted apart, as a characterised oracle, and each is pinned by a test."
+    "A leak is a canary found in an answer, by its nonce, its id (with or without dashes), the sha256 of its content, the plane's two content hashes, its content's tail, or the nonce or content in base64, in any case. An answer that tells existence by its shape rather than by a canary (a status, a rule id or a count that differs for a denied id) is counted apart, as a characterised oracle, and each is pinned by a test.",
+    "Every probe runs without credentials (the loopback waiver, ADR 0042), with actors self-asserted; MCP is reached over its in-memory transport, never its streamable HTTP (SSE) transport, and pi's session is scanned in memory, not as a file on disk.",
+    "The probes of the control (a member of team:x) and of the member who offboarded fred are reported apart, in other_probes, and are not in the totals."
   ]
 }

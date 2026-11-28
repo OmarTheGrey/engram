@@ -63,12 +63,22 @@ def test_each_leaked_canary_is_counted_and_named() -> None:
 def test_oracles_list_what_did_not_answer_alike() -> None:
     oracles = [
         {"surface": "http", "probe": "readById", "alike": True},
-        {"surface": "http", "probe": "explain", "alike": False},
+        {"surface": "http", "probe": "explain non-member (another's read)", "alike": False},
+        {"surface": "http", "probe": "write non-member dana-person", "alike": False},
+        {"surface": "http", "probe": "write eve dana-person", "alike": False},
     ]
     counted = leakage.count(records(server=suite("server", [], oracles=oracles)))
     assert counted["denied_and_missing"] == {
-        "http": {"compared": 2, "alike": 1, "characterised": ["explain"]}
+        "http": {"compared": 4, "alike": 1, "characterised": {"explain": 1, "write": 2}}
     }
+
+
+def test_the_control_and_other_actors_are_counted_apart() -> None:
+    probes = [probe("http", []), {**probe("http", []), "actor": "member"}]
+    counted = leakage.count(records(server=suite("server", probes)))
+    assert counted["surfaces"]["http"]["probes"] == 4
+    assert counted["other_probes"]["http"]["probes_by_actor"] == {"member": 1}
+    assert counted["totals"]["probes"] == 4
 
 
 def test_the_suites_must_plant_the_same_canaries() -> None:

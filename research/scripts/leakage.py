@@ -35,6 +35,7 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 import tempfile
 from collections import Counter
 from collections.abc import Mapping, Sequence
@@ -55,9 +56,14 @@ def run_suites(files: Sequence[str], out: Path) -> bool:
         cwd=REPO,
         env=env,
         check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
     )
+    if done.returncode != 0:
+        # The counts are still written; the run's own report says why it failed.
+        sys.stderr.write(done.stdout[-20000:] + done.stderr[-5000:])
     return done.returncode == 0
 
 
@@ -80,10 +86,15 @@ def count(records: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
     actors = [r["probe_actors"] for r in records.values()]
     if any(a != actors[0] for a in actors):
         raise RuntimeError("the suites probed as different actors")
+    probe_names = {a["name"] for a in actors[0]}
     surfaces: dict[str, dict[str, Any]] = {}
+    others: dict[str, dict[str, Any]] = {}
     for suite in records.values():
         for p in suite["probes"]:
-            s = surfaces.setdefault(
+            # The probe actors' probes are the count; the control's and the
+            # erasing member's are reported apart.
+            into = surfaces if p["actor"] in probe_names else others
+            s = into.setdefault(
                 p["surface"],
                 {
                     "probes": 0,
@@ -108,14 +119,27 @@ def count(records: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
         }
         for name, s in sorted(surfaces.items())
     }
+    other = {
+        name: {
+            "probes": s["probes"],
+            "leaks": s["leaks"],
+            "probes_by_actor": dict(sorted(s["by_actor"].items())),
+        }
+        for name, s in sorted(others.items())
+    }
     oracles: dict[str, dict[str, Any]] = {}
     for suite in records.values():
         for o in suite["oracles"]:
-            e = oracles.setdefault(o["surface"], {"compared": 0, "alike": 0, "characterised": []})
+            e = oracles.setdefault(
+                o["surface"], {"compared": 0, "alike": 0, "characterised": Counter()}
+            )
             e["compared"] += 1
             e["alike"] += 1 if o["alike"] else 0
             if not o["alike"]:
-                e["characterised"].append(o["probe"])
+                # By the route or tool the comparison names first.
+                e["characterised"][o["probe"].split(" ")[0]] += 1
+    for e in oracles.values():
+        e["characterised"] = dict(sorted(e["characterised"].items()))
     parity: dict[str, dict[str, int]] = {}
     for suite in records.values():
         for p in suite["parity"]:
@@ -135,6 +159,7 @@ def count(records: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
         },
         "probe_actors": actors[0],
         "surfaces": shown,
+        "other_probes": other,
         "totals": {
             "probes": sum(s["probes"] for s in shown.values()),
             "leaks": sum(s["leaks"] for s in shown.values()),
