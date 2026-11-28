@@ -105,12 +105,9 @@ class Erasure(TypedDict, closed=True):
     mode: NotRequired[Literal["redact", "shred"]]
 
 
-type Approver = str
-
-
 class Route(TypedDict, closed=True):
     scope: Literal["person", "role", "team", "org"] | str
-    approvers: list[Approver]
+    approvers: list[Literal["owner"] | str]
     expires_after: NotRequired[int]
 
 

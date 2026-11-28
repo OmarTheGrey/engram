@@ -552,7 +552,7 @@ export interface components {
             approval?: {
                 routes: {
                     scope: ("person" | "role" | "team" | "org") | string;
-                    approvers: string[];
+                    approvers: ("owner" | string)[];
                     expires_after?: number;
                 }[];
             };

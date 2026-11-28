@@ -185,7 +185,7 @@ const NOT_BUILT: [option: string, card: string, key: string, texts: string[]][] 
     "approval:",
     [
       withBlocks("approval:\n  routes: []\n"),
-      withBlocks("approval:\n  routes:\n    - { scope: team, approvers: [owner] }\n"),
+      withBlocks("approval:\n  routes:\n    - { scope: person, approvers: [owner] }\n"),
       withBlocks(
         "approval:\n  routes:\n    - { scope: team:platform, approvers: [role:lead, person:ada], expires_after: 604800 }\n",
       ),
@@ -245,6 +245,11 @@ describe("the options' schemas", () => {
     for (const text of [
       withBlocks("consent:\n  opt_outs:\n    - { scope: team:platform, topic: health }\n"),
       withBlocks("approval:\n  routes:\n    - { scope: team, approvers: [] }\n"),
+      // An approver is owner, role:<id> or person:<id>: no typo, no agent, no team.
+      withBlocks("approval:\n  routes:\n    - { scope: team, approvers: [rol:lead] }\n"),
+      withBlocks("approval:\n  routes:\n    - { scope: team, approvers: [agent:pi] }\n"),
+      withBlocks("approval:\n  routes:\n    - { scope: team, approvers: [team:platform] }\n"),
+      withBlocks("approval:\n  routes:\n    - { scope: team, approvers: [Owner] }\n"),
     ])
       expect(Policy.safeParse(parseYaml(text)).success).toBe(false);
   });

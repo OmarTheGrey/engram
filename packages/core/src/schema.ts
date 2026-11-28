@@ -250,7 +250,12 @@ export const ModelLintOptions = z.strictObject({
 /** The procedure safety scan's outcome on a critical finding (card D5). */
 export const SafetyScanMode = z.enum(["off", "report", "hold"]);
 
-/** When an admitted procedure is re-validated by replay (card D4, ADR 0011). */
+/**
+ * When an admitted procedure is re-validated by replay (card D4, ADR 0011).
+ * Only when: whether it then retires is ADR 0011's rule, a smoothed success
+ * rate below `lints.thresholds` `replay-drift.success-floor` after
+ * `replay-drift.min-trials`, which every registered preset already sets.
+ */
 export const DriftOptions = z.strictObject({
   /** Re-validate when the procedure's environment hash changes. Absent is off. */
   environment_change: OptionSwitch.optional(),
@@ -301,14 +306,28 @@ export const ErasureOptions = z.strictObject({
 });
 
 /**
+ * Who a route names as an approver: `owner` (the item's owner, which is ADR
+ * 0049's owner acceptance and so applies only on a person-scope route), every
+ * member of a role (`role:<id>`), or one person (`person:<id>`). Typed now,
+ * while every value is refused, so a typo such as `rol:lead` or an agent is
+ * never an approver; widening it is a schema pull request.
+ */
+export const Approver = z.union([
+  z.literal("owner"),
+  z.string().regex(/^(?:role|person):[A-Za-z0-9._\-/]+$/),
+]);
+
+/**
  * One route of the approval queue (card E2.19): the requests of a scope
- * level, or of one scope, go to its approvers (`owner`, a role, a
- * principal), and are denied by a recorded event once `expires_after`
- * seconds pass.
+ * level, or of one scope, go to its approvers, and are denied by a recorded
+ * event once `expires_after` seconds pass. A route narrows ADR 0026's
+ * eligible reviewers (a user-sourced member who is neither the item's owner
+ * nor its author) and never widens them; `owner` is the one exception ADR
+ * 0049 makes, inside the owner's own person scope.
  */
 export const ApprovalRoute = z.strictObject({
   scope: z.union([ScopeLevel, Scope]),
-  approvers: z.array(Principal).min(1),
+  approvers: z.array(Approver).min(1),
   expires_after: Ttl.optional(),
 });
 
