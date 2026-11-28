@@ -1,8 +1,8 @@
 """Drift on a fixture (card D4): an admitted procedure retired on a changed task, then restored.
 
 Usage:
-    uv run python research/scripts/h5_drift_fixture.py \\
-        --config research/configs/h5-drift-fixture.json --out research/results/h5-drift-fixture.json
+    uv run python research/scripts/drift_fixture.py \\
+        --config research/configs/drift-fixture.json --out research/results/h1-drift-fixture.json
 
 A proof of concept on fixtures and a scripted model, not a hypothesis result:
 H5 registers admission, not retirement, and drift is off in every registered
@@ -12,8 +12,9 @@ ENGRAM_OFFLINE=1, so every model call replays from committed cassettes and a
 miss is an error, then reads what the run wrote: card D3's admitted
 procedure, re-validated through Plane.revalidate on a pool with one held-out
 task changed and once more on D3's pool. It reports the calls, the changed
-tasks, each re-validation's success rate against the floor, its D3 record
-and the plane's decision. The result carries no time and no absolute path.
+tasks, and each re-validation's success rate against the floor
+and the plane's decision. The result carries no time and no absolute path; it
+is filed under h1- for the results glob only.
 """
 
 from __future__ import annotations
@@ -108,12 +109,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     result = compute(load_config(args.config))
     if result["calls"]["new"] != 0:
-        print(f"h5_drift_fixture: the run made {result['calls']['new']} new calls", file=sys.stderr)
+        print(f"drift_fixture: the run made {result['calls']['new']} new calls", file=sys.stderr)
         return 1
     write_result(args.out, result)
     c = result["counts"]
     print(
-        f"h5_drift_fixture: {c['revalidations']} re-validations of {result['procedure']}, "
+        f"drift_fixture: {c['revalidations']} re-validations of {result['procedure']}, "
         f"{c['retired']} retired, {c['restored']} restored; "
         f"{result['calls']['cached']} calls from cassettes, none new"
     )
