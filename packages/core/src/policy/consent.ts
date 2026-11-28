@@ -163,7 +163,7 @@ export function consentRefusal(
 ): string | null {
   const hit = coveringOptOut(policy, item, existing, at);
   if (hit === null) return null;
-  return `consent.opt_outs[${hit.index}] of policy ${policy.id} (${optOutText(hit.optOut)}) covers this write to ${item.scope}: its person opted out of recording it, so nothing was stored`;
+  return `consent.opt_outs[${hit.index}] of policy ${policy.id} (${optOutText(hit.optOut)}) covers this write to ${item.scope}: the person opted out of recording it, so nothing was stored`;
 }
 
 /**
