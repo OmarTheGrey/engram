@@ -81,10 +81,14 @@
 import type { Actor } from "../actor.ts";
 import { scopeLevel } from "../policy/evaluate.ts";
 import {
+  APPROVAL_ROUTE_ID,
+  approverNames,
   hiddenCharacters,
   PROMOTE_MEMBERSHIP_ID,
   type PromotionDecision,
   reviewerProblem,
+  routeFor,
+  routeText,
 } from "../policy/promotion.ts";
 import type { MemoryEvent, MemoryItem, Policy } from "../schema.ts";
 
@@ -787,6 +791,9 @@ export function reviewCouldLand(event: Pick<MemoryEvent, "policy_id">): boolean 
  * included, only a distinct reviewer may: user-sourced, a member of the
  * target, neither the owner nor an author of any version (ADR 0026's
  * reviewerProblem). Any other release is a deny event under SAFETY_SCAN_ID.
+ * With the policy's approval block (card E2.19) a release is also an
+ * approval of the request the hold opened: an actor the target's route does
+ * not name is refused under engram/approval/route.
  */
 export function applySafetyScan(
   policy: Policy,
@@ -837,6 +844,19 @@ export function applySafetyScan(
       check: "reviewer",
       policy_id: SAFETY_SCAN_ID,
       reason: `the safety scan's hold is not released: ${problem}; ${who} may release it; ${note}`,
+    };
+  // The hold opens an approval request (card E2.19): with an approval block
+  // its release is an approval, so only an approver the target's route names
+  // releases it (`owner` is the owner's own release above).
+  const route = routeFor(policy, ctx.target);
+  const own = ownRelease(actor, item, ctx.target);
+  if (route && !route.approvers.some((a) => approverNames(a, actor, own)))
+    return {
+      ...held,
+      decision: "deny",
+      check: "approval",
+      policy_id: APPROVAL_ROUTE_ID,
+      reason: `the safety scan's hold is not released: ${actor.id} is not an approver of requests into ${ctx.target}: the policy routes them to ${routeText(route)}; ${note}`,
     };
   return {
     ...d,
