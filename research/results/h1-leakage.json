@@ -29,21 +29,21 @@
   "card": "E8.16",
   "denied_and_missing": {
     "http": {
-      "alike": 275,
+      "alike": 326,
       "characterised": {
         "checkWrite": 47,
         "explain": 4,
         "read": 4,
         "write": 47
       },
-      "compared": 377
+      "compared": 428
     },
     "mcp": {
-      "alike": 102,
+      "alike": 153,
       "characterised": {
         "memory_explain": 4
       },
-      "compared": 106
+      "compared": 157
     }
   },
   "filed_under": "research/results/h1-* only because research/tests/test_prereg.py maps every MANIFEST file to one hypothesis's results glob; the result decides no hypothesis, as card X14 filed its red-team result",
@@ -59,42 +59,42 @@
   "other_probes": {
     "cli": {
       "leaks": 0,
-      "probes": 144,
+      "probes": 172,
       "probes_by_actor": {
-        "member": 144
+        "member": 172
       }
     },
     "http": {
       "leaks": 0,
-      "probes": 198,
+      "probes": 226,
       "probes_by_actor": {
         "erasing-member": 32,
-        "member": 166
+        "member": 194
       }
     },
     "mcp": {
       "leaks": 0,
-      "probes": 72,
+      "probes": 100,
       "probes_by_actor": {
-        "member": 72
+        "member": 100
       }
     },
     "tui": {
       "leaks": 0,
-      "probes": 145,
+      "probes": 173,
       "probes_by_actor": {
-        "member": 145
+        "member": 173
       }
     }
   },
   "parity": {
     "cli --server": {
-      "operations": 13,
-      "same": 13
+      "operations": 14,
+      "same": 14
     },
     "http": {
-      "operations": 13,
-      "same": 13
+      "operations": 14,
+      "same": 14
     },
     "http (model)": {
       "operations": 5,
@@ -109,8 +109,8 @@
       "same": 5
     },
     "tui": {
-      "operations": 13,
-      "same": 13
+      "operations": 14,
+      "same": 14
     }
   },
   "positive_control": {
@@ -171,36 +171,36 @@
     "cli": {
       "leaked_canaries": {},
       "leaks": 0,
-      "probes": 576,
+      "probes": 688,
       "probes_by_actor": {
-        "expired-grantee": 144,
-        "former-member": 144,
-        "non-member": 144,
-        "partial-grantee": 144
+        "expired-grantee": 172,
+        "former-member": 172,
+        "non-member": 172,
+        "partial-grantee": 172
       },
       "probes_leaking": 0
     },
     "http": {
       "leaked_canaries": {},
       "leaks": 0,
-      "probes": 696,
+      "probes": 808,
       "probes_by_actor": {
-        "expired-grantee": 166,
-        "former-member": 198,
-        "non-member": 166,
-        "partial-grantee": 166
+        "expired-grantee": 194,
+        "former-member": 226,
+        "non-member": 194,
+        "partial-grantee": 194
       },
       "probes_leaking": 0
     },
     "mcp": {
       "leaked_canaries": {},
       "leaks": 0,
-      "probes": 288,
+      "probes": 400,
       "probes_by_actor": {
-        "expired-grantee": 72,
-        "former-member": 72,
-        "non-member": 72,
-        "partial-grantee": 72
+        "expired-grantee": 100,
+        "former-member": 100,
+        "non-member": 100,
+        "partial-grantee": 100
       },
       "probes_leaking": 0
     },
@@ -219,19 +219,19 @@
     "tui": {
       "leaked_canaries": {},
       "leaks": 0,
-      "probes": 580,
+      "probes": 692,
       "probes_by_actor": {
-        "expired-grantee": 145,
-        "former-member": 145,
-        "non-member": 145,
-        "partial-grantee": 145
+        "expired-grantee": 173,
+        "former-member": 173,
+        "non-member": 173,
+        "partial-grantee": 173
       },
       "probes_leaking": 0
     }
   },
   "totals": {
     "leaks": 0,
-    "probes": 2188
+    "probes": 2636
   },
   "wording": "canary strings written through every write path of a fixture workspace, then probed through every surface as a non-member, an expired grantee, a former member after offboarding and a partial grantee: the number of probes per surface and the number of canaries any probe answer carried that its actor may not see. A proof of concept on a fixture workspace with no model in the loop, never a hypothesis result"
 }
