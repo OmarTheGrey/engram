@@ -1,0 +1,22 @@
+{
+  "name": "leakage",
+  "kind": "measurement",
+  "card": "E8.16",
+  "hypothesis": "none",
+  "status": "proof of concept",
+  "wording": "canary strings written through every write path of a fixture workspace, then probed through every surface as a non-member, an expired grantee, a former member after offboarding and a partial grantee: the number of probes per surface and the number of canaries any probe answer carried that its actor may not see. A proof of concept on a fixture workspace with no model in the loop, never a hypothesis result",
+  "filed_under": "research/results/h1-* only because research/tests/test_prereg.py maps every MANIFEST file to one hypothesis's results glob; the result decides no hypothesis, as card X14 filed its red-team result",
+  "seed": 20261128,
+  "suite": [
+    "packages/server/test/leakage.test.ts",
+    "packages/mcp/test/leakage.test.ts",
+    "packages/cli/test/parity.test.ts",
+    "packages/pi-extension/test/parity.test.ts"
+  ],
+  "surfaces": ["http", "mcp", "cli", "tui", "pi"],
+  "limits": [
+    "A fixture workspace: thirteen canaries in one log, under the medium preset, at one clock; the probes cover every route, tool and command, not every argument a caller could send.",
+    "Memberships are self-asserted on every surface without credentials (ADR 0027): a former member is probed as the harness presents them after offboarding, without the scope they left. A caller who still asserts the scope is a member by assertion; only verified actors (card E8.12) close that.",
+    "A leak is a canary string or a hidden item id found in an answer. An answer that tells existence by its shape rather than by a canary (a different status or wording for a denied id than for a missing one) is counted apart, as a characterised oracle, and each is pinned by a test."
+  ]
+}
