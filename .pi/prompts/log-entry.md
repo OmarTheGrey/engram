@@ -1,4 +1,4 @@
 ---
 description: Write a log entry for the work just done
 ---
-Write docs/log/<today>-<slug>.md for the work in this session, following docs/conventions/documentation.md exactly: fixed frontmatter fields, then What, Why, Result (numbers with evidence paths), Consequence, at most 150 words. If anything failed on the way, write a separate failure entry for it.
+Write docs/log/<today>-<slug>.md for the work in this session, following docs/conventions/documentation.md exactly: fixed frontmatter fields, then What, Why, Result (numbers with evidence paths), Consequence, at most 150 words. If anything failed on the way, write a separate failure entry for it. If you wrote a `measurement` entry citing a row of research/results/MANIFEST.md, run `make results-register` and commit docs/research/results.md in the same PR.

@@ -8,7 +8,7 @@ SHELL := bash
 PNPM ?= pnpm
 UV ?= uv
 
-.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui tui-screens bench run h1-table h1-figure l3-variance h3-lint-delta nli-scores nli-determinism h3-lint-nli fixtures fault-workspace gitleaks-rules thesis engram dogfood-report verify-spec perf-budget redteam
+.PHONY: help test test-invariants test-scale test-one test-e2e test-repro lint lint-docs api api-check ui tui-screens bench run h1-table h1-figure l3-variance h3-lint-delta nli-scores nli-determinism h3-lint-nli fixtures fault-workspace gitleaks-rules thesis results-register engram dogfood-report verify-spec perf-budget redteam
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | expand -t 16
@@ -193,6 +193,9 @@ OUT ?= $(ROOT)/research/thesis/drafts
 
 thesis: ## consolidate docs/log into research/thesis/drafts; ROOT= and OUT= to run on a fixture log
 	$(UV) run python research/scripts/consolidate_log.py --root "$(ROOT)" --out "$(OUT)"
+
+results-register: ## docs/research/results.md, the results register, from research/configs/results-register.json, the MANIFEST, the results files and docs/log; every value read from its file; CHECK=1 fails if the committed register is stale
+	$(UV) run python research/scripts/results_register.py --config research/configs/results-register.json --out docs/research/results.md $(if $(filter 1,$(CHECK)),--check)
 
 fault-workspace: ## a SQLite log and policy from one fault fixture, to lint with the CLI: make fault-workspace FAULT=orphan.flag
 	@[ -n "$(FAULT)" ] || { echo "fault-workspace: give FAULT=<name> from fixtures/faults"; exit 2; }

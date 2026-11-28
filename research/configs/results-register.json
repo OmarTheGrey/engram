@@ -1,0 +1,998 @@
+{
+  "title": "Results register",
+  "intro": [
+    "One section per row of `research/results/MANIFEST.md`, grouped by the hypothesis it serves. Every value below is read from the committed results file at the key path beside it, and every file hashes to its MANIFEST sha256, or the register is not written.",
+    "H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8 December 2026; `docs/log/2026-11-28-rr-milestone-all-rows-reproduce.md` records that every row reproduces on main's code before them."
+  ],
+  "groups": [
+    {
+      "id": "H1",
+      "title": "H1. Enforcement beats instruction",
+      "needs": "The `prereg-v1` tag, once the eight pre-tag conditions at the head of the pre-registration hold: among them the label audit's agreement written into the Benchmarks section, the smoke run and B1 passing on M1 (condition 4), the programme-wide spend cap in billed dollars or the operator's credit check (condition 7), and the Zenodo deposit of the tagged commit (condition 8). Then the live runs of `research/configs/h1-gatemem.json` and `research/configs/h1-mem-inv.json` on M1, scheduled for 1 to 8 December 2026, then `make h1-table` and `make h1-figure` (card X4). No `research/results/h1-table.json` exists yet."
+    },
+    {
+      "id": "H2",
+      "title": "H2. The governance tax has a knee",
+      "needs": "The live runs its Stopping rule fixes on M1: C1 (no memory) on GateMem and LongMemEval, C2 at medium, and C5 at strict, medium and permissive (`research/configs/h2-longmemeval-c2.json` and `h2-longmemeval-c5-medium.json` among them). Only GateMem's C2 and C5 at medium are H1's sessions; its C5 at strict and permissive and its C1 are run for H2. MERIT's arcs run once card B7 counts them. No utility or violation number exists yet."
+    },
+    {
+      "id": "H3",
+      "title": "H3. Lints recover part of the governance loss",
+      "needs": "Card L3's live variance pilot (`research/configs/l3-pilot.json`), which settles whether the model or the deterministic tier is primary, H3's live model-lint run (`research/configs/h3-lint-model.json`), the members' audit of the base-item findings, and the C6 and C5 runs on LongMemEval. No recovery number exists yet."
+    },
+    {
+      "id": "H4",
+      "title": "H4. The plane is store-, model- and harness-agnostic",
+      "needs": "GateMem's C5 runs on M2 and M3 at the size the power table sets, beside M1's from H1's run. Store independence is argued by the request-identity check, not tested, and the harness claim is stated as untested."
+    },
+    {
+      "id": "H5",
+      "title": "H5. Governed procedural memory is net positive",
+      "needs": "Its prerequisites are drafted and proposed, not registered (card H5P); the tau2-bench harness card, the induction runs and replay validation come before any run. No `research/results/h5-*` file exists."
+    },
+    {
+      "id": "none",
+      "title": "Not tied to one hypothesis"
+    }
+  ],
+  "results": [
+    {
+      "file": "research/results/h1-gatemem-reach.json",
+      "hypothesis": "H1",
+      "status": "reach measurement",
+      "prereg": "### H1. Enforcement beats instruction",
+      "question": "How many of GateMem's access-control and forgetting checkpoints have a leak target that can reach the asker through the plane's mapping at all, and at how many is a plain refusal itself scored as a leak?",
+      "headline": [
+        {
+          "label": "access-control checkpoints, scored set, reachable",
+          "path": ["by_preset", "medium", "kinds", "access", "all", "scored", "reachable"]
+        },
+        {
+          "label": "access-control checkpoints, scored set, located but unreachable",
+          "path": ["by_preset", "medium", "kinds", "access", "all", "scored", "located_unreachable"]
+        },
+        {
+          "label": "forgetting checkpoints, scored set, reachable",
+          "path": ["by_preset", "medium", "kinds", "forgetting", "all", "scored", "reachable"]
+        },
+        {
+          "label": "checkpoints where a plain refusal scores as a leak",
+          "path": ["by_preset", "medium", "all", "refusal_leak"]
+        },
+        {
+          "label": "identical across the three presets",
+          "path": ["identical_across_presets"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h1-mem-inv-admission.json",
+      "hypothesis": "H1",
+      "status": "reach measurement",
+      "prereg": "### H1. Enforcement beats instruction",
+      "question": "Which MEM-INV-Bench entries does the plane admit to the operator's action-time read under each preset?",
+      "headline": [
+        {
+          "label": "attacks admitted, medium",
+          "path": ["by_preset", "medium", "families", "attack", "admitted"]
+        },
+        {
+          "label": "benign cases admitted, medium",
+          "path": ["by_preset", "medium", "families", "legit", "admitted"]
+        },
+        {
+          "label": "attacks admitted, strict",
+          "path": ["by_preset", "strict", "families", "attack", "admitted"]
+        },
+        {
+          "label": "attacks admitted, strict, through the summarize channel",
+          "path": ["by_preset", "strict", "laundering", "summarize", "admitted"]
+        },
+        {
+          "label": "team:operations entries admitted, strict",
+          "path": ["by_preset", "strict", "entries_by_scope", "team:operations", "admitted"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h1-c4-verdict-agreement.json",
+      "hypothesis": "H1",
+      "status": "support artefact",
+      "prereg": "### H1. Enforcement beats instruction",
+      "question": "How often do C4's two candidate verdict sources, the plane's read decision and GateMem's RAG-Policy gate, agree on GateMem's turn items?",
+      "headline": [
+        {
+          "label": "turn items, medium",
+          "path": ["by_preset", "medium", "all", "all", "items"]
+        },
+        {
+          "label": "share agreeing, all turn items",
+          "path": ["by_preset", "medium", "all", "all", "share_agree"]
+        },
+        {
+          "label": "gate allows, plane denies",
+          "path": ["by_preset", "medium", "all", "all", "rag_allows_engram_denies"]
+        },
+        {
+          "label": "gate denies, plane allows",
+          "path": ["by_preset", "medium", "all", "all", "rag_denies_engram_allows"]
+        },
+        {
+          "label": "share agreeing, leak-target items",
+          "path": ["by_preset", "medium", "all", "leak", "share_agree"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h1-c4-walk.json",
+      "hypothesis": "H1",
+      "status": "reach measurement",
+      "prereg": "### H1. Enforcement beats instruction",
+      "question": "What does C4's walk to C5's allowed items show the model on GateMem, compared with C3's top 20?",
+      "headline": [
+        {
+          "label": "items C4 shows, medium",
+          "path": ["by_preset", "medium", "all", "items", "c4"]
+        },
+        {
+          "label": "items C3 shows, medium",
+          "path": ["by_preset", "medium", "all", "items", "c3"]
+        },
+        {
+          "label": "checkpoints where C4's allowed items equal C5's",
+          "path": ["by_preset", "medium", "all", "c4_allowed_equals_c5"]
+        },
+        {
+          "label": "checkpoints where C4 shows nothing though C3 has candidates",
+          "path": ["by_preset", "medium", "all", "c4_empty_with_candidates"]
+        },
+        {
+          "label": "median C4 read length",
+          "path": ["by_preset", "medium", "all", "c4_length", "median"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h1-refusal-leaks.json",
+      "hypothesis": "H1",
+      "status": "support artefact",
+      "prereg": "### H1. Enforcement beats instruction",
+      "question": "At which GateMem checkpoints is a plain refusal itself scored as a leak, the list H1's sensitivity table leaves out?",
+      "headline": [
+        {
+          "label": "access-control checkpoints listed",
+          "path": ["counts", "access"]
+        },
+        {
+          "label": "forgetting checkpoints listed",
+          "path": ["counts", "forgetting"]
+        },
+        {
+          "label": "access-control checkpoints in the set",
+          "path": ["checkpoints", "access"]
+        },
+        {
+          "label": "forgetting checkpoints in the set",
+          "path": ["checkpoints", "forgetting"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h1-cost.json",
+      "hypothesis": "H1",
+      "status": "cost estimate",
+      "prereg": "## Models",
+      "question": "What would H1's full run cost per candidate model, low and high, with GateMem's judge?",
+      "note": "The earlier per-candidate estimate; the spend ceilings come from `research/results/h2-cost-table.json`.",
+      "headline": [
+        {
+          "label": "GateMem sessions",
+          "path": ["sizes", "gatemem", "sessions"]
+        },
+        {
+          "label": "GateMem answer input tokens, low",
+          "path": ["tokens", "gatemem", "low", "input"]
+        },
+        {
+          "label": "GateMem answer input tokens, high",
+          "path": ["tokens", "gatemem", "high", "input"]
+        },
+        {
+          "label": "judge dollars, low",
+          "path": ["judge", "cost", "judge", "low"]
+        },
+        {
+          "label": "judge dollars, high",
+          "path": ["judge", "cost", "judge", "high"]
+        },
+        {
+          "label": "M1 with the judge, dollars, high",
+          "path": [
+            "candidates",
+            {
+              "model": "openrouter/deepseek/deepseek-v4-pro-0813"
+            },
+            "total_with_judge",
+            "high"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h1-check-runs-cost.json",
+      "hypothesis": "H1",
+      "status": "cost estimate",
+      "prereg": "### H1. Enforcement beats instruction",
+      "question": "What would H1's pre-tag check runs (the two smoke runs and card B1's GateMem reference run) cost, low and high?",
+      "note": "It prices the smoke runs on the model the file names, not on the registered M1 (`docs/log/2026-11-28-rr-finding-results-audit.md`).",
+      "headline": [
+        {
+          "label": "smoke GateMem, dollars, low",
+          "path": [
+            "runs",
+            {
+              "name": "smoke-h1-gatemem"
+            },
+            "total",
+            "low"
+          ]
+        },
+        {
+          "label": "smoke GateMem, dollars, high",
+          "path": [
+            "runs",
+            {
+              "name": "smoke-h1-gatemem"
+            },
+            "total",
+            "high"
+          ]
+        },
+        {
+          "label": "smoke MEM-INV-Bench, dollars, high",
+          "path": [
+            "runs",
+            {
+              "name": "smoke-h1-mem-inv"
+            },
+            "total",
+            "high"
+          ]
+        },
+        {
+          "label": "B1 GateMem reference, dollars, high",
+          "path": [
+            "runs",
+            {
+              "name": "b1-gatemem-reference"
+            },
+            "total",
+            "high"
+          ]
+        },
+        {
+          "label": "all three, dollars, low",
+          "path": ["total", "low"]
+        },
+        {
+          "label": "all three, dollars, high",
+          "path": ["total", "high"]
+        },
+        {
+          "label": "the smoke runs' model",
+          "path": [
+            "runs",
+            {
+              "name": "smoke-h1-gatemem"
+            },
+            "model"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h1-label-audit.json",
+      "hypothesis": "H1",
+      "status": "support artefact",
+      "prereg": "## Benchmarks",
+      "question": "Which GateMem and MEM-INV-Bench items do H1's three members label-audit before the tag, and at how many rejected items does each benchmark's stop trip?",
+      "note": "The draw only; the audit's agreement is not computed yet (pre-tag condition 1).",
+      "headline": [
+        {
+          "label": "GateMem items drawn",
+          "path": ["benchmarks", "gatemem", "items"]
+        },
+        {
+          "label": "GateMem stop at rejected items",
+          "path": ["benchmarks", "gatemem", "stop_at_rejected"]
+        },
+        {
+          "label": "MEM-INV-Bench items drawn",
+          "path": ["benchmarks", "mem-inv-bench", "items"]
+        },
+        {
+          "label": "MEM-INV-Bench stop at rejected items",
+          "path": ["benchmarks", "mem-inv-bench", "stop_at_rejected"]
+        },
+        {
+          "label": "members needed to reject an item",
+          "path": ["reject_quorum"]
+        },
+        {
+          "label": "on a tripped stop",
+          "path": ["on_stop"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h2-longmemeval-ttl.json",
+      "hypothesis": "H2",
+      "status": "reach measurement",
+      "prereg": "### H2. The governance tax has a knee",
+      "question": "How much of each LongMemEval S history does the plane's read filter hide, per preset and clock, and which questions lose evidence?",
+      "headline": [
+        {
+          "label": "turns in all",
+          "path": ["turns"]
+        },
+        {
+          "label": "turns hidden, medium, at B5's read time",
+          "path": ["by_preset", "medium", "read_time", "hidden_turns"]
+        },
+        {
+          "label": "questions with a hidden turn, medium, read time",
+          "path": ["by_preset", "medium", "read_time", "questions_with_hidden_turns"]
+        },
+        {
+          "label": "questions losing an evidence turn, medium, read time",
+          "path": ["by_preset", "medium", "read_time", "questions_losing_evidence"]
+        },
+        {
+          "label": "questions losing all evidence, medium, read time",
+          "path": ["by_preset", "medium", "read_time", "questions_losing_all_evidence"]
+        },
+        {
+          "label": "turns hidden, strict, read time",
+          "path": ["by_preset", "strict", "read_time", "hidden_turns"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h2-frontier-axes.json",
+      "hypothesis": "H2",
+      "status": "reach measurement",
+      "prereg": "### H2. The governance tax has a knee",
+      "question": "Which policy axes change what the plane lets a reader reach on GateMem and LongMemEval, against preset medium, with no model called?",
+      "headline": [
+        {
+          "label": "GateMem turn reads hidden, grants off",
+          "path": ["gatemem", "by_variant", "grants-off", "hidden_vs_baseline"]
+        },
+        {
+          "label": "GateMem checkpoints changed, grants off",
+          "path": ["gatemem", "by_variant", "grants-off", "checkpoints_changed"]
+        },
+        {
+          "label": "GateMem checkpoints changed, ttl 1 day",
+          "path": ["gatemem", "by_variant", "ttl-1d", "checkpoints_changed"]
+        },
+        {
+          "label": "LongMemEval questions changed, ttl 7 days",
+          "path": ["longmemeval", "by_variant", "ttl-7d", "questions_changed"]
+        },
+        {
+          "label": "LongMemEval turns hidden, ttl 30 days",
+          "path": ["longmemeval", "by_variant", "ttl-30d", "hidden_turns"]
+        },
+        {
+          "label": "LongMemEval writes denied, budget 25",
+          "path": ["longmemeval", "by_variant", "budget-25", "denied_writes"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h2-longmemeval-cost.json",
+      "hypothesis": "H2",
+      "status": "cost estimate",
+      "prereg": "## Models",
+      "question": "What would LongMemEval's C2 and C5 baselines at medium cost with the judge, per candidate model?",
+      "headline": [
+        {
+          "label": "sessions per baseline",
+          "path": ["sizes", "c2", "sessions"]
+        },
+        {
+          "label": "items per read under C2",
+          "path": ["measured", "c2", "full_set", "items_per_read"]
+        },
+        {
+          "label": "M1, both baselines with the judge, catalogue dollars, low",
+          "path": [
+            "candidates",
+            {
+              "model": "openrouter/deepseek/deepseek-v4-pro-0813"
+            },
+            "total_with_judge",
+            "low"
+          ]
+        },
+        {
+          "label": "M1, both baselines with the judge, catalogue dollars, high",
+          "path": [
+            "candidates",
+            {
+              "model": "openrouter/deepseek/deepseek-v4-pro-0813"
+            },
+            "total_with_judge",
+            "high"
+          ]
+        },
+        {
+          "label": "judge dollars per baseline, high",
+          "path": ["judge", "cost", "judge_c2", "high"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h2-label-audit-longmemeval.json",
+      "hypothesis": "H2",
+      "status": "support artefact",
+      "prereg": "## Benchmarks",
+      "question": "Which LongMemEval questions does the seeded label audit draw, and at how many rejected items does its stop trip?",
+      "note": "The draw only; the audit's agreement is not computed yet.",
+      "headline": [
+        {
+          "label": "questions drawn",
+          "path": ["benchmarks", "longmemeval", "items"]
+        },
+        {
+          "label": "stop at rejected items",
+          "path": ["benchmarks", "longmemeval", "stop_at_rejected"]
+        },
+        {
+          "label": "members needed to reject an item",
+          "path": ["reject_quorum"]
+        },
+        {
+          "label": "on a tripped stop",
+          "path": ["on_stop"]
+        },
+        {
+          "label": "hypotheses served, as the file states",
+          "path": ["hypothesis"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h3-fault-set.json",
+      "hypothesis": "H3",
+      "status": "support artefact",
+      "prereg": "### H3. Lints recover part of the governance loss",
+      "question": "What does card L2's seeded-fault set over LongMemEval's cleaned S split hold, and do its labels check against the deterministic lints?",
+      "headline": [
+        {
+          "label": "states",
+          "path": ["label_check", "states"]
+        },
+        {
+          "label": "events",
+          "path": ["events"]
+        },
+        {
+          "label": "labels",
+          "path": ["labels", "total"]
+        },
+        {
+          "label": "keyed faults flagged",
+          "path": ["label_check", "keyed_faults_flagged"]
+        },
+        {
+          "label": "duplicate findings on base items, for the members' audit",
+          "path": ["audit", "findings", "duplicate"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h3-lint-floor.json",
+      "hypothesis": "H3",
+      "status": "engineering check",
+      "prereg": "### H3. Lints recover part of the governance loss",
+      "question": "What do card L1's deterministic lints find on the seeded-fault set, keyed and unkeyed apart, and how many unverified findings do they make on LongMemEval's own memory?",
+      "note": "The deterministic tier's recall holds by construction: a regression check on card L1, not evidence for H3 (lead-decisions item 45).",
+      "headline": [
+        {
+          "label": "keyed recall",
+          "path": ["overall", "keyed", "recall", "value"]
+        },
+        {
+          "label": "unkeyed recall",
+          "path": ["overall", "unkeyed", "recall", "value"]
+        },
+        {
+          "label": "stale recall, keyed and unkeyed pooled",
+          "path": ["by_class", "stale", "all", "recall", "value"]
+        },
+        {
+          "label": "unverified findings on base items",
+          "path": ["unverified", "base"]
+        },
+        {
+          "label": "pooled precision, lower bound with the unverified findings",
+          "path": ["precision_with_unverified", "lower"]
+        },
+        {
+          "label": "calls of the registered live model-lint run",
+          "path": ["model_run", "calls"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h3-near-duplicate.json",
+      "hypothesis": "H3",
+      "status": "engineering check",
+      "prereg": "#### P4. The near-duplicate tier, for H3 (card L5)",
+      "question": "Does the near-duplicate tier's MinHash estimate agree with datasketch on the fault catalogue, and does the tier pass its own fixtures?",
+      "note": "Arm P4 is proposed, not registered.",
+      "headline": [
+        {
+          "label": "pairs compared",
+          "path": ["agreement", "pairs"]
+        },
+        {
+          "label": "agreement with datasketch at 0.85, all pairs",
+          "path": ["agreement", "by_threshold", "0.85", "tier_vs_oracle", "rate"]
+        },
+        {
+          "label": "near pairs",
+          "path": ["agreement", "near_pairs", "pairs"]
+        },
+        {
+          "label": "agreement at 0.85, near pairs",
+          "path": ["agreement", "near_pairs", "by_threshold", "0.85", "rate"]
+        },
+        {
+          "label": "fixture precision",
+          "path": ["labelled", "precision", "rate"]
+        },
+        {
+          "label": "items cut by the candidate cap",
+          "path": ["capped", "items"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h3-lint-nli.json",
+      "hypothesis": "H3",
+      "status": "engineering check",
+      "prereg": "#### P3. The local NLI tier of the contradiction lint, for H3 (card L7)",
+      "question": "On the fixture with a scripted model, how many contradiction calls does the local NLI tier save, and where do the contradiction labels land?",
+      "note": "Arm P3 is proposed, not registered.",
+      "headline": [
+        {
+          "label": "model tier's contradiction calls, seed 1",
+          "path": ["per_seed", "1", "calls", "model_tier_contradiction"]
+        },
+        {
+          "label": "calls the NLI tier drops, seed 1",
+          "path": ["per_seed", "1", "calls", "saved"]
+        },
+        {
+          "label": "pairs the NLI tier flags, seed 1",
+          "path": ["per_seed", "1", "bands", "flag"]
+        },
+        {
+          "label": "items with forward-only flags",
+          "path": ["forward_only_flags", "items"]
+        },
+        {
+          "label": "new model calls on replay",
+          "path": ["replays", "tiered", "calls", "new"]
+        },
+        {
+          "label": "decides a hypothesis",
+          "path": ["decides"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h4-power.json",
+      "hypothesis": "H4",
+      "status": "power computation",
+      "prereg": "### H4. The plane is store-, model- and harness-agnostic",
+      "question": "How many GateMem items per arm give H4's score TOST 80 percent power, and what level does a search of the composite null find at those sizes?",
+      "headline": [
+        {
+          "label": "items, rate 0.05, margin 0.05, alpha 0.01, one family",
+          "path": [
+            "cells",
+            {
+              "rate": 0.05,
+              "margin": 0.05,
+              "kappa": 1.0,
+              "seed_model": "identical"
+            },
+            "alphas",
+            "0.01",
+            "targets",
+            "1",
+            "items"
+          ]
+        },
+        {
+          "label": "power at that size",
+          "path": [
+            "cells",
+            {
+              "rate": 0.05,
+              "margin": 0.05,
+              "kappa": 1.0,
+              "seed_model": "identical"
+            },
+            "alphas",
+            "0.01",
+            "targets",
+            "1",
+            "power"
+          ]
+        },
+        {
+          "label": "composite-null level found at that size",
+          "path": [
+            "cells",
+            {
+              "rate": 0.05,
+              "margin": 0.05,
+              "kappa": 1.0,
+              "seed_model": "identical"
+            },
+            "alphas",
+            "0.01",
+            "targets",
+            "1",
+            "level",
+            "composite_sup",
+            "level"
+          ]
+        },
+        {
+          "label": "items, rate 0.1, the cell otherwise the same",
+          "path": [
+            "cells",
+            {
+              "rate": 0.1,
+              "margin": 0.05,
+              "kappa": 1.0,
+              "seed_model": "identical"
+            },
+            "alphas",
+            "0.01",
+            "targets",
+            "1",
+            "items"
+          ]
+        },
+        {
+          "label": "seed",
+          "path": ["seed"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h4-holm-levels.json",
+      "hypothesis": "H4",
+      "status": "power computation",
+      "prereg": "### H4. The plane is store-, model- and harness-agnostic",
+      "question": "Does each size the H4 power table commits at alpha 0.01 hold its level at every Holm threshold H4 may be tested at?",
+      "headline": [
+        {
+          "label": "every size holds at every threshold",
+          "path": ["all_hold"]
+        },
+        {
+          "label": "tightest size, items",
+          "path": ["tightest", "items"]
+        },
+        {
+          "label": "tightest slack",
+          "path": ["tightest", "slack"]
+        },
+        {
+          "label": "H4's registered size at margin 0.05, level at k = 5, Holm threshold 0.01",
+          "path": [
+            "sizes",
+            {
+              "items": 761,
+              "margin": 0.05
+            },
+            "levels",
+            "5",
+            "composite_sup"
+          ]
+        },
+        {
+          "label": "H4's registered size at margin 0.05, level at k = 4, Holm threshold 0.0125",
+          "path": [
+            "sizes",
+            {
+              "items": 761,
+              "margin": 0.05
+            },
+            "levels",
+            "4",
+            "composite_sup"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h1-injection-screen.json",
+      "hypothesis": "none",
+      "status": "fixture-size measurement",
+      "prereg": "#### P2. The deterministic injection screen as a floor beside the poisoning arm (card E2.10)",
+      "question": "On card E2.10's own corpus, what share of attacks escapes the deterministic injection screen, and what share of benign controls does it wrongly hold, per profile?",
+      "note": "Arm P2 is proposed, not registered; the file is under `h1-` because the arm sits beside H1's poisoning arm.",
+      "headline": [
+        {
+          "label": "attacks escaping, default profile",
+          "path": ["profiles", "default", "escape", "count"]
+        },
+        {
+          "label": "escape rate, default profile",
+          "path": ["profiles", "default", "escape", "rate"]
+        },
+        {
+          "label": "benign controls held, default profile",
+          "path": ["profiles", "default", "false_hold", "count"]
+        },
+        {
+          "label": "false-hold rate, default profile",
+          "path": ["profiles", "default", "false_hold", "rate"]
+        },
+        {
+          "label": "false-hold rate, hardened profile",
+          "path": ["profiles", "hardened", "false_hold", "rate"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h1-secret-guard.json",
+      "hypothesis": "none",
+      "status": "fixture-size measurement",
+      "prereg": "#### P1. The red-team arm (card X14)",
+      "question": "How often do card E2.9's secret and PII guards catch synthetic credentials at the expected tier, and how often do they deny or hold benign repository text?",
+      "note": "Card E2.9's own check of guards that arm P1 (proposed, not registered) measures.",
+      "headline": [
+        {
+          "label": "synthetic secrets at the expected tier",
+          "path": ["synthetic", "overall", "at_expected_tier", "k"]
+        },
+        {
+          "label": "synthetic secrets in all",
+          "path": ["synthetic", "overall", "at_expected_tier", "n"]
+        },
+        {
+          "label": "benign paragraphs denied",
+          "path": ["benign", "denied", "k"]
+        },
+        {
+          "label": "benign paragraphs held",
+          "path": ["benign", "held", "k"]
+        },
+        {
+          "label": "benign paragraphs in all",
+          "path": ["benign", "held", "n"]
+        },
+        {
+          "label": "benign hold rate",
+          "path": ["benign", "held", "rate"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h1-redteam.json",
+      "hypothesis": "none",
+      "status": "fixture-size measurement",
+      "prereg": "#### P1. The red-team arm (card X14)",
+      "question": "On a corpus card X14 did not write, what share of attacks survives each guard setting on the write route from a tool writer, and how many benign controls does each wrongly hold?",
+      "note": "Arm P1 is proposed, not registered.",
+      "headline": [
+        {
+          "label": "attacks in the corpus",
+          "path": ["corpus", "attacks"]
+        },
+        {
+          "label": "benign controls in the corpus",
+          "path": ["corpus", "controls_total"]
+        },
+        {
+          "label": "attack survival, medium",
+          "path": [
+            "table",
+            {
+              "setting": "medium",
+              "route": "write",
+              "kind": "tool"
+            },
+            "attack_survival"
+          ]
+        },
+        {
+          "label": "attack survival, medium with the screen at default",
+          "path": [
+            "table",
+            {
+              "setting": "medium+screen-default",
+              "route": "write",
+              "kind": "tool"
+            },
+            "attack_survival"
+          ]
+        },
+        {
+          "label": "attack survival, medium with every guard",
+          "path": [
+            "table",
+            {
+              "setting": "medium+all",
+              "route": "write",
+              "kind": "tool"
+            },
+            "attack_survival"
+          ]
+        },
+        {
+          "label": "benign false holds, medium with every guard",
+          "path": [
+            "table",
+            {
+              "setting": "medium+all",
+              "route": "write",
+              "kind": "tool"
+            },
+            "benign_false_hold"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h1-crosswalk.json",
+      "hypothesis": "none",
+      "status": "support artefact",
+      "prereg": null,
+      "question": "Of the plane's governance claims mapped to EU AI Act and GDPR obligations, how many does a test in the repository evidence?",
+      "note": "Evidence for `docs/compliance/`, not compliance; filed under `h1-` by `docs/log/2026-11-21-r4-decision-result-under-h1.md`.",
+      "headline": [
+        {
+          "label": "claims",
+          "path": ["summary", "claims"]
+        },
+        {
+          "label": "claims evidenced by a test",
+          "path": ["summary", "evidenced"]
+        },
+        {
+          "label": "tests cited",
+          "path": ["summary", "tests"]
+        },
+        {
+          "label": "test files cited",
+          "path": ["summary", "test_files"]
+        },
+        {
+          "label": "obligations",
+          "path": ["summary", "obligations"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h2-cost-table.json",
+      "hypothesis": "none",
+      "status": "cost estimate",
+      "prereg": "## Models",
+      "question": "What does every registered run cost at list prices, as decided, and what spend ceiling follows?",
+      "note": "Spans H1 to H5; the pre-registration's spend ceilings come from it.",
+      "headline": [
+        {
+          "label": "calls, high",
+          "path": ["decided", "totals", "openrouter-prices", "d-lead", "calls", "high"]
+        },
+        {
+          "label": "dollars, low",
+          "path": ["decided", "totals", "openrouter-prices", "d-lead", "dollars", "low"]
+        },
+        {
+          "label": "dollars, high",
+          "path": ["decided", "totals", "openrouter-prices", "d-lead", "dollars", "high"]
+        },
+        {
+          "label": "ceiling, dollars",
+          "path": ["decided", "totals", "openrouter-prices", "d-lead", "ceiling"]
+        },
+        {
+          "label": "H1, dollars, high",
+          "path": [
+            "decided",
+            "totals",
+            "openrouter-prices",
+            "d-lead",
+            "by_hypothesis",
+            "H1",
+            "high"
+          ]
+        },
+        {
+          "label": "H2, dollars, high",
+          "path": [
+            "decided",
+            "totals",
+            "openrouter-prices",
+            "d-lead",
+            "by_hypothesis",
+            "H2",
+            "high"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h2-perf-budget.json",
+      "hypothesis": "none",
+      "status": "engineering check",
+      "prereg": null,
+      "question": "How long do a governed read and write take on the fake store under medium, and do they meet the proposed latency budget?",
+      "note": "The budget is proposed in `docs/architecture.md`; the file is under `h2-` for the results glob only.",
+      "headline": [
+        {
+          "label": "read p99, budget row read-1000, ms",
+          "path": [
+            "budget",
+            {
+              "name": "read-1000"
+            },
+            "measured_ms"
+          ]
+        },
+        {
+          "label": "read p99, budget row read-1000, limit met",
+          "path": [
+            "budget",
+            {
+              "name": "read-1000"
+            },
+            "met"
+          ]
+        },
+        {
+          "label": "write p99, budget row write-1000, ms",
+          "path": [
+            "budget",
+            {
+              "name": "write-1000"
+            },
+            "measured_ms"
+          ]
+        },
+        {
+          "label": "read p99, budget row read-10000, ms",
+          "path": [
+            "budget",
+            {
+              "name": "read-10000"
+            },
+            "measured_ms"
+          ]
+        },
+        {
+          "label": "write p99, budget row write-10000, ms",
+          "path": [
+            "budget",
+            {
+              "name": "write-10000"
+            },
+            "measured_ms"
+          ]
+        }
+      ]
+    }
+  ]
+}
