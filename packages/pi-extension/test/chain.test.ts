@@ -76,6 +76,56 @@ describe("the pi extension and the chain", () => {
     }
   });
 
+  test("a chain another handle begins mid-session is followed from the next call", async () => {
+    // Review of card E1.9, finding 2.
+    const path = join(mkdtempSync(join(tmpdir(), "engram-pi-chain-")), "engram.db");
+    const cli = openSqlite(path);
+    const pi = openSqlite(path);
+    try {
+      migrate(cli);
+      let n = 0;
+      const extension = createEngramExtension({
+        db: pi,
+        adapter: createFakeAdapter(),
+        policy,
+        actor: OMAR,
+        newId: () => id(++n),
+        now: () => AT,
+        recall: false,
+      });
+      const run = await startSession(
+        extension,
+        [
+          call("call-1", "memory_write", { scope: "person:omar", content: "before the chain" }),
+          { text: "done" },
+          call("call-2", "memory_write", { scope: "person:omar", content: "after the chain" }),
+          { text: "done" },
+        ],
+        ["memory_write"],
+      );
+      let before = -1;
+      try {
+        await run.session.prompt("Remember one thing.");
+        expect(keepsChain(pi)).toBe(false);
+        before = allEvents(cli).length;
+        // Another writer, as the CLI through the shared opener, begins the chain.
+        keepChain(cli, { salt: () => randomBytes(32) });
+        await run.session.prompt("Remember another.");
+      } finally {
+        run.session.dispose();
+      }
+      expect(keepsChain(pi)).toBe(true);
+      const r = verifyChain(cli);
+      expect(r.first_break, JSON.stringify(r.first_break)).toBeNull();
+      expect(r.counts.events).toBeGreaterThan(0);
+      expect(r.counts.unchained).toBe(before);
+      expect(r.counts.unchained + r.counts.events).toBe(allEvents(cli).length);
+    } finally {
+      pi.close();
+      cli.close();
+    }
+  });
+
   test("on a log with no chain, as a research run's, the extension begins none", async () => {
     const db = openSqlite(":memory:");
     try {

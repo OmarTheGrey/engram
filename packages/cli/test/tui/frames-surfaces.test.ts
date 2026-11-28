@@ -514,7 +514,7 @@ const SCREENS: Record<
             "  fail  attestations: event 0's attestation row does not match the digest chained with it: edited",
             "first broken link: attestations, chain position 1, event seq 0",
             "log fixture: 2 chain entries, 1 events chained, 0 unchained, 0 erased, 0 manifests, 0 checkpoints",
-            "chain version 2: 0 attestations chained, 0 not covered",
+            "chain version 2: 1 attestations chained, 0 not covered",
             "",
           ].join("\n"),
         ),

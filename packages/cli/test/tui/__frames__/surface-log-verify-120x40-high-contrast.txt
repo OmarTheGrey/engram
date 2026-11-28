@@ -15,8 +15,8 @@
  chain version 2: 1 attestations chained, 0 not covered
  note: no checkpoint: nothing signs this log's head
 
- The chain proves no event was changed or removed after it was written, nor the attestation of who a served surface
- authenticated for it. A signed checkpoint also proves who vouched for it.
+ The chain proves no event was changed or removed after it was written, and from chain version 2 that no served event's
+ attestation was changed. A signed checkpoint also proves who vouched for it.
 
 
 

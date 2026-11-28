@@ -476,6 +476,9 @@ export function keepsChain(db: Db): boolean {
 export function chainVersion(db: Db): number | undefined {
   const genesis = readGenesis(db);
   if (!genesis) return undefined;
+  // Only a genesis below the current version can be followed by version
+  // entries; a current one is read without walking the chain table.
+  if (genesis.version >= CHAIN_VERSION) return genesis.version;
   const row = db
     .prepare("SELECT data FROM chain WHERE kind = 'version' ORDER BY pos DESC LIMIT 1")
     .get();
@@ -486,18 +489,24 @@ export function chainVersion(db: Db): number | undefined {
 /**
  * Brings the chain to CHAIN_VERSION, inside the caller's transaction, before
  * a keeping handle's next entry: one version entry per version it moves up.
- * Read under the log's lock, so another process's upgrade is seen; once a
- * handle has seen the current version it reads it no more.
+ * Read under the log's lock, so another process's upgrade is seen. A handle
+ * is cached as current only when it read the current version from the log,
+ * that is, from committed state or its own transaction's: a version entry it
+ * appends itself may still be rolled back with the caller's transaction
+ * (review of card E1.9, finding 1), so the next append reads again.
  */
 function upgrade(db: Db): void {
   if (current.has(db)) return;
   let version = chainVersion(db) ?? CHAIN_VERSION;
+  if (version >= CHAIN_VERSION) {
+    current.add(db);
+    return;
+  }
   while (version < CHAIN_VERSION) {
     version++;
     const record = chainCanonical({ kind: "version", version } satisfies VersionRecord);
     append(db, "version", null, record, record);
   }
-  current.add(db);
 }
 
 /**

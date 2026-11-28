@@ -15,6 +15,6 @@ supersedes: none
 
 **Why.** The runner's C5 sessions build the extension over scratch logs, and research runs keep no chain by design (the card's guard).
 
-**Result.** On a scratch log the extension adds two reads at construction (the chain tables and the genesis), no write and no statement per append. Cost if wrong: a caller who wants a fresh log chained must still call keepChain, as the shared opener does.
+**Result.** The check runs when the extension is built and again before every Plane call that may append (review finding 2), two reads, none once the handle keeps the chain; no write on a scratch log. Left: a chain begun between that check and the append it precedes leaves that one event unchained, and the log verifies FAILED at it; opening through openWorkspace, as the pi package does, has no such window. Cost if wrong: a caller who wants a fresh log chained must call keepChain.
 
-**Consequence.** No registered run changes (see the guard finding).
+**Consequence.** No registered run changes.

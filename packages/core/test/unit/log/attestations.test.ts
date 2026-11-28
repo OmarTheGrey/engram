@@ -246,6 +246,11 @@ forEachBackend((backend) => {
         raw.seq,
       );
       expect(verifyChain(db).first_break).toBeNull();
+      // But it must name the event at its seq (review of card E1.9, finding 8).
+      db.prepare("UPDATE event_attestations SET event_id = ? WHERE seq = ?").run(id(1), raw.seq);
+      expect(verifyChain(db).first_break).toMatchObject({ check: "attestations", seq: raw.seq });
+      expect(verifyChain(db).first_break?.detail).toMatch(/not the event at that seq/);
+      db.prepare("UPDATE event_attestations SET event_id = ? WHERE seq = ?").run(raw.id, raw.seq);
 
       // A keeping handle's next event upgrades the chain, then chains its attestation.
       const keeper = attestingHandle(db);
@@ -263,6 +268,32 @@ forEachBackend((backend) => {
         next.seq,
       );
       expect(verifyChain(db).first_break).toMatchObject({ check: "attestations", seq: next.seq });
+    });
+
+    test("an upgrade rolled back with its caller's transaction is made again at the next append", () => {
+      // Review of card E1.9, finding 1: the version entry appended inside an
+      // outer transaction that then throws is rolled back, so the handle must
+      // not take the chain for version 2 on its next append.
+      const db = open();
+      appendEvent(db, read());
+      asVersionOne(db);
+      const keeper = attestingHandle(db);
+      keepChain(keeper, seededKeeper(14));
+      keeper.next = KEY;
+      expect(() =>
+        keeper.transaction(() => {
+          appendEvent(keeper, event());
+          throw new Error("the caller fails after the append");
+        }),
+      ).toThrow(/caller fails/);
+      expect(db.prepare("SELECT count(*) AS n FROM chain WHERE kind = 'version'").get()?.n).toBe(0);
+      const next = appendEvent(keeper, event());
+      const kinds = db.prepare("SELECT kind FROM chain ORDER BY pos").all();
+      expect(kinds.map((k) => k.kind)).toEqual(["genesis", "event", "version", "event"]);
+      const r = verifyChain(db);
+      expect(r.first_break, JSON.stringify(r.first_break)).toBeNull();
+      expect(r.counts).toMatchObject({ attested: 1, events: 2 });
+      expect(rowAt(db, next.seq)).toBeDefined();
     });
 
     test("a version entry removed, repeated, skipping a version or carrying a digest under version 1 fails the links", () => {

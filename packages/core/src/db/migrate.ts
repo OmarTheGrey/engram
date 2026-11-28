@@ -265,8 +265,12 @@ export const MIGRATIONS: readonly Migration[] = [
  * a transaction, which holds the log's lock (SQLite: BEGIN IMMEDIATE;
  * Postgres: the log's advisory lock, transaction.ts). A migration another
  * process applied after this one first read the table is skipped, not
- * applied twice, and is not in the ids returned. The first read, outside any
- * transaction, only spares an up-to-date log the lock.
+ * applied twice, and is not in the ids returned. Every call takes the lock
+ * once, for the table's creation, even on an up-to-date log; the first read
+ * of the table, outside any transaction, spares such a log a lock per
+ * migration. The wait is bounded: a racer behind a migration slower than the
+ * busy timeout (SQLite, 5 s) or the statement timeout (Postgres) fails rather
+ * than waits.
  */
 export function migrate(db: Db, migrations: readonly Migration[] = MIGRATIONS): number[] {
   const create =

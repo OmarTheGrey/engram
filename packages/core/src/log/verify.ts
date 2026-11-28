@@ -119,7 +119,7 @@ export interface ChainReport {
     erased: number;
     manifests: number;
     checkpoints: number;
-    /** Attestation rows the chain vouches for: each chained, as a digest, with its event (version 2). */
+    /** Attestations chained, as a digest, with their events (version 2); counted from the entries, so in a failed report too. */
     attested: number;
     /** Attestation rows of events chained under version 1 or before the chain began: nothing vouches for them. */
     attestations_uncovered: number;
@@ -568,6 +568,9 @@ function walk(db: Db): Walk {
   // Attestations (card E1.9): from version 2 each chained event has exactly
   // the row its entry's digest names.
   const attestationRows = readAttestations(db);
+  // Counted from the entries, so a failed report counts them all too (review
+  // of card E1.9, finding 6).
+  counts.attested = [...digests.values()].filter((d) => d !== undefined).length;
   for (const [seq, digest] of digests) {
     const pos = entryPos.get(seq) ?? null;
     const row = attestationRows.get(seq);
@@ -595,7 +598,6 @@ function walk(db: Db): Walk {
         pos,
         seq,
       );
-    counts.attested++;
   }
   for (const seq of attestationRows.keys()) {
     if (digests.has(seq)) continue;
@@ -603,6 +605,16 @@ function walk(db: Db): Walk {
       return fail(
         "attestations",
         `an attestation row names seq ${seq}, which the log does not hold`,
+        null,
+        seq,
+      );
+    // Nothing vouches for an uncovered row, but it must at least name the
+    // event at its seq (review of card E1.9, finding 8).
+    const rowEvent = attestationRows.get(seq)?.event_id;
+    if (rowEvent !== String(events.get(seq)?.id))
+      return fail(
+        "attestations",
+        `the attestation row at seq ${seq} names event ${rowEvent}, which is not the event at that seq`,
         null,
         seq,
       );
