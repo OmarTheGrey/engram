@@ -12,10 +12,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** Every check's left set carries one forbid, the domain: requests Engram cannot express are out of every property.
+**What.** Every check's left set carries one forbid, the domain: requests the export cannot encode from a valid Engram request are out of every property.
 
-**Why.** The solver ranges over every request the Cedar schema types, including levels, statuses, classes and source kinds Engram does not have, any Long as an instant, and confidences outside [0, 1]. A counterexample there says nothing about Engram and cannot be replayed through its evaluator.
+**Why.** The solver ranges over every request the Cedar schema types.
 
-**Result.** The domain keeps the four levels, Engram's statuses, classes and source kinds, instants from 1970 to 9999 with nanoseconds below a billion, versions and ttls from 1 to 2^53 minus 1, and confidences in [0, 1] by their bits. Instants before 1970 are left out, though a timestamp can write them. The domain's text is in the result (`scope.domain`).
+**Result.** The domain keeps the four levels, Engram's statuses, classes and source kinds, instants from 0000 to 9999 (every year a timestamp writes) with nanoseconds below a billion, versions and ttls from 1 to 2^53 minus 1, and confidences in [0, 1] by their bits. On writes, the flattened grant flags only as cedarWriteRequest sets them: a change of grants is a rewrite with grants on one side, and the in-place transition keeps the scope, the owner and the grants. The result holds them (`scope.domains`).
 
-**Consequence.** If wrong, a property could fail only for a request outside the domain; widening it is one edit and a rerun.
+**Consequence.** A domain too narrow would hide a failure on a request Engram can express; widening it moves the result's bytes.
