@@ -45,54 +45,23 @@
       "headline": [
         {
           "label": "access-control checkpoints, scored set, reachable",
-          "path": [
-            "by_preset",
-            "medium",
-            "kinds",
-            "access",
-            "all",
-            "scored",
-            "reachable"
-          ]
+          "path": ["by_preset", "medium", "kinds", "access", "all", "scored", "reachable"]
         },
         {
           "label": "access-control checkpoints, scored set, located but unreachable",
-          "path": [
-            "by_preset",
-            "medium",
-            "kinds",
-            "access",
-            "all",
-            "scored",
-            "located_unreachable"
-          ]
+          "path": ["by_preset", "medium", "kinds", "access", "all", "scored", "located_unreachable"]
         },
         {
           "label": "forgetting checkpoints, scored set, reachable",
-          "path": [
-            "by_preset",
-            "medium",
-            "kinds",
-            "forgetting",
-            "all",
-            "scored",
-            "reachable"
-          ]
+          "path": ["by_preset", "medium", "kinds", "forgetting", "all", "scored", "reachable"]
         },
         {
           "label": "checkpoints where a plain refusal scores as a leak",
-          "path": [
-            "by_preset",
-            "medium",
-            "all",
-            "refusal_leak"
-          ]
+          "path": ["by_preset", "medium", "all", "refusal_leak"]
         },
         {
           "label": "identical across the three presets",
-          "path": [
-            "identical_across_presets"
-          ]
+          "path": ["identical_across_presets"]
         }
       ]
     },
@@ -105,53 +74,23 @@
       "headline": [
         {
           "label": "attacks admitted, medium",
-          "path": [
-            "by_preset",
-            "medium",
-            "families",
-            "attack",
-            "admitted"
-          ]
+          "path": ["by_preset", "medium", "families", "attack", "admitted"]
         },
         {
           "label": "benign cases admitted, medium",
-          "path": [
-            "by_preset",
-            "medium",
-            "families",
-            "legit",
-            "admitted"
-          ]
+          "path": ["by_preset", "medium", "families", "legit", "admitted"]
         },
         {
           "label": "attacks admitted, strict",
-          "path": [
-            "by_preset",
-            "strict",
-            "families",
-            "attack",
-            "admitted"
-          ]
+          "path": ["by_preset", "strict", "families", "attack", "admitted"]
         },
         {
           "label": "attacks admitted, strict, through the summarize channel",
-          "path": [
-            "by_preset",
-            "strict",
-            "laundering",
-            "summarize",
-            "admitted"
-          ]
+          "path": ["by_preset", "strict", "laundering", "summarize", "admitted"]
         },
         {
           "label": "team:operations entries admitted, strict",
-          "path": [
-            "by_preset",
-            "strict",
-            "entries_by_scope",
-            "team:operations",
-            "admitted"
-          ]
+          "path": ["by_preset", "strict", "entries_by_scope", "team:operations", "admitted"]
         }
       ]
     },
@@ -164,53 +103,23 @@
       "headline": [
         {
           "label": "turn items, medium",
-          "path": [
-            "by_preset",
-            "medium",
-            "all",
-            "all",
-            "items"
-          ]
+          "path": ["by_preset", "medium", "all", "all", "items"]
         },
         {
           "label": "share agreeing, all turn items",
-          "path": [
-            "by_preset",
-            "medium",
-            "all",
-            "all",
-            "share_agree"
-          ]
+          "path": ["by_preset", "medium", "all", "all", "share_agree"]
         },
         {
           "label": "gate allows, plane denies",
-          "path": [
-            "by_preset",
-            "medium",
-            "all",
-            "all",
-            "rag_allows_engram_denies"
-          ]
+          "path": ["by_preset", "medium", "all", "all", "rag_allows_engram_denies"]
         },
         {
           "label": "gate denies, plane allows",
-          "path": [
-            "by_preset",
-            "medium",
-            "all",
-            "all",
-            "rag_denies_engram_allows"
-          ]
+          "path": ["by_preset", "medium", "all", "all", "rag_denies_engram_allows"]
         },
         {
           "label": "share agreeing, leak-target items",
-          "path": [
-            "by_preset",
-            "medium",
-            "all",
-            "leak",
-            "share_agree"
-          ]
+          "path": ["by_preset", "medium", "all", "leak", "share_agree"]
         }
       ]
     },
@@ -223,51 +132,23 @@
       "headline": [
         {
           "label": "items C4 shows, medium",
-          "path": [
-            "by_preset",
-            "medium",
-            "all",
-            "items",
-            "c4"
-          ]
+          "path": ["by_preset", "medium", "all", "items", "c4"]
         },
         {
           "label": "items C3 shows, medium",
-          "path": [
-            "by_preset",
-            "medium",
-            "all",
-            "items",
-            "c3"
-          ]
+          "path": ["by_preset", "medium", "all", "items", "c3"]
         },
         {
           "label": "checkpoints where C4's allowed items equal C5's",
-          "path": [
-            "by_preset",
-            "medium",
-            "all",
-            "c4_allowed_equals_c5"
-          ]
+          "path": ["by_preset", "medium", "all", "c4_allowed_equals_c5"]
         },
         {
           "label": "checkpoints where C4 shows nothing though C3 has candidates",
-          "path": [
-            "by_preset",
-            "medium",
-            "all",
-            "c4_empty_with_candidates"
-          ]
+          "path": ["by_preset", "medium", "all", "c4_empty_with_candidates"]
         },
         {
           "label": "median C4 read length",
-          "path": [
-            "by_preset",
-            "medium",
-            "all",
-            "c4_length",
-            "median"
-          ]
+          "path": ["by_preset", "medium", "all", "c4_length", "median"]
         }
       ]
     },
@@ -280,31 +161,19 @@
       "headline": [
         {
           "label": "access-control checkpoints listed",
-          "path": [
-            "counts",
-            "access"
-          ]
+          "path": ["counts", "access"]
         },
         {
           "label": "forgetting checkpoints listed",
-          "path": [
-            "counts",
-            "forgetting"
-          ]
+          "path": ["counts", "forgetting"]
         },
         {
           "label": "access-control checkpoints in the set",
-          "path": [
-            "checkpoints",
-            "access"
-          ]
+          "path": ["checkpoints", "access"]
         },
         {
           "label": "forgetting checkpoints in the set",
-          "path": [
-            "checkpoints",
-            "forgetting"
-          ]
+          "path": ["checkpoints", "forgetting"]
         }
       ]
     },
@@ -318,47 +187,23 @@
       "headline": [
         {
           "label": "GateMem sessions",
-          "path": [
-            "sizes",
-            "gatemem",
-            "sessions"
-          ]
+          "path": ["sizes", "gatemem", "sessions"]
         },
         {
           "label": "GateMem answer input tokens, low",
-          "path": [
-            "tokens",
-            "gatemem",
-            "low",
-            "input"
-          ]
+          "path": ["tokens", "gatemem", "low", "input"]
         },
         {
           "label": "GateMem answer input tokens, high",
-          "path": [
-            "tokens",
-            "gatemem",
-            "high",
-            "input"
-          ]
+          "path": ["tokens", "gatemem", "high", "input"]
         },
         {
           "label": "judge dollars, low",
-          "path": [
-            "judge",
-            "cost",
-            "judge",
-            "low"
-          ]
+          "path": ["judge", "cost", "judge", "low"]
         },
         {
           "label": "judge dollars, high",
-          "path": [
-            "judge",
-            "cost",
-            "judge",
-            "high"
-          ]
+          "path": ["judge", "cost", "judge", "high"]
         },
         {
           "label": "M1 with the judge, dollars, high",
@@ -427,17 +272,11 @@
         },
         {
           "label": "all three, dollars, low",
-          "path": [
-            "total",
-            "low"
-          ]
+          "path": ["total", "low"]
         },
         {
           "label": "all three, dollars, high",
-          "path": [
-            "total",
-            "high"
-          ]
+          "path": ["total", "high"]
         },
         {
           "label": "the smoke runs' model",
@@ -461,47 +300,27 @@
       "headline": [
         {
           "label": "GateMem items drawn",
-          "path": [
-            "benchmarks",
-            "gatemem",
-            "items"
-          ]
+          "path": ["benchmarks", "gatemem", "items"]
         },
         {
           "label": "GateMem stop at rejected items",
-          "path": [
-            "benchmarks",
-            "gatemem",
-            "stop_at_rejected"
-          ]
+          "path": ["benchmarks", "gatemem", "stop_at_rejected"]
         },
         {
           "label": "MEM-INV-Bench items drawn",
-          "path": [
-            "benchmarks",
-            "mem-inv-bench",
-            "items"
-          ]
+          "path": ["benchmarks", "mem-inv-bench", "items"]
         },
         {
           "label": "MEM-INV-Bench stop at rejected items",
-          "path": [
-            "benchmarks",
-            "mem-inv-bench",
-            "stop_at_rejected"
-          ]
+          "path": ["benchmarks", "mem-inv-bench", "stop_at_rejected"]
         },
         {
           "label": "members needed to reject an item",
-          "path": [
-            "reject_quorum"
-          ]
+          "path": ["reject_quorum"]
         },
         {
           "label": "on a tripped stop",
-          "path": [
-            "on_stop"
-          ]
+          "path": ["on_stop"]
         }
       ]
     },
@@ -514,54 +333,27 @@
       "headline": [
         {
           "label": "turns in all",
-          "path": [
-            "turns"
-          ]
+          "path": ["turns"]
         },
         {
           "label": "turns hidden, medium, at B5's read time",
-          "path": [
-            "by_preset",
-            "medium",
-            "read_time",
-            "hidden_turns"
-          ]
+          "path": ["by_preset", "medium", "read_time", "hidden_turns"]
         },
         {
           "label": "questions with a hidden turn, medium, read time",
-          "path": [
-            "by_preset",
-            "medium",
-            "read_time",
-            "questions_with_hidden_turns"
-          ]
+          "path": ["by_preset", "medium", "read_time", "questions_with_hidden_turns"]
         },
         {
           "label": "questions losing an evidence turn, medium, read time",
-          "path": [
-            "by_preset",
-            "medium",
-            "read_time",
-            "questions_losing_evidence"
-          ]
+          "path": ["by_preset", "medium", "read_time", "questions_losing_evidence"]
         },
         {
           "label": "questions losing all evidence, medium, read time",
-          "path": [
-            "by_preset",
-            "medium",
-            "read_time",
-            "questions_losing_all_evidence"
-          ]
+          "path": ["by_preset", "medium", "read_time", "questions_losing_all_evidence"]
         },
         {
           "label": "turns hidden, strict, read time",
-          "path": [
-            "by_preset",
-            "strict",
-            "read_time",
-            "hidden_turns"
-          ]
+          "path": ["by_preset", "strict", "read_time", "hidden_turns"]
         }
       ]
     },
@@ -574,57 +366,27 @@
       "headline": [
         {
           "label": "GateMem turn reads hidden, grants off",
-          "path": [
-            "gatemem",
-            "by_variant",
-            "grants-off",
-            "hidden_vs_baseline"
-          ]
+          "path": ["gatemem", "by_variant", "grants-off", "hidden_vs_baseline"]
         },
         {
           "label": "GateMem checkpoints changed, grants off",
-          "path": [
-            "gatemem",
-            "by_variant",
-            "grants-off",
-            "checkpoints_changed"
-          ]
+          "path": ["gatemem", "by_variant", "grants-off", "checkpoints_changed"]
         },
         {
           "label": "GateMem checkpoints changed, ttl 1 day",
-          "path": [
-            "gatemem",
-            "by_variant",
-            "ttl-1d",
-            "checkpoints_changed"
-          ]
+          "path": ["gatemem", "by_variant", "ttl-1d", "checkpoints_changed"]
         },
         {
           "label": "LongMemEval questions changed, ttl 7 days",
-          "path": [
-            "longmemeval",
-            "by_variant",
-            "ttl-7d",
-            "questions_changed"
-          ]
+          "path": ["longmemeval", "by_variant", "ttl-7d", "questions_changed"]
         },
         {
           "label": "LongMemEval turns hidden, ttl 30 days",
-          "path": [
-            "longmemeval",
-            "by_variant",
-            "ttl-30d",
-            "hidden_turns"
-          ]
+          "path": ["longmemeval", "by_variant", "ttl-30d", "hidden_turns"]
         },
         {
           "label": "LongMemEval writes denied, budget 25",
-          "path": [
-            "longmemeval",
-            "by_variant",
-            "budget-25",
-            "denied_writes"
-          ]
+          "path": ["longmemeval", "by_variant", "budget-25", "denied_writes"]
         }
       ]
     },
@@ -637,20 +399,11 @@
       "headline": [
         {
           "label": "sessions per baseline",
-          "path": [
-            "sizes",
-            "c2",
-            "sessions"
-          ]
+          "path": ["sizes", "c2", "sessions"]
         },
         {
           "label": "items per read under C2",
-          "path": [
-            "measured",
-            "c2",
-            "full_set",
-            "items_per_read"
-          ]
+          "path": ["measured", "c2", "full_set", "items_per_read"]
         },
         {
           "label": "M1, both baselines with the judge, catalogue dollars, low",
@@ -676,12 +429,7 @@
         },
         {
           "label": "judge dollars per baseline, high",
-          "path": [
-            "judge",
-            "cost",
-            "judge_c2",
-            "high"
-          ]
+          "path": ["judge", "cost", "judge_c2", "high"]
         }
       ]
     },
@@ -695,37 +443,23 @@
       "headline": [
         {
           "label": "questions drawn",
-          "path": [
-            "benchmarks",
-            "longmemeval",
-            "items"
-          ]
+          "path": ["benchmarks", "longmemeval", "items"]
         },
         {
           "label": "stop at rejected items",
-          "path": [
-            "benchmarks",
-            "longmemeval",
-            "stop_at_rejected"
-          ]
+          "path": ["benchmarks", "longmemeval", "stop_at_rejected"]
         },
         {
           "label": "members needed to reject an item",
-          "path": [
-            "reject_quorum"
-          ]
+          "path": ["reject_quorum"]
         },
         {
           "label": "on a tripped stop",
-          "path": [
-            "on_stop"
-          ]
+          "path": ["on_stop"]
         },
         {
           "label": "hypotheses served, as the file states",
-          "path": [
-            "hypothesis"
-          ]
+          "path": ["hypothesis"]
         }
       ]
     },
@@ -738,38 +472,23 @@
       "headline": [
         {
           "label": "states",
-          "path": [
-            "label_check",
-            "states"
-          ]
+          "path": ["label_check", "states"]
         },
         {
           "label": "events",
-          "path": [
-            "events"
-          ]
+          "path": ["events"]
         },
         {
           "label": "labels",
-          "path": [
-            "labels",
-            "total"
-          ]
+          "path": ["labels", "total"]
         },
         {
           "label": "keyed faults flagged",
-          "path": [
-            "label_check",
-            "keyed_faults_flagged"
-          ]
+          "path": ["label_check", "keyed_faults_flagged"]
         },
         {
           "label": "duplicate findings on base items, for the members' audit",
-          "path": [
-            "audit",
-            "findings",
-            "duplicate"
-          ]
+          "path": ["audit", "findings", "duplicate"]
         }
       ]
     },
@@ -783,52 +502,27 @@
       "headline": [
         {
           "label": "keyed recall",
-          "path": [
-            "overall",
-            "keyed",
-            "recall",
-            "value"
-          ]
+          "path": ["overall", "keyed", "recall", "value"]
         },
         {
           "label": "unkeyed recall",
-          "path": [
-            "overall",
-            "unkeyed",
-            "recall",
-            "value"
-          ]
+          "path": ["overall", "unkeyed", "recall", "value"]
         },
         {
           "label": "stale recall, keyed and unkeyed pooled",
-          "path": [
-            "by_class",
-            "stale",
-            "all",
-            "recall",
-            "value"
-          ]
+          "path": ["by_class", "stale", "all", "recall", "value"]
         },
         {
           "label": "unverified findings on base items",
-          "path": [
-            "unverified",
-            "base"
-          ]
+          "path": ["unverified", "base"]
         },
         {
           "label": "pooled precision, lower bound with the unverified findings",
-          "path": [
-            "precision_with_unverified",
-            "lower"
-          ]
+          "path": ["precision_with_unverified", "lower"]
         },
         {
           "label": "calls of the registered live model-lint run",
-          "path": [
-            "model_run",
-            "calls"
-          ]
+          "path": ["model_run", "calls"]
         }
       ]
     },
@@ -842,53 +536,27 @@
       "headline": [
         {
           "label": "pairs compared",
-          "path": [
-            "agreement",
-            "pairs"
-          ]
+          "path": ["agreement", "pairs"]
         },
         {
           "label": "agreement with datasketch at 0.85, all pairs",
-          "path": [
-            "agreement",
-            "by_threshold",
-            "0.85",
-            "tier_vs_oracle",
-            "rate"
-          ]
+          "path": ["agreement", "by_threshold", "0.85", "tier_vs_oracle", "rate"]
         },
         {
           "label": "near pairs",
-          "path": [
-            "agreement",
-            "near_pairs",
-            "pairs"
-          ]
+          "path": ["agreement", "near_pairs", "pairs"]
         },
         {
           "label": "agreement at 0.85, near pairs",
-          "path": [
-            "agreement",
-            "near_pairs",
-            "by_threshold",
-            "0.85",
-            "rate"
-          ]
+          "path": ["agreement", "near_pairs", "by_threshold", "0.85", "rate"]
         },
         {
           "label": "fixture precision",
-          "path": [
-            "labelled",
-            "precision",
-            "rate"
-          ]
+          "path": ["labelled", "precision", "rate"]
         },
         {
           "label": "items cut by the candidate cap",
-          "path": [
-            "capped",
-            "items"
-          ]
+          "path": ["capped", "items"]
         }
       ]
     },
@@ -902,52 +570,27 @@
       "headline": [
         {
           "label": "model tier's contradiction calls, seed 1",
-          "path": [
-            "per_seed",
-            "1",
-            "calls",
-            "model_tier_contradiction"
-          ]
+          "path": ["per_seed", "1", "calls", "model_tier_contradiction"]
         },
         {
           "label": "calls the NLI tier drops, seed 1",
-          "path": [
-            "per_seed",
-            "1",
-            "calls",
-            "saved"
-          ]
+          "path": ["per_seed", "1", "calls", "saved"]
         },
         {
           "label": "pairs the NLI tier flags, seed 1",
-          "path": [
-            "per_seed",
-            "1",
-            "bands",
-            "flag"
-          ]
+          "path": ["per_seed", "1", "bands", "flag"]
         },
         {
           "label": "items with forward-only flags",
-          "path": [
-            "forward_only_flags",
-            "items"
-          ]
+          "path": ["forward_only_flags", "items"]
         },
         {
           "label": "new model calls on replay",
-          "path": [
-            "replays",
-            "tiered",
-            "calls",
-            "new"
-          ]
+          "path": ["replays", "tiered", "calls", "new"]
         },
         {
           "label": "decides a hypothesis",
-          "path": [
-            "decides"
-          ]
+          "path": ["decides"]
         }
       ]
     },
@@ -960,123 +603,54 @@
       "question": "When deletion, temporal-supersession and missing-metadata faults corrupt the memory states of the pinned S split's 500 questions, written as card B5 writes them, at the projection or in the log, how often does the read change, how often does the plane's own enforcement restore it, and do the deterministic lints or the log's hash chain see the fault?",
       "note": "Card X18's check of proposal U6, which is not registered (the lead registered U7 only): a proof of concept that supports H3 and is not H3's test, measuring state recovery, not H3's utility recovery. Model-free. Every column is fixed by the fault's shape (the result's limits): projection faults recover by replay by construction, and the lints never rewrite. Verification catches an edit that does not re-chain the log; a re-chained log reads UNSIGNED, as the controls do, unless a checkpoint is held outside the database.",
       "meter": {
-        "part": [
-          "by_place",
-          "log",
-          "verify_detection",
-          "successes"
-        ],
-        "whole": [
-          "by_place",
-          "log",
-          "verify_detection",
-          "n"
-        ],
+        "part": ["by_place", "log", "verify_detection", "successes"],
+        "whole": ["by_place", "log", "verify_detection", "n"],
         "label": "log edits verification caught (edits that do not re-chain)"
       },
       "headline": [
         {
           "label": "pairs faulted",
-          "path": [
-            "pairs",
-            "targeted"
-          ]
+          "path": ["pairs", "targeted"]
         },
         {
           "label": "projection deletion: recovery by replay",
-          "path": [
-            "cells",
-            "deletion",
-            "projection",
-            "recovery",
-            "rate"
-          ]
+          "path": ["cells", "deletion", "projection", "recovery", "rate"]
         },
         {
           "label": "log deletion: change rate",
-          "path": [
-            "cells",
-            "deletion",
-            "log",
-            "change",
-            "rate"
-          ]
+          "path": ["cells", "deletion", "log", "change", "rate"]
         },
         {
           "label": "log deletion: recovery after the deterministic lints",
-          "path": [
-            "cells",
-            "deletion",
-            "log",
-            "recovery",
-            "rate"
-          ]
+          "path": ["cells", "deletion", "log", "recovery", "rate"]
         },
         {
           "label": "log deletion: lint detection",
-          "path": [
-            "cells",
-            "deletion",
-            "log",
-            "lint_detection",
-            "rate"
-          ]
+          "path": ["cells", "deletion", "log", "lint_detection", "rate"]
         },
         {
           "label": "log supersession: change rate",
-          "path": [
-            "cells",
-            "temporal-supersession",
-            "log",
-            "change",
-            "rate"
-          ]
+          "path": ["cells", "temporal-supersession", "log", "change", "rate"]
         },
         {
           "label": "log supersession: lint detection",
-          "path": [
-            "cells",
-            "temporal-supersession",
-            "log",
-            "lint_detection",
-            "rate"
-          ]
+          "path": ["cells", "temporal-supersession", "log", "lint_detection", "rate"]
         },
         {
           "label": "log missing metadata: change rate",
-          "path": [
-            "cells",
-            "missing-metadata",
-            "log",
-            "change",
-            "rate"
-          ]
+          "path": ["cells", "missing-metadata", "log", "change", "rate"]
         },
         {
           "label": "log missing metadata: lint detection",
-          "path": [
-            "cells",
-            "missing-metadata",
-            "log",
-            "lint_detection",
-            "rate"
-          ]
+          "path": ["cells", "missing-metadata", "log", "lint_detection", "rate"]
         },
         {
           "label": "log edits `engram log verify` detects (no re-chain)",
-          "path": [
-            "by_place",
-            "log",
-            "verify_detection",
-            "rate"
-          ]
+          "path": ["by_place", "log", "verify_detection", "rate"]
         },
         {
           "label": "unedited control logs that fail verification",
-          "path": [
-            "control",
-            "verify_failed"
-          ]
+          "path": ["control", "verify_failed"]
         }
       ]
     },
@@ -1159,9 +733,7 @@
         },
         {
           "label": "seed",
-          "path": [
-            "seed"
-          ]
+          "path": ["seed"]
         }
       ]
     },
@@ -1174,23 +746,15 @@
       "headline": [
         {
           "label": "every size holds at every threshold",
-          "path": [
-            "all_hold"
-          ]
+          "path": ["all_hold"]
         },
         {
           "label": "tightest size, items",
-          "path": [
-            "tightest",
-            "items"
-          ]
+          "path": ["tightest", "items"]
         },
         {
           "label": "tightest slack",
-          "path": [
-            "tightest",
-            "slack"
-          ]
+          "path": ["tightest", "slack"]
         },
         {
           "label": "H4's registered size at margin 0.05, level at k = 5, Holm threshold 0.01",
@@ -1230,48 +794,23 @@
       "headline": [
         {
           "label": "attacks escaping, default profile",
-          "path": [
-            "profiles",
-            "default",
-            "escape",
-            "count"
-          ]
+          "path": ["profiles", "default", "escape", "count"]
         },
         {
           "label": "escape rate, default profile",
-          "path": [
-            "profiles",
-            "default",
-            "escape",
-            "rate"
-          ]
+          "path": ["profiles", "default", "escape", "rate"]
         },
         {
           "label": "benign controls held, default profile",
-          "path": [
-            "profiles",
-            "default",
-            "false_hold",
-            "count"
-          ]
+          "path": ["profiles", "default", "false_hold", "count"]
         },
         {
           "label": "false-hold rate, default profile",
-          "path": [
-            "profiles",
-            "default",
-            "false_hold",
-            "rate"
-          ]
+          "path": ["profiles", "default", "false_hold", "rate"]
         },
         {
           "label": "false-hold rate, hardened profile",
-          "path": [
-            "profiles",
-            "hardened",
-            "false_hold",
-            "rate"
-          ]
+          "path": ["profiles", "hardened", "false_hold", "rate"]
         }
       ]
     },
@@ -1285,53 +824,27 @@
       "headline": [
         {
           "label": "synthetic secrets at the expected tier",
-          "path": [
-            "synthetic",
-            "overall",
-            "at_expected_tier",
-            "k"
-          ]
+          "path": ["synthetic", "overall", "at_expected_tier", "k"]
         },
         {
           "label": "synthetic secrets in all",
-          "path": [
-            "synthetic",
-            "overall",
-            "at_expected_tier",
-            "n"
-          ]
+          "path": ["synthetic", "overall", "at_expected_tier", "n"]
         },
         {
           "label": "benign paragraphs denied",
-          "path": [
-            "benign",
-            "denied",
-            "k"
-          ]
+          "path": ["benign", "denied", "k"]
         },
         {
           "label": "benign paragraphs held",
-          "path": [
-            "benign",
-            "held",
-            "k"
-          ]
+          "path": ["benign", "held", "k"]
         },
         {
           "label": "benign paragraphs in all",
-          "path": [
-            "benign",
-            "held",
-            "n"
-          ]
+          "path": ["benign", "held", "n"]
         },
         {
           "label": "benign hold rate",
-          "path": [
-            "benign",
-            "held",
-            "rate"
-          ]
+          "path": ["benign", "held", "rate"]
         }
       ]
     },
@@ -1345,17 +858,11 @@
       "headline": [
         {
           "label": "attacks in the corpus",
-          "path": [
-            "corpus",
-            "attacks"
-          ]
+          "path": ["corpus", "attacks"]
         },
         {
           "label": "benign controls in the corpus",
-          "path": [
-            "corpus",
-            "controls_total"
-          ]
+          "path": ["corpus", "controls_total"]
         },
         {
           "label": "attack survival, medium",
@@ -1417,38 +924,23 @@
       "headline": [
         {
           "label": "claims",
-          "path": [
-            "summary",
-            "claims"
-          ]
+          "path": ["summary", "claims"]
         },
         {
           "label": "claims evidenced by a test",
-          "path": [
-            "summary",
-            "evidenced"
-          ]
+          "path": ["summary", "evidenced"]
         },
         {
           "label": "tests cited",
-          "path": [
-            "summary",
-            "tests"
-          ]
+          "path": ["summary", "tests"]
         },
         {
           "label": "test files cited",
-          "path": [
-            "summary",
-            "test_files"
-          ]
+          "path": ["summary", "test_files"]
         },
         {
           "label": "obligations",
-          "path": [
-            "summary",
-            "obligations"
-          ]
+          "path": ["summary", "obligations"]
         }
       ]
     },
@@ -1462,46 +954,19 @@
       "headline": [
         {
           "label": "calls, high",
-          "path": [
-            "decided",
-            "totals",
-            "openrouter-prices",
-            "d-lead",
-            "calls",
-            "high"
-          ]
+          "path": ["decided", "totals", "openrouter-prices", "d-lead", "calls", "high"]
         },
         {
           "label": "dollars, low",
-          "path": [
-            "decided",
-            "totals",
-            "openrouter-prices",
-            "d-lead",
-            "dollars",
-            "low"
-          ]
+          "path": ["decided", "totals", "openrouter-prices", "d-lead", "dollars", "low"]
         },
         {
           "label": "dollars, high",
-          "path": [
-            "decided",
-            "totals",
-            "openrouter-prices",
-            "d-lead",
-            "dollars",
-            "high"
-          ]
+          "path": ["decided", "totals", "openrouter-prices", "d-lead", "dollars", "high"]
         },
         {
           "label": "ceiling, dollars",
-          "path": [
-            "decided",
-            "totals",
-            "openrouter-prices",
-            "d-lead",
-            "ceiling"
-          ]
+          "path": ["decided", "totals", "openrouter-prices", "d-lead", "ceiling"]
         },
         {
           "label": "H1, dollars, high",
@@ -1593,14 +1058,8 @@
       "file": "research/results/h1-leakage.json",
       "title": "Leakage across every surface",
       "meter": {
-        "part": [
-          "totals",
-          "leaks"
-        ],
-        "whole": [
-          "totals",
-          "probes"
-        ],
+        "part": ["totals", "leaks"],
+        "whole": ["totals", "probes"],
         "label": "probes leaked nothing",
         "complement": "leaked a canary"
       },
@@ -1612,103 +1071,55 @@
       "headline": [
         {
           "label": "canaries written",
-          "path": [
-            "canaries",
-            "written"
-          ]
+          "path": ["canaries", "written"]
         },
         {
           "label": "probes, all surfaces",
-          "path": [
-            "totals",
-            "probes"
-          ]
+          "path": ["totals", "probes"]
         },
         {
           "label": "leaks, all surfaces",
-          "path": [
-            "totals",
-            "leaks"
-          ]
+          "path": ["totals", "leaks"]
         },
         {
           "label": "probes over the HTTP API",
-          "path": [
-            "surfaces",
-            "http",
-            "probes"
-          ]
+          "path": ["surfaces", "http", "probes"]
         },
         {
           "label": "probes over MCP",
-          "path": [
-            "surfaces",
-            "mcp",
-            "probes"
-          ]
+          "path": ["surfaces", "mcp", "probes"]
         },
         {
           "label": "probes through the CLI",
-          "path": [
-            "surfaces",
-            "cli",
-            "probes"
-          ]
+          "path": ["surfaces", "cli", "probes"]
         },
         {
           "label": "probes through the TUI",
-          "path": [
-            "surfaces",
-            "tui",
-            "probes"
-          ]
+          "path": ["surfaces", "tui", "probes"]
         },
         {
           "label": "probes through the pi extension",
-          "path": [
-            "surfaces",
-            "pi",
-            "probes"
-          ]
+          "path": ["surfaces", "pi", "probes"]
         },
         {
           "label": "denied and missing ids compared over the HTTP API",
-          "path": [
-            "denied_and_missing",
-            "http",
-            "compared"
-          ]
+          "path": ["denied_and_missing", "http", "compared"]
         },
         {
           "label": "of them answering alike",
-          "path": [
-            "denied_and_missing",
-            "http",
-            "alike"
-          ]
+          "path": ["denied_and_missing", "http", "alike"]
         },
         {
           "label": "of them pinned as telling existence: writes under a held id",
-          "path": [
-            "denied_and_missing",
-            "http",
-            "characterised",
-            "write"
-          ]
+          "path": ["denied_and_missing", "http", "characterised", "write"]
         },
         {
           "label": "a model's operations through the HTTP API agreeing with MCP",
-          "path": [
-            "parity",
-            "http (model)",
-            "same"
-          ]
+          "path": ["parity", "http (model)", "same"]
         },
         {
           "label": "the suite passed",
-          "path": [
-            "suite_passed"
-          ]
+          "path": ["suite_passed"]
         }
       ]
     },
@@ -1716,14 +1127,8 @@
       "file": "research/results/h1-quint-trace-replay.json",
       "title": "Trace replay against the Quint model",
       "meter": {
-        "part": [
-          "totals",
-          "steps_matched"
-        ],
-        "whole": [
-          "totals",
-          "steps"
-        ],
+        "part": ["totals", "steps_matched"],
+        "whole": ["totals", "steps"],
         "label": "model steps matched by the code"
       },
       "hypothesis": "none",
@@ -1734,46 +1139,27 @@
       "headline": [
         {
           "label": "traces",
-          "path": [
-            "totals",
-            "traces"
-          ]
+          "path": ["totals", "traces"]
         },
         {
           "label": "replayed to their end",
-          "path": [
-            "totals",
-            "replayed"
-          ]
+          "path": ["totals", "replayed"]
         },
         {
           "label": "steps matched",
-          "path": [
-            "totals",
-            "steps_matched"
-          ]
+          "path": ["totals", "steps_matched"]
         },
         {
           "label": "steps",
-          "path": [
-            "totals",
-            "steps"
-          ]
+          "path": ["totals", "steps"]
         },
         {
           "label": "states compared",
-          "path": [
-            "totals",
-            "states_compared"
-          ]
+          "path": ["totals", "states_compared"]
         },
         {
           "label": "diverged, unexplained",
-          "path": [
-            "totals",
-            "diverged_by_finding",
-            "unexplained"
-          ]
+          "path": ["totals", "diverged_by_finding", "unexplained"]
         }
       ]
     },
@@ -1781,14 +1167,8 @@
       "file": "research/results/h1-gate-mutation-audit.json",
       "title": "Mutation audit of the gate",
       "meter": {
-        "part": [
-          "totals",
-          "killed"
-        ],
-        "whole": [
-          "totals",
-          "mutants"
-        ],
+        "part": ["totals", "killed"],
+        "whole": ["totals", "mutants"],
         "label": "mutants killed"
       },
       "hypothesis": "none",
@@ -1799,47 +1179,27 @@
       "headline": [
         {
           "label": "mutants",
-          "path": [
-            "totals",
-            "mutants"
-          ]
+          "path": ["totals", "mutants"]
         },
         {
           "label": "killed",
-          "path": [
-            "totals",
-            "killed"
-          ]
+          "path": ["totals", "killed"]
         },
         {
           "label": "survived",
-          "path": [
-            "totals",
-            "survived"
-          ]
+          "path": ["totals", "survived"]
         },
         {
           "label": "kill rate",
-          "path": [
-            "totals",
-            "kill_rate"
-          ]
+          "path": ["totals", "kill_rate"]
         },
         {
           "label": "two-handle offboarding walk, killed",
-          "path": [
-            "per_invariant",
-            "I1H",
-            "killed"
-          ]
+          "path": ["per_invariant", "I1H", "killed"]
         },
         {
           "label": "log chain, killed",
-          "path": [
-            "per_invariant",
-            "I9",
-            "killed"
-          ]
+          "path": ["per_invariant", "I9", "killed"]
         }
       ]
     },
@@ -1847,14 +1207,8 @@
       "file": "research/results/h2-cedar-properties.json",
       "title": "Cedar proofs of the presets' properties",
       "meter": {
-        "part": [
-          "summary",
-          "as_expected"
-        ],
-        "whole": [
-          "summary",
-          "checks"
-        ],
+        "part": ["summary", "as_expected"],
+        "whole": ["summary", "checks"],
         "label": "properties proved or refuted as expected"
       },
       "hypothesis": "none",
@@ -1864,38 +1218,23 @@
       "headline": [
         {
           "label": "checks",
-          "path": [
-            "summary",
-            "checks"
-          ]
+          "path": ["summary", "checks"]
         },
         {
           "label": "proved",
-          "path": [
-            "summary",
-            "proved"
-          ]
+          "path": ["summary", "proved"]
         },
         {
           "label": "refuted (the control and the non-vacuity checks, all expected to fail)",
-          "path": [
-            "summary",
-            "refuted"
-          ]
+          "path": ["summary", "refuted"]
         },
         {
           "label": "refutations the evaluator reproduces",
-          "path": [
-            "summary",
-            "reproduced"
-          ]
+          "path": ["summary", "reproduced"]
         },
         {
           "label": "every check as the config expects",
-          "path": [
-            "summary",
-            "all_as_expected"
-          ]
+          "path": ["summary", "all_as_expected"]
         }
       ],
       "note": "Card E2.18. Proved by cedar-policy-symcc 0.8.1 and cvc5 1.4.2 of exportCedar's text, modulo grants (ADR 0041, decision 5), not of evaluate.ts itself: the two are tied only by card E2.12's differential test, which samples requests (`scope.evaluator`). `make verify-policy` reruns it; without cargo or cvc5 `make test-repro` reports the row as skipped. The file is under `h2-` for the results glob only."
@@ -1907,14 +1246,8 @@
       "prereg": null,
       "title": "Quote grounding of the model lints",
       "meter": {
-        "part": [
-          "totals",
-          "grounded_findings"
-        ],
-        "whole": [
-          "totals",
-          "plain_findings"
-        ],
+        "part": ["totals", "grounded_findings"],
+        "whole": ["totals", "plain_findings"],
         "label": "findings of card L3's run kept with their quotes found (scripted, planted quotes)"
       },
       "question": "With `lints.model.evidence` on, does the quote check keep a model flag whose quotes are in its items and downgrade one whose quote is invented, paraphrased or too short, on card L3's model fault fixtures, while the option absent leaves card L3's run as it was?",
@@ -1922,53 +1255,31 @@
       "headline": [
         {
           "label": "findings with the option absent (card L3's run)",
-          "path": [
-            "totals",
-            "plain_findings"
-          ]
+          "path": ["totals", "plain_findings"]
         },
         {
           "label": "of them against a pass label",
-          "path": [
-            "totals",
-            "plain_false_findings"
-          ]
+          "path": ["totals", "plain_false_findings"]
         },
         {
           "label": "findings with quote grounding on",
-          "path": [
-            "totals",
-            "grounded_findings"
-          ]
+          "path": ["totals", "grounded_findings"]
         },
         {
           "label": "of them against a pass label",
-          "path": [
-            "totals",
-            "grounded_false_findings"
-          ]
+          "path": ["totals", "grounded_false_findings"]
         },
         {
           "label": "flags downgraded to ungrounded",
-          "path": [
-            "totals",
-            "ungrounded"
-          ]
+          "path": ["totals", "ungrounded"]
         },
         {
           "label": "of them labelled flag (planted: a paraphrase, a short quote)",
-          "path": [
-            "totals",
-            "ungrounded_true_flags"
-          ]
+          "path": ["totals", "ungrounded_true_flags"]
         },
         {
           "label": "new model calls on replay, grounded run",
-          "path": [
-            "calls",
-            "grounded",
-            "new"
-          ]
+          "path": ["calls", "grounded", "new"]
         }
       ]
     },
@@ -1982,59 +1293,35 @@
       "headline": [
         {
           "label": "re-validations",
-          "path": [
-            "counts",
-            "revalidations"
-          ]
+          "path": ["counts", "revalidations"]
         },
         {
           "label": "retired",
-          "path": [
-            "counts",
-            "retired"
-          ]
+          "path": ["counts", "retired"]
         },
         {
           "label": "restored",
-          "path": [
-            "counts",
-            "restored"
-          ]
+          "path": ["counts", "restored"]
         },
         {
           "label": "the held-out task changed",
-          "path": [
-            "changed_tasks",
-            0
-          ]
+          "path": ["changed_tasks", 0]
         },
         {
           "label": "success rate after the change",
-          "path": [
-            "revalidations",
-            0,
-            "rate"
-          ]
+          "path": ["revalidations", 0, "rate"]
         },
         {
           "label": "success floor (medium)",
-          "path": [
-            "floor"
-          ]
+          "path": ["floor"]
         },
         {
           "label": "model calls from cassettes",
-          "path": [
-            "calls",
-            "cached"
-          ]
+          "path": ["calls", "cached"]
         },
         {
           "label": "new model calls",
-          "path": [
-            "calls",
-            "new"
-          ]
+          "path": ["calls", "new"]
         }
       ],
       "note": "Card D4 on fixtures and a scripted model: card D3's admitted procedure under medium with `procedures.drift` on, which no registered preset or config sets. H5 registers admission, not retirement, so this is an engineering check, not an H5 result. The file is under `h1-` for the results glob only."
