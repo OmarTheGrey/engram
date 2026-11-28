@@ -157,6 +157,8 @@ RUNNER_FIXTURES += x1-h1-mem-inv
 RUNNER_FIXTURES += b5-longmemeval-plane
 RUNNER_FIXTURES += l3-lint-fixture
 RUNNER_FIXTURES += h3-lint-model-fixture
+# Card L9: quote grounding on card L3's model fault fixtures.
+RUNNER_FIXTURES += l9-grounding-fixture
 RUNNER_FIXTURES += d2-induce-fixture
 # After D2: card D3 replays the candidates D2's cassette induces.
 RUNNER_FIXTURES += d3-validate-fixture

@@ -1,0 +1,274 @@
+{
+  "calls": {
+    "grounded": {
+      "cached": 51,
+      "new": 0
+    },
+    "plain": {
+      "cached": 51,
+      "new": 0
+    }
+  },
+  "checks": {
+    "grounded_findings_quoted": 11,
+    "same_verdicts": 51
+  },
+  "configs": {
+    "grounded": "research/configs/l9-grounding-fixture.json",
+    "plain": "research/configs/l3-lint-fixture.json"
+  },
+  "downgraded": [
+    {
+      "failed": [
+        {
+          "field": "quote_b",
+          "quote": "The release freeze ends on Friday",
+          "reason": "the quote is not in the item"
+        }
+      ],
+      "fixture": "contradiction.near-miss",
+      "label": "pass",
+      "seed": 3,
+      "unit": "contradiction:01950000-0000-7000-8000-000000000001+01950000-0000-7000-8000-000000000002"
+    },
+    {
+      "failed": [
+        {
+          "field": "quote",
+          "quote": "Windows",
+          "reason": "the quote is shorter than 12 characters and proves nothing"
+        }
+      ],
+      "fixture": "unsupported-claim.flag",
+      "label": "flag",
+      "seed": 1,
+      "unit": "unsupported-claim:01950000-0000-7000-8000-000000000006"
+    },
+    {
+      "failed": [
+        {
+          "field": "quote",
+          "quote": "engineers on call get double pay",
+          "reason": "the quote is not in the item"
+        }
+      ],
+      "fixture": "unsupported-claim.flag",
+      "label": "flag",
+      "seed": 2,
+      "unit": "unsupported-claim:01950000-0000-7000-8000-000000000004"
+    }
+  ],
+  "grounded": {
+    "contradiction": {
+      "per_seed": {
+        "1": {
+          "false_findings": 0,
+          "findings": 2,
+          "labelled_flag": 2,
+          "model_flags": 2,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_findings": 2,
+          "ungrounded": 0,
+          "units": 12
+        },
+        "2": {
+          "false_findings": 0,
+          "findings": 1,
+          "labelled_flag": 2,
+          "model_flags": 1,
+          "precision": 1.0,
+          "recall": 0.5,
+          "true_findings": 1,
+          "ungrounded": 0,
+          "units": 12
+        },
+        "3": {
+          "false_findings": 0,
+          "findings": 2,
+          "labelled_flag": 2,
+          "model_flags": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_findings": 2,
+          "ungrounded": 1,
+          "units": 12
+        }
+      },
+      "pooled": {
+        "false_findings": 0,
+        "findings": 5,
+        "labelled_flag": 6,
+        "model_flags": 6,
+        "precision": 1.0,
+        "recall": 0.833333,
+        "true_findings": 5,
+        "ungrounded": 1,
+        "units": 36
+      }
+    },
+    "unsupported-claim": {
+      "per_seed": {
+        "1": {
+          "false_findings": 0,
+          "findings": 2,
+          "labelled_flag": 3,
+          "model_flags": 3,
+          "precision": 1.0,
+          "recall": 0.666667,
+          "true_findings": 2,
+          "ungrounded": 1,
+          "units": 5
+        },
+        "2": {
+          "false_findings": 0,
+          "findings": 2,
+          "labelled_flag": 3,
+          "model_flags": 3,
+          "precision": 1.0,
+          "recall": 0.666667,
+          "true_findings": 2,
+          "ungrounded": 1,
+          "units": 5
+        },
+        "3": {
+          "false_findings": 0,
+          "findings": 2,
+          "labelled_flag": 3,
+          "model_flags": 2,
+          "precision": 1.0,
+          "recall": 0.666667,
+          "true_findings": 2,
+          "ungrounded": 0,
+          "units": 5
+        }
+      },
+      "pooled": {
+        "false_findings": 0,
+        "findings": 6,
+        "labelled_flag": 9,
+        "model_flags": 8,
+        "precision": 1.0,
+        "recall": 0.666667,
+        "true_findings": 6,
+        "ungrounded": 2,
+        "units": 15
+      }
+    }
+  },
+  "hypothesis": "none",
+  "name": "l9-grounding",
+  "plain": {
+    "contradiction": {
+      "per_seed": {
+        "1": {
+          "false_findings": 0,
+          "findings": 2,
+          "labelled_flag": 2,
+          "model_flags": 2,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_findings": 2,
+          "ungrounded": 0,
+          "units": 12
+        },
+        "2": {
+          "false_findings": 0,
+          "findings": 1,
+          "labelled_flag": 2,
+          "model_flags": 1,
+          "precision": 1.0,
+          "recall": 0.5,
+          "true_findings": 1,
+          "ungrounded": 0,
+          "units": 12
+        },
+        "3": {
+          "false_findings": 1,
+          "findings": 3,
+          "labelled_flag": 2,
+          "model_flags": 3,
+          "precision": 0.666667,
+          "recall": 1.0,
+          "true_findings": 2,
+          "ungrounded": 0,
+          "units": 12
+        }
+      },
+      "pooled": {
+        "false_findings": 1,
+        "findings": 6,
+        "labelled_flag": 6,
+        "model_flags": 6,
+        "precision": 0.833333,
+        "recall": 0.833333,
+        "true_findings": 5,
+        "ungrounded": 0,
+        "units": 36
+      }
+    },
+    "unsupported-claim": {
+      "per_seed": {
+        "1": {
+          "false_findings": 0,
+          "findings": 3,
+          "labelled_flag": 3,
+          "model_flags": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_findings": 3,
+          "ungrounded": 0,
+          "units": 5
+        },
+        "2": {
+          "false_findings": 0,
+          "findings": 3,
+          "labelled_flag": 3,
+          "model_flags": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_findings": 3,
+          "ungrounded": 0,
+          "units": 5
+        },
+        "3": {
+          "false_findings": 0,
+          "findings": 2,
+          "labelled_flag": 3,
+          "model_flags": 2,
+          "precision": 1.0,
+          "recall": 0.666667,
+          "true_findings": 2,
+          "ungrounded": 0,
+          "units": 5
+        }
+      },
+      "pooled": {
+        "false_findings": 0,
+        "findings": 8,
+        "labelled_flag": 9,
+        "model_flags": 8,
+        "precision": 1.0,
+        "recall": 0.888889,
+        "true_findings": 8,
+        "ungrounded": 0,
+        "units": 15
+      }
+    }
+  },
+  "registered": false,
+  "seeds": [
+    1,
+    2,
+    3
+  ],
+  "status": "proof of concept",
+  "totals": {
+    "grounded_false_findings": 0,
+    "grounded_findings": 11,
+    "plain_false_findings": 1,
+    "plain_findings": 14,
+    "ungrounded": 3,
+    "ungrounded_true_flags": 2
+  }
+}
