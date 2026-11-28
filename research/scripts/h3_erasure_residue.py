@@ -64,7 +64,7 @@ def rate(successes: int, n: int, confidence: float) -> dict[str, Any]:
 
 
 def outcome(row: Mapping[str, Any], tier: str) -> str | None:
-    """What a canary was found as in `tier`, text or hash: residue first, then the first retained kind."""
+    """What a canary was found as in `tier`, text or hash: residue first, then a retained kind."""
     found = [v for v in (row["text"].get(tier), row["hash"].get(tier)) if v is not None]
     return min(found, key=ORDER.index) if found else None
 
@@ -130,7 +130,8 @@ def summarise(run: Mapping[str, Any], confidence: float) -> dict[str, Any]:
         "exposed": len(exposed),
         "never_exposed": len(never),
         "before": {
-            t: sum(1 for r in exposed if t in r["before"]) for t in ("projection", "events", "store-records")
+            t: sum(1 for r in exposed if t in r["before"])
+            for t in ("projection", "events", "store-records")
         },
         "tiers": tiers,
         "live_tiers": anywhere(LIVE_TIERS),
@@ -170,7 +171,9 @@ def run_check(backend: str, store: str, seed: int, cassettes: str) -> dict[str, 
         return result
 
 
-def compute(config: Mapping[str, Any], runs: Mapping[str, Mapping[str, Any]] | None = None) -> dict[str, Any]:
+def compute(
+    config: Mapping[str, Any], runs: Mapping[str, Mapping[str, Any]] | None = None
+) -> dict[str, Any]:
     """The result; `runs` (backend/store to the node outcome) skips node, for tests."""
     confidence = float(config.get("confidence", 0.95))
     seed = int(config["seed"])

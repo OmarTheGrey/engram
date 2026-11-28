@@ -80,7 +80,9 @@ def test_a_run_that_recorded_its_summaries_is_refused() -> None:
 
 def test_a_real_run_finds_the_two_store_records_and_no_never_exposed_canary() -> None:
     config = load_config(CONFIG)
-    run = h3_erasure_residue.run_check("sqlite", "mcp-memory", int(config["seed"]), config["cassettes"])
+    run = h3_erasure_residue.run_check(
+        "sqlite", "mcp-memory", int(config["seed"]), config["cassettes"]
+    )
     r = h3_erasure_residue.compute(config, {"sqlite/mcp-memory": run})
     s = r["runs"]["sqlite/mcp-memory"]
     assert s["exposed"] == 200

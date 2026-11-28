@@ -14,7 +14,7 @@ import { migrate } from "../../src/db/migrate.ts";
 import { appendEvent, currentItems } from "../../src/events.ts";
 import { type Actor, createPlane, offboard } from "../../src/plane.ts";
 import { parsePolicy } from "../../src/policy/load.ts";
-import { findResidue, type ResidueNeedle, scanBytes } from "../../src/residue.ts";
+import { findResidue, needlesIn, type ResidueNeedle, scanBytes } from "../../src/residue.ts";
 import type { MemoryItem } from "../../src/schema.ts";
 import { forEachBackend } from "../db/backends.ts";
 import { id, item } from "./plane/helpers.ts";
@@ -189,6 +189,19 @@ describe("scanBytes", () => {
         { key: "b", text: "été" },
         { key: "c", text: "canary-eerie-moth-1999" },
         { key: "d", text: "" },
+      ]),
+    ).toEqual(["a", "b"]);
+  });
+});
+
+describe("needlesIn", () => {
+  test("names the needles a text holds, in the needles' order, and never an empty one", () => {
+    expect(
+      needlesIn("b then a", [
+        { key: "a", text: "a" },
+        { key: "b", text: "b" },
+        { key: "z", text: "z" },
+        { key: "empty", text: "" },
       ]),
     ).toEqual(["a", "b"]);
   });
