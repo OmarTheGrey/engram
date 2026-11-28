@@ -1826,11 +1826,11 @@
       "unmapped": null
     },
     {
-      "claim": "An admitted procedure is re-validated by replay when its environment hash changes or a period passes, and retired by a governed event when its success rate falls below the policy's floor after its minimum trials; the retired version is kept and restored when it passes the admission rule again. Off unless the policy sets procedures.drift.",
+      "claim": "An admitted procedure is re-validated by replay when its environment hash changes or a period passes, and retired by a governed event when its success rate falls below the policy's floor after its minimum trials; the retired version is kept, and restored when its re-validation reaches the floor and the promotion gate admits it again as a candidate. Off unless the policy sets procedures.drift.",
       "gap": null,
       "id": "C48",
       "invariant": null,
-      "limits": null,
+      "limits": "The outcomes and the environment hash are presented by a user-sourced caller and not verified by the plane (ADR 0046), and no surface exposes re-validation yet (ADR 0046, point 7).",
       "obligations": [
         {
           "id": "AIA-15-1",
@@ -1838,7 +1838,7 @@
           "why": "retirement on drift keeps an admitted procedure performing consistently, or takes it out of use"
         }
       ],
-      "source": "ADR 0011 (decision, and its amendment of 2026-11-28 by card D4); AGENTS.md (What this is: Distill, retired on drift)",
+      "source": "ADR 0011 (decision), ADR XXXX (drift re-validates on an environment change, card D4); AGENTS.md (What this is: Distill, retired on drift)",
       "status": "evidenced",
       "tests": [
         {

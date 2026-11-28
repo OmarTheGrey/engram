@@ -1,5 +1,5 @@
-// Drift (card D4 of the second absorb plan; ADR 0011 and its amendment of
-// 2026-11-28, ADR 0046): when an admitted procedure is re-validated, and
+// Drift (card D4 of the second absorb plan; ADR 0011, ADR XXXX
+// proposed, ADR 0046): when an admitted procedure is re-validated, and
 // whether the re-validation retires it. Pure, like validate.ts: no clock, no
 // store, no model. The replayer (the runner's replay-validate.ts) runs the
 // sessions; the plane (plane/revalidate.ts) gathers the last validation from
@@ -15,7 +15,7 @@
 //   content hash and the distill ref's induction tasks (validate.ts checks
 //   them all). Its D3 record (k of n at 2/3, no worse than without) is
 //   reported in every reason.
-// - Whether it retires (ADR 0011 as amended by this card): the success rate
+// - Whether it retires (ADR XXXX, proposed): the success rate
 //   of the re-validation, the mean reward with the procedure over every
 //   task and seed it ran, against the policy's `lints.thresholds`
 //   `replay-drift.success-floor`, once it ran at least
@@ -175,7 +175,7 @@ export interface DriftJudgement {
 const fixed = (x: number) => (Number.isInteger(x) ? String(x) : x.toFixed(3));
 
 /**
- * Judges a re-validation under `policy` (ADR 0011 as amended by card D4).
+ * Judges a re-validation under `policy` (ADR XXXX, proposed).
  * Throws on a malformed or leaked replay, as scoreReplay does, and when the
  * policy has no drift settings.
  */

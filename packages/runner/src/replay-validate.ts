@@ -33,7 +33,7 @@
 //    the promote event (allow, or deny leaving a candidate) carries the
 //    counts. The owner who ran the replay presents it, user-sourced.
 //
-// Drift (card D4 of the second absorb plan; ADR 0011 as amended 2026-11-28):
+// Drift (card D4 of the second absorb plan; ADR 0011 and ADR XXXX (proposed)):
 // runDriftConfig takes a D3 config's admitted procedure, admitted again in
 // its own plane from D3's committed cassettes, and re-validates it on
 // another task pool: the same held-out tasks, one of them changed. Each
