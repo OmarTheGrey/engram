@@ -528,7 +528,7 @@ Recorded by [`docs/log/2026-11-28-e1-7-measurement-trace-replay.md`](../log/2026
 - **Question.** Do the invariants' property tests kill hand-written mutants of the write gate, the read filter, retention, promotion, adoption, offboarding, the trust floors and the log's chain, and which mutants survive?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. A proof of concept on the code's own tests (card X16); the file is under `h1-` for the results glob only.
-- **Made by.** `research/scripts/gate_mutation_audit.py` from `research/configs/gate-mutation-audit.json`, MANIFEST commit `0772cd3b`, sha256 `8e61f235b5dc2d7af647b27ecbe92b13b5db4769448438452f662ec20b873e05`.
+- **Made by.** `research/scripts/gate_mutation_audit.py` from `research/configs/gate-mutation-audit.json`, MANIFEST commit `3c10ab53`, sha256 `6afe298f947366f440ec967016a8d909482e898bba423e1049d383fc79f73011`.
 
 | value | reads | key path |
 |---|---|---|
@@ -539,7 +539,7 @@ Recorded by [`docs/log/2026-11-28-e1-7-measurement-trace-replay.md`](../log/2026
 | two-handle offboarding walk, killed | 2 | `per_invariant.I1H.killed` |
 | log chain, killed | 2 | `per_invariant.I9.killed` |
 
-Recorded by [`docs/log/2026-11-28-e1-7-measurement-mutation-audit.md`](../log/2026-11-28-e1-7-measurement-mutation-audit.md), [`docs/log/2026-11-28-x16-measurement-audit-after-review.md`](../log/2026-11-28-x16-measurement-audit-after-review.md).
+Recorded by [`docs/log/2026-11-28-e1-7-measurement-mutation-audit.md`](../log/2026-11-28-e1-7-measurement-mutation-audit.md), [`docs/log/2026-11-28-e1-9-measurement-gate-mutation-audit.md`](../log/2026-11-28-e1-9-measurement-gate-mutation-audit.md).
 
 ### `research/results/h2-cedar-properties.json`
 
