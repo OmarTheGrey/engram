@@ -155,7 +155,8 @@ function countsOf(items: readonly MemoryItem[], level: Level) {
   const out: Record<string, Record<string, number>> = {};
   for (const item of items) {
     if (scopeLevel(item.scope) !== level) continue;
-    const c = (out[item.class] ??= {});
+    const c = out[item.class] ?? {};
+    out[item.class] = c;
     c[item.status] = (c[item.status] ?? 0) + 1;
   }
   return Object.fromEntries(

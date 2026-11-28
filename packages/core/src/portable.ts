@@ -419,7 +419,8 @@ export function subjectAccessReport(
   let decisions = 0;
   for (const row of rows)
     for (const e of row.events) {
-      const op = (byOp[e.op] ??= {});
+      const op = byOp[e.op] ?? {};
+      byOp[e.op] = op;
       op[e.decision] = (op[e.decision] ?? 0) + 1;
       decisions += 1;
     }
