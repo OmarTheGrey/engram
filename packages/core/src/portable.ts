@@ -355,6 +355,28 @@ export function subjectClosure(
   bundleIds: readonly string[],
   view: EventView,
 ): SubjectClosure {
+  const derived = derivedFrom(items, bundleIds);
+  const reached = new Set([...bundleIds, ...derived.map((i) => i.id)]);
+  const visible = new Set<string>(bundleIds);
+  for (const item of derived) if (idShownTo(subject, item.id, view)) visible.add(item.id);
+  const shown: DerivedShown[] = [];
+  let withheld = 0;
+  for (const item of derived.sort(byId)) {
+    if (!visible.has(item.id)) {
+      withheld += 1;
+      continue;
+    }
+    const from = [...new Set(item.lineage.filter((id) => reached.has(id) && visible.has(id)))];
+    shown.push({ id: item.id, from: from.sort() });
+  }
+  return { shown, withheld };
+}
+
+/**
+ * The items outside `bundleIds` whose lineage names a bundle id or an item
+ * already derived, transitively, in id order.
+ */
+function derivedFrom(items: readonly MemoryItem[], bundleIds: readonly string[]): MemoryItem[] {
   const inBundle = new Set(bundleIds);
   const reached = new Set(bundleIds);
   const derived: MemoryItem[] = [];
@@ -369,19 +391,7 @@ export function subjectClosure(
       grew = true;
     }
   }
-  const visible = new Set<string>(bundleIds);
-  for (const item of derived) if (idShownTo(subject, item.id, view)) visible.add(item.id);
-  const shown: DerivedShown[] = [];
-  let withheld = 0;
-  for (const item of derived.sort(byId)) {
-    if (!visible.has(item.id)) {
-      withheld += 1;
-      continue;
-    }
-    const from = [...new Set(item.lineage.filter((id) => reached.has(id) && visible.has(id)))];
-    shown.push({ id: item.id, from: from.sort() });
-  }
-  return { shown, withheld };
+  return derived.sort(byId);
 }
 
 /** What a subject access export tells its subject beside the bundle (card E9.16). */
@@ -489,6 +499,11 @@ export function subjectAccessReport(
   const refusal = subjectRefusal(subject, subject.id);
   if (refusal !== undefined) throw new Error(refusal);
   const inBundle = new Set(rows.map((r) => r.item.id));
+  // A derived item is accounted for once, in the closure, not again below.
+  const accountedFor = new Set([
+    ...inBundle,
+    ...derivedFrom(items, [...inBundle]).map((i) => i.id),
+  ]);
   const carried = new Set(rows.flatMap((r) => r.events.map((e) => e.id)));
   const read = subject.memberships.filter((s) => readableScope(policy, subject, s));
   return {
@@ -508,11 +523,11 @@ export function subjectAccessReport(
     },
     decisions: byOpOf(rows.flatMap((r) => r.events)),
     derived: subjectClosure(subject, items, [...inBundle], view),
-    owned_elsewhere: accounted(subject, items, inBundle, (i) => i.owner === subject.id, view),
+    owned_elsewhere: accounted(subject, items, accountedFor, (i) => i.owner === subject.id, view),
     granted: accounted(
       subject,
       items,
-      inBundle,
+      accountedFor,
       (i) => i.owner !== subject.id && i.grants.some((g) => grantMatches(g.to, subject.id)),
       view,
     ),

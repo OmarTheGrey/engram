@@ -78,6 +78,11 @@ describe("engram export --subject (card E9.16)", () => {
     expect(r.out).toContain("subject access export for person:dana at 2026-10-25T12:00:00.000Z");
     expect(r.out).toContain("derived items in other scopes: 1\n  1 more out of your reach");
     expect(r.out).toContain("not a certification");
+    // The scopes it read, and the note says what a retire reason can name.
+    expect(r.out).toContain("  scopes read: person:dana, team:platform\n");
+    expect(r.out).toContain("a retire reason in the bundle may still name the id of a successor");
+    expect(r.out).toContain("not authenticated");
+    expect(r.out).toContain("your own items in scopes not read: 0\n");
     // The report never names the ops version, nor any content.
     expect(r.out).not.toContain(ops);
     expect(r.out).not.toContain(OUT_OF_REACH);
@@ -85,8 +90,9 @@ describe("engram export --subject (card E9.16)", () => {
     // the bundle carries the retire event of dana's own source item, which
     // visible.ts shows a member of the scope it left, and its reason names
     // the successor's id. Only the id: the content stays out.
+    // Occurrences, not lines: the id is in the bundle exactly once.
+    expect(bundle.split(ops).length - 1).toBe(1);
     const named = bundle.split("\n").filter((l) => l.includes(ops));
-    expect(named).toHaveLength(1);
     expect(named[0]).toContain(
       `superseded by ${ops}, its promotion to a semantic item in team:ops`,
     );
@@ -172,6 +178,17 @@ describe("engram export --subject (card E9.16)", () => {
     const own = await cli(["export", "--db", a.db, "--subject", "person:dana", "--out", file]);
     expect(own.code, own.err).toBe(0);
     expect(own.out).toContain("as person:dana");
+    // With no --member, only the person scope is read, and the report says so.
+    expect(own.out).toContain("  scopes read: person:dana\n");
+    // The team item dana owns is then accounted for, never silently left out.
+    expect(own.out).toMatch(/your own items in scopes not read: [1-9]/);
+    // The person level only.
+    const team = await cli([
+      ...["export", "--db", a.db, ...DANA, "--level", "team"],
+      ...["--subject", "person:dana", "--out", file],
+    ]);
+    expect(team.code).toBe(2);
+    expect(team.err).toMatch(/person level/);
   });
 });
 
