@@ -46,6 +46,10 @@
 //     encoder's, so agreement there holds modulo grants;
 //   - content guards and trust options: exportCedar refuses a policy that
 //     turns any on, rather than export a gate that disagrees with it;
+//   - the lints (`lints`, `lints.model.evidence` of card L9 included): a
+//     lint decides no read or write, so the export is the same with or
+//     without them, and a policy turning quote grounding on is exported as
+//     faithfully as one leaving it out;
 //   - instants finer than a nanosecond: an instant is two Longs, epoch seconds
 //     and nanoseconds, and the encoder refuses a finer one.
 //
