@@ -5,5 +5,6 @@
   "file": "packages/core/src/log/chain.ts",
   "find": "return sha256(Uint8Array.of(2), Buffer.from(prev, \"hex\"), Buffer.from(leaf, \"hex\")).toString(",
   "replace": "return sha256(Uint8Array.of(2), Buffer.from(leaf, \"hex\")).toString(",
-  "what": "a chain link does not cover the previous hash"
+  "what": "a chain link does not cover the previous hash",
+  "note": "every tamper the chain test injects is still detected with the mutant (by the log's other checks), so the test does not isolate the link's coverage of the previous hash"
 }

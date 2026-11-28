@@ -5,5 +5,6 @@
   "file": "packages/core/src/plane/offboard.ts",
   "find": "      await adapter.delete(ref);\n      deleted.push(ref);",
   "replace": "      deleted.push(ref);",
-  "what": "offboarding erases an item from the log but never deletes its record from the store"
+  "what": "offboarding erases an item from the log but never deletes its record from the store",
+  "note": "redundant code, not a gap the invariant can see: the sweep at the end of the offboarding (engram/offboard/swept) deletes every record left in the store under an erased id, so the walk ends as it would without the mutant"
 }

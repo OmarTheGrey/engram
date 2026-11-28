@@ -5,5 +5,6 @@
   "file": "packages/core/src/policy/promotion.ts",
   "find": "    if (!CONFIRMING_KINDS.has(c.kind)) continue;\n",
   "replace": "",
-  "what": "a restatement by a model or other untrusted source counts as a confirmation"
+  "what": "a restatement by a model or other untrusted source counts as a confirmation",
+  "note": "not analysed to its cause: the promotion walk of invariant 2 met no promotion that the mutant lets land and the oracle forbids; a gap to look at"
 }

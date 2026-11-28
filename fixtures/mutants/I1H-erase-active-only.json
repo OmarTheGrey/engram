@@ -5,5 +5,6 @@
   "file": "packages/core/src/plane/offboard.ts",
   "find": "const doomed = projected.filter((i) => i.scope === person);",
   "replace": "const doomed = projected.filter((i) => i.scope === person && i.status === \"active\");",
-  "what": "offboarding erases only the active items of the person scope, leaving candidates and retired ones"
+  "what": "offboarding erases only the active items of the person scope, leaving candidates and retired ones",
+  "note": "a gap in the invariant's test: the two-handle walk checks that what an offboarding erased is gone and that the store holds the projection, not that the offboarding erased every item of the person scope"
 }
