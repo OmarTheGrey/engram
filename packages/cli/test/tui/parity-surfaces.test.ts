@@ -254,6 +254,9 @@ const NOT_CLIENT = [
   "discover",
   "log verify",
   "log checkpoint",
+  // Card E9.15.
+  "audit export",
+  "audit verify",
 ];
 
 /** The hand-made screens' JSON view, by command: every one but those with none (export) or a second effect. */
@@ -263,12 +266,34 @@ const JSON_VIEW = ["retain", "lint", "simulate", "doctor", "discover", "key list
 const MINE = [...Object.keys(SAMPLES), ...NOT_CLIENT];
 
 describe("E8.15d parity: this part's commands", () => {
-  it("each opens its hand-made screen through the router, but log checkpoint, its generated form", async () => {
+  it("each opens its hand-made screen through the router, but log checkpoint and audit export, their generated forms", async () => {
     const cwd = await tempDir();
     const h = await startHarness({ cwd, home: cwd, given: {} });
     for (const name of MINE) {
       h.app.openCommand(command(name) as CommandSpec);
-      expect(h.screen(), name).toBe(name === "log checkpoint" ? "form" : "surface");
+      const form = name === "log checkpoint" || name === "audit export";
+      expect(h.screen(), name).toBe(form ? "form" : "surface");
+      h.app.pop();
+    }
+    await h.quit();
+  });
+
+  it("reaches the audit report's export and verify from the log verify screen (card E9.15)", async () => {
+    const cwd = await tempDir();
+    const h = await startHarness({ cwd, home: cwd, given: {} });
+    h.app.openCommand(command("log verify") as CommandSpec);
+    const log = h.app.top() as unknown as {
+      buttons(): { id: string; press(c: typeof h.app): unknown }[];
+    };
+    for (const [id, title, kind] of [
+      ["button:audit-export", "Export an audit report", "form"],
+      ["button:audit-verify", "Verify an audit report", "surface"],
+    ] as const) {
+      const button = log.buttons().find((b) => b.id === id);
+      expect(button, id).toBeDefined();
+      await button?.press(h.app);
+      expect(h.screen(), id).toBe(kind);
+      expect(h.app.top().title(h.app), id).toBe(title);
       h.app.pop();
     }
     await h.quit();
