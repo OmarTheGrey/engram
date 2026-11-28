@@ -1,7 +1,9 @@
 // The approval queue (card E2.19 of the second absorb plan): a pure
 // projection over the log, with no table and no event field of its own
 // (docs/log/2026-11-25-ap2-decision-approvals-without-schema.md). A request
-// is keyed by its item's id and version, so one version has at most one.
+// is keyed by its item's id, version and target (review finding F3), so one
+// version has at most one request per target, each with its own route and
+// expiry.
 //
 // A request opens at the first of:
 //   - a held write: an allowed `write` or `update` whose item lands as a
@@ -9,18 +11,33 @@
 //     content guard's hold, an import); its target is the item's scope;
 //   - a `gate` event with decision `ask` that Plane.promote appends when a
 //     promotion waits for a reviewer; its target is the event's `scope_to`.
-// A later ask on the same version joins the open request and does not
-// reopen or extend it, and a version whose request expired or was refused
-// is closed for good: no ask reopens it. It closes at the first of:
-//   approved  an allowed `promote` of the item (in place, or a new version
-//             whose lineage starts at it);
-//   expired   a `promote` deny under `engram/approval/expired`: the sweep
-//             (expireRequests) or a promotion attempted after the expiry;
+// A later ask on the same version and target joins the open request and
+// does not reopen or extend it, and a version and target whose request
+// expired or was refused is closed for good: no ask reopens it. It closes at
+// the first of:
+//   approved  an allowed `promote` of the item into its target (in place, or
+//             a new version whose lineage starts at it);
+//   expired   a `promote` deny into its target under `engram/approval/expired`:
+//             the sweep (expireRequests) or a promotion attempted after it;
 //   denied    an approver's refusal (`engram/approval/refused`: a `retire`
-//             of a candidate, or a `promote` deny for the widening of an
-//             active item), or any other allowed retire, evict or erasure of
-//             the item, or a rewrite to another version (which, if it is
-//             still a candidate, opens the new version's request).
+//             of a candidate refused in its own scope, or a `promote` deny for
+//             a widening), any other allowed retire, evict or erasure of the
+//             item, a promotion of it elsewhere, or a rewrite to another
+//             version (which, if it is still a candidate, opens the new
+//             version's request).
+// A drift restore's ask (card D4, Plane.revalidate) opens a `restore`
+// request on the retired procedure: each presentation is judged afresh on
+// its own replay, so a new restore ask replaces an open restore request, and
+// neither its expiry nor its refusal closes the version for a later
+// presentation (review finding F4). An approver approves one by presenting
+// the replay with `review` (Plane.revalidate).
+//
+// Routes and expiry are read from the policy the queue is given, the current
+// one, for past requests too: events record no policy version (finding F7),
+// so a policy change moves the routing and expiry of requests still open.
+// Without an approval block the queue is still listed, and approval is ADR
+// 0026's review as before; refusing and sweeping are off
+// (`engram/approval/off`, finding F2).
 // A request past its route's `expires_after` and not yet closed is still
 // `pending`, marked `due`: the projection decides nothing, so an expiry is
 // only ever what an event records (AGENTS.md rule 3).
@@ -30,9 +47,9 @@
 // `owner` is ADR 0049's owner acceptance. No approver may approve or refuse
 // their own write: the reviewer rule (reviewerProblem) is asked first. The
 // stale-base refusal of obsidian-wiki's staging (MIT, Ar9av/obsidian-wiki at
-// 7da8def05ab4, obsidian_wiki/staging.py; ported as an idea and restated
-// here, no code copied) is the version key: a decision is about the version
-// the request was opened on, and a rewrite closes it.
+// 7da8def05ab4, obsidian_wiki/staging.py; ported: the design, rewritten) is
+// the version key and the `reviewedVersion` pin: a decision is about the
+// version its approver reviewed, and a rewrite closes the request.
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import { allEvents, appendEvent, applyEvent, erases } from "../events.ts";
 import { itemById } from "../items.ts";
@@ -63,6 +80,8 @@ export { APPROVAL_EXPIRED_ID, APPROVAL_REFUSED_ID, APPROVAL_ROUTE_ID, APPROVAL_S
 export const APPROVAL_NO_REQUEST_ID = "engram/approval/no-request";
 /** A sweep of a scope's requests by an actor who is not a member of it. */
 export const APPROVAL_MEMBERSHIP_ID = "engram/approval/membership";
+/** A refusal or sweep under a policy with no approval block (finding F2). */
+export const APPROVAL_OFF_ID = "engram/approval/off";
 
 export type RequestState = "pending" | "approved" | "denied" | "expired";
 
@@ -85,6 +104,8 @@ export interface ApprovalRequest {
   approvers: string[];
   /** When it expires unanswered; null when its route sets no expiry, or none applies. */
   expires_at: string | null;
+  /** A drift restore's request on a retired procedure (card D4): it never closes the version. */
+  restore: boolean;
   state: RequestState;
   /** Pending and past `expires_at` at the time asked: the next sweep or attempt records the expiry. */
   due: boolean;
@@ -95,7 +116,13 @@ export interface ApprovalRequest {
   closer: string | null;
 }
 
-function opened(policy: Policy, e: MemoryEvent, item: MemoryItem, target: string): ApprovalRequest {
+function opened(
+  policy: Policy,
+  e: MemoryEvent,
+  item: MemoryItem,
+  target: string,
+  restore: boolean,
+): ApprovalRequest {
   const route = routeFor(policy, target);
   const expires = route?.expires_after === undefined ? null : addSeconds(e.ts, route.expires_after);
   return {
@@ -109,6 +136,7 @@ function opened(policy: Policy, e: MemoryEvent, item: MemoryItem, target: string
     route: route?.scope ?? null,
     approvers: route ? [...route.approvers] : [],
     expires_at: expires,
+    restore,
     state: "pending",
     due: false,
     closed_by: null,
@@ -118,16 +146,21 @@ function opened(policy: Policy, e: MemoryEvent, item: MemoryItem, target: string
   };
 }
 
-/** How `e` closes an open request on item `id`, or null when it does not. */
-function closing(e: MemoryEvent, id: string, version: number): RequestState | null {
-  if (e.op === "promote" && e.decision === "allow")
-    return e.item_id === id || e.item?.lineage[0] === id ? "approved" : null;
+/** How `e` closes the open request `r`, or null when it does not. */
+function closing(e: MemoryEvent, r: ApprovalRequest): RequestState | null {
+  const id = r.item_id;
+  if (e.op === "promote" && e.decision === "allow" && e.item) {
+    if (e.item_id !== id && e.item.lineage[0] !== id) return null;
+    return e.item.scope === r.target ? "approved" : "denied";
+  }
   if (e.item_id !== id) return null;
   if (e.op === "promote" && e.decision === "deny") {
+    if (e.scope_to !== r.target) return null;
     if (e.policy_id === APPROVAL_EXPIRED_ID) return "expired";
     if (e.policy_id === APPROVAL_REFUSED_ID) return "denied";
     return null;
   }
+  const version = r.version;
   if (e.decision !== "allow") return null;
   if (e.op === "retire" || e.op === "evict") return "denied";
   if ((e.op === "write" || e.op === "update") && e.item && e.item.version !== version)
@@ -147,24 +180,27 @@ export function approvalQueue(
   at: string,
 ): ApprovalRequest[] {
   const items = new Map<string, MemoryItem>();
+  // Open requests by item id and target.
   const open = new Map<string, ApprovalRequest>();
-  // Versions whose request expired or was refused: closed for good.
+  // Versions and targets whose request expired or was refused: closed for good.
   const decided = new Set<string>();
   const out: ApprovalRequest[] = [];
+  const close = (key: string, r: ApprovalRequest, e: MemoryEvent, state: RequestState) => {
+    Object.assign(r, {
+      state,
+      closed_by: e.id,
+      closed_at: e.ts,
+      closed_under: e.policy_id,
+      closer: e.actor,
+    });
+    if (!r.restore && (state === "expired" || e.policy_id === APPROVAL_REFUSED_ID))
+      decided.add(`${r.item_id}@${r.version}|${r.target}`);
+    open.delete(key);
+  };
   for (const e of events) {
-    for (const [id, r] of open) {
-      const state = closing(e, id, r.version);
-      if (state === null) continue;
-      Object.assign(r, {
-        state,
-        closed_by: e.id,
-        closed_at: e.ts,
-        closed_under: e.policy_id,
-        closer: e.actor,
-      });
-      if (state === "expired" || e.policy_id === APPROVAL_REFUSED_ID)
-        decided.add(`${id}@${r.version}`);
-      open.delete(id);
+    for (const [key, r] of open) {
+      const state = closing(e, r);
+      if (state !== null) close(key, r, e, state);
     }
     if (e.item_id !== null) {
       if (erases(e)) items.delete(e.item_id);
@@ -181,9 +217,17 @@ export function approvalQueue(
     if (!held && !asked) continue;
     const id = e.item_id as string;
     const item = items.get(id);
-    if (!item || open.has(id) || decided.has(`${id}@${item.version}`)) continue;
-    const r = opened(policy, e, item, held ? item.scope : (e.scope_to ?? item.scope));
-    open.set(id, r);
+    if (!item) continue;
+    const target = held ? item.scope : (e.scope_to ?? item.scope);
+    const key = `${id}|${target}`;
+    // A restore's ask is a fresh presentation: it replaces an open restore request.
+    const restore = asked && item.status === "retired";
+    const was = open.get(key);
+    if (was && restore && was.restore) close(key, was, e, "denied");
+    else if (was) continue;
+    if (!restore && decided.has(`${id}@${item.version}|${target}`)) continue;
+    const r = opened(policy, e, item, target, restore);
+    open.set(key, r);
     out.push(r);
   }
   for (const r of open.values())
@@ -192,22 +236,24 @@ export function approvalQueue(
 }
 
 /**
- * The closed request of `item`'s current version at `at`, for the
- * promotion evaluator's evidence (`closedRequest`): expired (recorded, or
+ * The closed request of `item`'s current version into `target` at `at`, for
+ * the promotion evaluator's evidence (`closedRequest`): expired (recorded, or
  * pending and due) or refused by an approver. Nothing when the policy has no
  * approval block, so a policy without one gathers nothing and decides as
- * before.
+ * before; nothing for a drift restore's request, which never closes the
+ * version.
  */
 export function closedRequestOf(
   deps: PlaneDeps,
   item: MemoryItem,
+  target: string,
   at: string,
 ): { closedRequest: NonNullable<PromotionEvidence["closedRequest"]> } | Record<string, never> {
   if (deps.policy.approval === undefined) return {};
   const r = approvalQueue(deps.policy, allEvents(deps.db), at).findLast(
-    (q) => q.item_id === item.id && q.version === item.version,
+    (q) => q.item_id === item.id && q.version === item.version && q.target === target,
   );
-  if (!r) return {};
+  if (!r || r.restore) return {};
   if (r.due || r.state === "expired")
     return {
       closedRequest: {
@@ -229,9 +275,9 @@ export function closedRequestOf(
   return {};
 }
 
-/** The pending request on `item`'s current version, if any. */
-function pendingOf(deps: PlaneDeps, item: MemoryItem, at: string): ApprovalRequest | undefined {
-  return approvalQueue(deps.policy, allEvents(deps.db), at).find(
+/** The pending requests on `item`'s current version, one per target. */
+function pendingOf(deps: PlaneDeps, item: MemoryItem, at: string): ApprovalRequest[] {
+  return approvalQueue(deps.policy, allEvents(deps.db), at).filter(
     (q) => q.item_id === item.id && q.version === item.version && q.state === "pending",
   );
 }
@@ -284,8 +330,9 @@ export interface QueuedRequest extends ApprovalRequest {
 /**
  * Plane.approvals: the queue at `at` as `actor` may see it, every request
  * whose item's scope the actor may read as a member (the read matrix), in
- * the order they opened, each saying whether the actor may decide it now.
- * Decides nothing and appends no event.
+ * the order they opened, each saying whether the actor may approve it now
+ * (and, with an approval block, refuse it). Decides nothing and appends no
+ * event.
  */
 export async function approvals(
   deps: PlaneDeps,
@@ -296,8 +343,9 @@ export async function approvals(
   const out: QueuedRequest[] = [];
   for (const r of approvalQueue(deps.policy, allEvents(deps.db), at)) {
     if (!readableScope(deps.policy, actor, r.scope)) continue;
-    const item = itemById(deps.db, r.item_id);
-    const live = r.state === "pending" && !r.due && item?.version === r.version;
+    const now = itemById(deps.db, r.item_id);
+    const live = r.state === "pending" && !r.due && now?.version === r.version;
+    const item = now && r.restore ? ({ ...now, status: "candidate" } as MemoryItem) : now;
     out.push({
       ...r,
       may_decide: live && deciderProblem(deps, actor, item as MemoryItem, r.target) === null,
@@ -315,6 +363,9 @@ export interface ExpiryReport {
   /** The items whose requests it recorded as expired. */
   expired: string[];
 }
+
+const OFF_REASON =
+  "the policy sets no approval block, so requests are neither refused nor expired: approval is ADR 0026's review, as before";
 
 function expiryReason(r: ApprovalRequest, at: string): string {
   return `the request for item ${r.item_id} at version ${r.version} into ${r.target}, opened by event ${r.opened_by} at ${r.opened_at}, expired at ${r.expires_at} with no approver's decision (routed to ${r.approvers.join(", ")}, the approval route for ${r.route}); recorded at ${at}, it is denied and the item is not promoted`;
@@ -341,6 +392,19 @@ export function expireRequests(
   return inWriteQueue(deps.db, () =>
     deps.db.transaction((): ExpiryReport => {
       const base = { ts: at, actor: actor.id, schema_version: 1 as const, op: "promote" as const };
+      if (deps.policy.approval === undefined) {
+        const event = appendEvent(deps.db, {
+          ...base,
+          id: deps.newId(),
+          item_id: null,
+          scope_from: null,
+          scope_to: scope,
+          decision: "deny",
+          reason: OFF_REASON,
+          policy_id: APPROVAL_OFF_ID,
+        });
+        return { decision: "deny", events: [event], expired: [] };
+      }
       if (!actor.memberships.includes(scope)) {
         const event = appendEvent(deps.db, {
           ...base,
@@ -375,12 +439,15 @@ export function expireRequests(
 }
 
 /**
- * Plane.refuse: an approver refuses the pending request on the item's
- * current version, with a reason. A held candidate is retired (one `retire`
- * event under `engram/approval/refused`, the approver its actor and their
- * reason in its reason), so it is never promoted; the widening of an active
- * item is refused by one `promote` deny under the same rule, the item left
- * as it is. A refusal the gate does not allow is one deny event: an item the
+ * Plane.refuse: an approver refuses a pending request on the item's current
+ * version, with a reason: the one into `options.target`, else the one into
+ * the item's own scope, else its only pending one. A held candidate refused
+ * in its own scope is retired (one `retire` event under
+ * `engram/approval/refused`, the approver its actor and their reason in its
+ * reason), so it is never promoted; a widening, or a drift restore, is
+ * refused by one `promote` deny under the same rule, the item left as it is.
+ * Under a policy with no approval block every call is one deny under
+ * `engram/approval/off`. A refusal the gate does not allow is one deny event: an item the
  * actor cannot reach is refused as an unknown id is
  * (`engram/promote/membership`), no pending request is
  * `engram/approval/no-request`, a request past its expiry is recorded as
@@ -395,9 +462,13 @@ export function refuse(
   itemId: string,
   reason: string,
   at: string,
-  options: { reviewedVersion?: number } = {},
+  options: { reviewedVersion?: number; target?: string } = {},
 ): Promise<GateResult> {
   checkCall(actor, at, "refuse");
+  if (options.target !== undefined && !Scope.safeParse(options.target).success)
+    throw new InvalidCallError(
+      `Plane.refuse: invalid target ${JSON.stringify(options.target)}; expected person:<id>, role:<id>, team:<id> or org`,
+    );
   const pinned = options.reviewedVersion;
   if (pinned !== undefined && !(Number.isInteger(pinned) && pinned > 0))
     throw new InvalidCallError(
@@ -419,8 +490,22 @@ export function refuse(
         event,
         events: [event],
       });
-      const item = itemById(db, itemId);
-      if (!item || !canReach(policy, actor, item, at))
+      if (policy.approval === undefined)
+        return one(
+          appendEvent(db, {
+            ...base,
+            id: newId(),
+            op: "promote",
+            item_id: itemId,
+            scope_from: null,
+            scope_to: null,
+            decision: "deny",
+            reason: OFF_REASON,
+            policy_id: APPROVAL_OFF_ID,
+          }),
+        );
+      const held = itemById(db, itemId);
+      if (!held || !canReach(policy, actor, held, at))
         return one(
           appendEvent(db, {
             ...base,
@@ -434,37 +519,48 @@ export function refuse(
             policy_id: PROMOTE_MEMBERSHIP_ID,
           }),
         );
-      const r = pendingOf(deps, item, at);
       const denied = (policy_id: string, why: string, to: string | null = null) =>
         one(
           appendEvent(db, {
             ...base,
             id: newId(),
             op: policy_id === APPROVAL_EXPIRED_ID ? "promote" : "retire",
-            item_id: item.id,
-            scope_from: item.scope,
+            item_id: held.id,
+            scope_from: held.scope,
             scope_to: to,
             decision: "deny",
             reason: why,
             policy_id,
           }),
         );
+      // The pin first (finding F8): a rewrite since the review is stale, whatever is pending now.
+      if (pinned !== undefined && pinned !== held.version)
+        return denied(
+          APPROVAL_STALE_ID,
+          `${actor.id} reviewed version ${pinned} of item ${held.id}, which is at version ${held.version} now: it changed since it was reviewed, so nothing is refused; review the current version`,
+          options.target ?? null,
+        );
+      const pending = pendingOf(deps, held, at);
+      const r =
+        options.target !== undefined
+          ? pending.find((q) => q.target === options.target)
+          : (pending.find((q) => q.target === held.scope) ??
+            (pending.length === 1 ? pending[0] : undefined));
       if (!r)
         return denied(
           APPROVAL_NO_REQUEST_ID,
-          `item ${item.id} at version ${item.version} has no pending approval request to refuse`,
+          pending.length > 1 && options.target === undefined
+            ? `item ${held.id} at version ${held.version} has pending requests into ${pending.map((q) => q.target).join(", ")}; name the one to refuse`
+            : `item ${held.id} at version ${held.version} has no pending approval request${options.target === undefined ? "" : ` into ${options.target}`} to refuse`,
+          options.target ?? null,
         );
       if (r.due) return denied(APPROVAL_EXPIRED_ID, expiryReason(r, at), r.target);
-      if (pinned !== undefined && pinned !== item.version)
-        return denied(
-          APPROVAL_STALE_ID,
-          `${actor.id} reviewed version ${pinned} of item ${item.id}, which is at version ${item.version} now: it changed since it was reviewed, so nothing is refused; review the current version`,
-          r.target,
-        );
+      // A restore's request is decided on the procedure as the candidate it was.
+      const item = r.restore ? ({ ...held, status: "candidate" } as MemoryItem) : held;
       const problem = deciderProblem(deps, actor, item, r.target);
       if (problem) return denied(problem.policy_id, problem.reason, r.target);
       const why = `${actor.id} refused the request for item ${item.id} at version ${item.version} into ${r.target}: ${reason.trim()}`;
-      if (item.status === "candidate")
+      if (held.status === "candidate" && r.target === held.scope)
         return one(
           appendEvent(db, {
             ...base,

@@ -240,7 +240,10 @@ function semanticProblems(policy: Policy): Located[] {
   );
   // Card E2.19: one approval route per scope or level, so the order of the
   // routes never decides; `owner` (ADR 0049's owner acceptance) only on a
-  // person-scope route, the one place an owner may accept.
+  // person-scope route, the one place an owner may accept; and a person
+  // route names `owner`, since nobody else is a member of a person scope in
+  // practice, and a route that admits nobody only lets requests expire
+  // (review finding F9).
   const routes = policy.approval?.routes ?? [];
   unique(
     routes,
@@ -253,6 +256,11 @@ function semanticProblems(policy: Policy): Located[] {
       out.push({
         path: ["approval", "routes", i, "approvers"],
         message: `owner approves only on a person-scope route (ADR 0049: an owner accepts in their own person scope); ${r.scope} is not one`,
+      });
+    if (!r.approvers.includes("owner") && (r.scope === "person" || r.scope.startsWith("person:")))
+      out.push({
+        path: ["approval", "routes", i, "approvers"],
+        message: `a person-scope route names owner: only the person is a member of their own scope, so ${r.approvers.join(", ")} alone would approve nothing and every request would expire`,
       });
   });
   const seenLints = new Set<string>();

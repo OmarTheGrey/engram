@@ -62,6 +62,8 @@ import { itemById, lineage } from "../items.ts";
 import type { GateResult, PlaneDeps, PromoteOptions } from "../plane.ts";
 import { readableScope, STORE_FAILURE_ID } from "../policy/evaluate.ts";
 import {
+  APPROVAL_EXPIRED_ID,
+  APPROVAL_REFUSED_ID,
   type Confirmation,
   evaluatePromotion,
   PROMOTE_MEMBERSHIP_ID,
@@ -204,7 +206,9 @@ export function promote(
  * add to promotion). Its own retirement is left out of the retired content it
  * is judged against. On allow it is the in-place promotion (same id, version
  * plus one, active) under `restore.policy_id`; every reason starts with
- * `restore.prefix`. An in-slot primitive: call it only inside the write
+ * `restore.prefix`. With `review`, the presenter approves it as a reviewer,
+ * so in a scope that requires review an approver the approval route names
+ * restores it (card E2.19, review finding F4). An in-slot primitive: call it only inside the write
  * queue, as Plane.revalidate does.
  */
 export function restoreRetired(
@@ -214,8 +218,9 @@ export function restoreRetired(
   at: string,
   replay: ReplayEvidence,
   restore: Restore,
+  review = false,
 ): Promise<GateResult> {
-  return decideAndCommit(deps, actor, item.id, item.scope, at, { replay }, restore);
+  return decideAndCommit(deps, actor, item.id, item.scope, at, { replay, review }, restore);
 }
 
 /** How a restore is recorded: its rule on allow, and the clause every reason starts with. */
@@ -281,8 +286,10 @@ async function decideAndCommit(
       // checked against the item: its id, content and distill ref (D3-3).
       ...(options.replay === undefined ? {} : replayEvidence(deps, item, options.replay)),
       // An approval request that expired or was refused closes this version
-      // (card E2.19); only gathered when the policy has an approval block.
-      ...closedRequestOf(deps, item, at),
+      // and target (card E2.19); only gathered when the policy has an
+      // approval block. A drift restore is a fresh presentation: its
+      // requests never close the version (review finding F4).
+      ...(restore === undefined ? closedRequestOf(deps, item, toScope, at) : {}),
       ...(options.reviewedVersion === undefined
         ? {}
         : { reviewedVersion: options.reviewedVersion }),
@@ -372,6 +379,17 @@ async function decideAndCommit(
     outcome = db.transaction(() => {
       const stale = staleness(db, decided, ownBytes(deps, written));
       if (stale) return { stale };
+      // A refusal or a recorded expiry another handle appended since the
+      // decision is a gate deny, which staleness does not count (P50-4): the
+      // request is asked again under the lock (card E2.19, finding F1).
+      const closedNow = restore === undefined ? closedRequestOf(deps, item, toScope, at) : {};
+      if ("closedRequest" in closedNow) {
+        const c = closedNow.closedRequest;
+        return {
+          stale: `the request for this version into ${toScope} was ${c.state === "expired" ? "recorded expired" : "refused"} by event ${c.by}`,
+          policy_id: c.state === "expired" ? APPROVAL_EXPIRED_ID : APPROVAL_REFUSED_ID,
+        };
+      }
       // A new version whose lineage names an id an offboarding took out after
       // the decision (verification pass 4 of PR #50, V4-1): its source is
       // checked above; the ancestors it carries over are checked here.

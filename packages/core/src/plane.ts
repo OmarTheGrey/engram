@@ -68,6 +68,7 @@ export {
   APPROVAL_EXPIRED_ID,
   APPROVAL_MEMBERSHIP_ID,
   APPROVAL_NO_REQUEST_ID,
+  APPROVAL_OFF_ID,
   APPROVAL_REFUSED_ID,
   APPROVAL_ROUTE_ID,
   APPROVAL_STALE_ID,
@@ -376,10 +377,13 @@ export interface Plane {
    */
   approvals(actor: Actor, at: string): Promise<QueuedRequest[]>;
   /**
-   * An approver refuses the pending request on an item's current version,
-   * with a reason (card E2.19): a held candidate is retired under
-   * `engram/approval/refused`; a widening is refused and the item left as
-   * it is. Every outcome is one event. Runs in the write queue. An invalid
+   * An approver refuses a pending request on an item's current version,
+   * with a reason (card E2.19): the one into `options.target`, else into the
+   * item's own scope, else its only one. A held candidate refused in its own
+   * scope is retired under `engram/approval/refused`; a widening or a drift
+   * restore is refused and the item left as it is. Under a policy with no
+   * approval block it is one deny under `engram/approval/off`; so is
+   * expireRequests. Every outcome is one event. Runs in the write queue. An invalid
    * actor, time, id or an empty reason is refused with InvalidCallError.
    */
   refuse(
@@ -387,7 +391,7 @@ export interface Plane {
     itemId: string,
     reason: string,
     at: string,
-    options?: { reviewedVersion?: number },
+    options?: { reviewedVersion?: number; target?: string },
   ): Promise<GateResult>;
   /**
    * Records each request on an item of `scope` past its route's

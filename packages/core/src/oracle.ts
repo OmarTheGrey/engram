@@ -527,10 +527,12 @@ function atLeastAfter(from: string, at: string, seconds: number): boolean {
  * lands only by an actor the target's route names (`person:<id>` that
  * principal, `role:<id>` a member of that role scope, `owner` the owner where
  * the one exception of ADR 0049 holds), and no promotion of the source's
- * version lands once its request (opened by the first held write of that
- * version, an allowed write or update leaving it a candidate, or the first
- * `gate` ask on it) has run past its route's `expires_after`, or an event
- * has recorded it expired or refused. Read from the events with the
+ * version into a target lands once its request into that target (opened by
+ * the first held write of that version when the target is its own scope, an
+ * allowed write or update leaving it a candidate, or the first `gate` ask
+ * into the target) has run past the target route's `expires_after`, or an
+ * event into that target has recorded it expired or refused. Routes are the
+ * policy's now, for past requests too (the plane's reading, card E2.19's ADR). Read from the events with the
  * oracle's own loop, not the plane's projection.
  */
 function approvalAdmits(
@@ -554,8 +556,11 @@ function approvalAdmits(
     }
     if (!named) return false;
   }
+  // The request on the source's version into this target (keyed by version
+  // and target, review finding F3 of card E2.19): opened by a held write of
+  // that version into its own scope, or by an ask into the target.
   let version = 0;
-  let opened: { ts: string; target: string } | undefined;
+  let opened: string | undefined;
   for (const e of events) {
     if (e.item && e.item.id === source.id && e.decision === "allow") version = e.item.version;
     if (version !== source.version) continue;
@@ -563,22 +568,24 @@ function approvalAdmits(
       (e.op === "write" || e.op === "update") &&
       e.decision === "allow" &&
       e.item?.id === source.id &&
-      e.item.status === "candidate";
-    const asked = e.op === "gate" && e.decision === "ask" && e.item_id === source.id;
-    if (opened === undefined && (held || asked))
-      opened = { ts: e.ts, target: held ? source.scope : (e.scope_to ?? source.scope) };
+      e.item.status === "candidate" &&
+      source.scope === target;
+    const asked =
+      e.op === "gate" && e.decision === "ask" && e.item_id === source.id && e.scope_to === target;
+    if (opened === undefined && (held || asked)) opened = e.ts;
     if (
       opened !== undefined &&
       e.op === "promote" &&
       e.decision === "deny" &&
       e.item_id === source.id &&
+      e.scope_to === target &&
       (e.policy_id === "engram/approval/expired" || e.policy_id === "engram/approval/refused")
     )
       return false;
   }
   if (opened === undefined) return true;
-  const expires = routeOf(policy, opened.target)?.expires_after;
-  return expires === undefined || !atLeastAfter(opened.ts, at, expires);
+  const expires = route?.expires_after;
+  return expires === undefined || !atLeastAfter(opened, at, expires);
 }
 
 /** A replay presented with a promotion (card D3), and the session index the plane was given. */
