@@ -58,6 +58,9 @@ from scripts.results_register import (
     value_text,
 )
 
+# The register's vocabulary, re-exported so a test can check the page uses it and no copy.
+__all__ = ["HYPOTHESIS_RESULTS", "STATUSES", "PageError", "anchor", "build", "main"]
+
 REPO = Path(__file__).resolve().parents[2]
 PROPOSED = "## Proposed amendments, not yet registered"
 PROOF = "proof of concept"
@@ -88,11 +91,17 @@ body {
 }
 main { max-width: 64rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
 h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .5rem; }
-h2 { font-size: 1.4rem; margin: 2.5rem 0 .75rem; padding-top: .5rem; border-top: 1px solid var(--line); }
+h2 {
+  font-size: 1.4rem; margin: 2.5rem 0 .75rem; padding-top: .5rem;
+  border-top: 1px solid var(--line);
+}
 h3 { font-size: 1.15rem; margin: 1.5rem 0 .5rem; }
 h4 { font-size: 1rem; margin: 0 0 .4rem; overflow-wrap: anywhere; }
 p { margin: .5rem 0; }
-code { font: .86em/1.4 ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace; overflow-wrap: anywhere; }
+code {
+  font: .86em/1.4 ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  overflow-wrap: anywhere;
+}
 a { color: var(--accent); }
 nav ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: .4rem 1rem; }
 .lede { color: var(--ink-2); }
@@ -112,12 +121,23 @@ nav ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: .4re
 .meta { color: var(--ink-2); font-size: .9rem; }
 .scroll { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: .9rem; }
-th, td { text-align: left; vertical-align: top; padding: .35rem .5rem; border-bottom: 1px solid var(--line); }
+th, td {
+  text-align: left; vertical-align: top; padding: .35rem .5rem;
+  border-bottom: 1px solid var(--line);
+}
 th { color: var(--ink-2); font-weight: 600; }
 td.num { white-space: nowrap; }
-.legend { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: .3rem 1rem; font-size: .88rem; }
-.key { display: inline-block; width: .8rem; height: .8rem; border-radius: .2rem; margin-right: .35rem; vertical-align: -.1rem; }
+.legend {
+  list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: .3rem 1rem;
+  font-size: .88rem;
+}
+.key {
+  display: inline-block; width: .8rem; height: .8rem; border-radius: .2rem;
+  margin-right: .35rem; vertical-align: -.1rem;
+}
 svg { max-width: 100%; height: auto; }
+#manifest-table { min-width: 64rem; }
+#manifest-table td:nth-child(4) code { word-break: break-all; }
 .figure { background: #fcfcfb; border-radius: .5rem; padding: .5rem; overflow-x: auto; }
 .bar-track { fill: var(--track); }
 .bar-fill { fill: var(--proof); }
@@ -160,6 +180,11 @@ def _value(value: Any) -> str:
     return escape(value_text(value))
 
 
+def _text(text: str) -> str:
+    """Escaped prose, with the register's `code` spans as code elements."""
+    return re.sub(r"`([^`]+)`", r"<code>\1</code>", escape(text))
+
+
 def _plain(value: Any) -> str:
     return value if isinstance(value, str) else value_text(value)
 
@@ -179,19 +204,24 @@ def _figure(root: Path, row: Row, problems: list[str]) -> str:
     svg = re.sub(r"^<\?xml[^>]*\?>\s*", "", svg).strip()
     return (
         f'<figure class="figure"><!-- {escape(row.figure)} -->{svg}'
-        f"<figcaption class=\"meta\">Figure <code>{escape(row.figure)}</code>, inlined as "
+        f'<figcaption class="meta">Figure <code>{escape(row.figure)}</code>, inlined as '
         "committed.</figcaption></figure>"
     )
 
 
-def _meter(part: Any, whole: Any, label: str) -> str:
+def _meter(part: Any, whole: Any, label: str, complement: str | None = None) -> str:
+    """A bar of part over whole; with `complement`, of whole minus part (a zero-leak count)."""
     if not all(isinstance(v, int | float) and not isinstance(v, bool) for v in (part, whole)):
         raise ValueError("a meter's part and whole are numbers")
-    share = 0.0 if whole == 0 else max(0.0, min(1.0, part / whole))
-    text = f"{value_text(part)} of {value_text(whole)} {label}"
+    shown = whole - part if complement else part
+    share = 0.0 if whole == 0 else max(0.0, min(1.0, shown / whole))
+    text = f"{value_text(shown)} of {value_text(whole)} {label}"
+    if complement:
+        text += f"; {value_text(part)} {complement}"
     width = 600.0
     return (
-        f'<svg viewBox="0 0 {width:.2f} 18.00" width="{width:.0f}" height="18" role="img" '
+        f'<svg viewBox="0 0 {width:.2f} 18.00" width="100%" height="18" '
+        f'preserveAspectRatio="none" role="img" '
         f'aria-label="{escape(text)}"><rect class="bar-track" x="0.00" y="0.00" '
         f'width="{width:.2f}" height="18.00" rx="4.00"/><rect class="bar-fill" x="0.00" '
         f'y="0.00" width="{width * share:.2f}" height="18.00" rx="4.00"/></svg>'
@@ -221,7 +251,8 @@ def _overview(counts: Mapping[str, int], statuses: Mapping[str, str]) -> str:
         x += w
     label = ", ".join(f"{s} {counts.get(s, 0)}" for s in statuses)
     return (
-        f'<svg viewBox="0 0 {width:.2f} 24.00" width="{width:.0f}" height="24" role="img" '
+        f'<svg viewBox="0 0 {width:.2f} 24.00" width="100%" height="24" '
+        f'preserveAspectRatio="none" role="img" '
         f'aria-label="{escape(label)}">{"".join(rects)}</svg>'
         f'<ul class="legend">{"".join(legend)}</ul>'
     )
@@ -253,19 +284,27 @@ class _Page:
         results: list[dict[str, Any]] = list(self.register["results"])
         group_ids = [g["id"] for g in self.register["groups"]]
         named = [r["file"] for r in results]
-        problems += [f"{f}: MANIFEST row has no section in the config" for f in rows if f not in named]
+        problems += [
+            f"{f}: MANIFEST row has no section in the config" for f in rows if f not in named
+        ]
         problems += [f"{f}: section has no MANIFEST row" for f in named if f not in rows]
-        problems += [f"{f}: more than one section" for f in sorted(set(named)) if named.count(f) > 1]
+        problems += [
+            f"{f}: more than one section" for f in sorted(set(named)) if named.count(f) > 1
+        ]
         for row in rows.values():
             if "dogfood" in row.file.lower() or "dogfood" in row.config.lower():
-                problems.append(f"{row.file}: the page never shows dogfood data (AGENTS.md rule 12)")
+                problems.append(
+                    f"{row.file}: the page never shows dogfood data (AGENTS.md rule 12)"
+                )
         good: list[dict[str, Any]] = []
         for r in results:
             file = r["file"]
             if file not in rows:
                 continue
             if r["status"] not in self.statuses:
-                problems.append(f"{file}: status {r['status']!r} is not one of {', '.join(self.statuses)}")
+                problems.append(
+                    f"{file}: status {r['status']!r} is not one of {', '.join(self.statuses)}"
+                )
                 continue
             if r["hypothesis"] not in group_ids:
                 problems.append(f"{file}: hypothesis {r['hypothesis']!r} is not a group")
@@ -311,9 +350,8 @@ class _Page:
         if r.get("prereg") in self.proposed:
             out.append(f'<span class="badge warn">{EXPLORATORY}</span>')
         serves = r["hypothesis"]
-        out.append(
-            f'<span class="badge">{"no hypothesis" if serves == "none" else "serves " + escape(serves)}</span>'
-        )
+        said = "no hypothesis" if serves == "none" else "serves " + escape(serves)
+        out.append(f'<span class="badge">{said}</span>')
         return "".join(out)
 
     def card(self, r: Mapping[str, Any], *, figure: bool = False) -> str:
@@ -322,7 +360,7 @@ class _Page:
         data = self.data[file]
         title = r.get("title")
         head = (
-            f"<h4>{escape(title)}</h4><p class=\"meta\"><code>{escape(file)}</code></p>"
+            f'<h4>{escape(title)}</h4><p class="meta"><code>{escape(file)}</code></p>'
             if title
             else f"<h4><code>{escape(file)}</code></h4>"
         )
@@ -330,31 +368,40 @@ class _Page:
             f'<article class="card{" proof" if r["status"] == PROOF else ""}" id="{anchor(file)}">',
             head,
             f"<p>{self.badges(r)}</p>",
-            f"<p><strong>Question.</strong> {escape(r['question'])}</p>",
-            f"<p class=\"meta\">{escape(r['status'])}: {escape(self.statuses[r['status']])}.</p>",
+            f"<p><strong>Question.</strong> {_text(r['question'])}</p>",
+            f'<p class="meta">{escape(r["status"])}: {escape(self.statuses[r["status"]])}.</p>',
         ]
         if r.get("prereg"):
             lines.append(
-                f"<p class=\"meta\">Pre-registration section “{escape(r['prereg'].lstrip('# '))}”.</p>"
+                '<p class="meta">Pre-registration section '
+                f"“{escape(r['prereg'].lstrip('# '))}”.</p>"
             )
         if r.get("note"):
-            lines.append(f"<p class=\"meta\">{escape(r['note'])}</p>")
+            lines.append(f'<p class="meta">{_text(r["note"])}</p>')
         if meter := r.get("meter"):
             lines.append(
-                _meter(resolve(data, meter["part"]), resolve(data, meter["whole"]), meter["label"])
+                _meter(
+                    resolve(data, meter["part"]),
+                    resolve(data, meter["whole"]),
+                    meter["label"],
+                    meter.get("complement"),
+                )
             )
         if figure:
             lines.append(_figure(self.root, row, self.problems))
-        lines.append('<div class="scroll"><table><thead><tr><th>value</th><th>reads</th>'
-                     "<th>key path</th></tr></thead><tbody>")
+        lines.append(
+            '<div class="scroll"><table><thead><tr><th>value</th><th>reads</th>'
+            "<th>key path</th></tr></thead><tbody>"
+        )
         for h in r["headline"]:
             lines.append(
-                f"<tr><td>{escape(h['label'])}</td><td class=\"num\">{_value(resolve(data, h['path']))}</td>"
+                f"<tr><td>{escape(h['label'])}</td>"
+                f'<td class="num">{_value(resolve(data, h["path"]))}</td>'
                 f"<td><code>{escape(path_text(h['path']))}</code></td></tr>"
             )
         lines.append("</tbody></table></div>")
         lines.append(
-            f"<p class=\"meta\">Made by <code>{escape(_command(row))}</code>; sha256 "
+            f'<p class="meta">Made by <code>{escape(_command(row))}</code>; sha256 '
             f"<code>{row.sha256}</code>; cost: {escape(self.cost[file])}.</p>"
         )
         lines.append("</article>")
@@ -384,12 +431,21 @@ def build(
     decided = [r for r in results if r["status"] in hypothesis_results]
     proofs = [r for r in results if r["status"] == PROOF]
     present = [s for s in statuses if counts[s] and s not in hypothesis_results]
-    kinds = ", ".join(present[:-1]) + (" or " if len(present) > 1 else "") + (present[-1] if present else "")
+    kinds = (
+        ", ".join(present[:-1])
+        + (" or " if len(present) > 1 else "")
+        + (present[-1] if present else "")
+    )
     if decided:
-        standing = "<strong>Hypothesis results:</strong> " + ", ".join(
-            f'<a href="#{anchor(r["file"])}"><code>{escape(r["file"])}</code></a> ({escape(r["hypothesis"])})'
-            for r in decided
-        ) + f". Every other committed file is a {escape(kinds)}."
+        standing = (
+            "<strong>Hypothesis results:</strong> "
+            + ", ".join(
+                f'<a href="#{anchor(r["file"])}"><code>{escape(r["file"])}</code></a> '
+                f"({escape(r['hypothesis'])})"
+                for r in decided
+            )
+            + f". Every other committed file is a {escape(kinds)}."
+        )
     else:
         standing = (
             "<strong>No hypothesis has a result yet.</strong> Every committed file is a "
@@ -398,7 +454,7 @@ def build(
 
     body: list[str] = [
         f"<header><h1>{escape(page['title'])}</h1>",
-        *(f'<p class="lede">{escape(t)}</p>' for t in page["intro"]),
+        *(f'<p class="lede">{_text(t)}</p>' for t in page["intro"]),
         f'<p class="standing">{standing}</p></header>',
         "<nav><ul>",
         '<li><a href="#overview">Overview</a></li>',
@@ -409,12 +465,14 @@ def build(
         '<li><a href="#manifest">Every MANIFEST row</a></li>',
         "</ul></nav>",
         '<section id="overview"><h2>Overview</h2>',
-        f"<p>{len(results)} results, one per row of <code>research/results/MANIFEST.md</code>, by status.</p>",
+        f"<p>{len(results)} results, one per row of "
+        "<code>research/results/MANIFEST.md</code>, by status.</p>",
         _overview(counts, statuses),
         '<div class="scroll"><table><thead><tr><th>status</th><th>results</th><th>what it is</th>'
         "</tr></thead><tbody>",
         *(
-            f"<tr><td>{escape(s)}</td><td class=\"num\">{counts[s]}</td><td>{escape(statuses[s])}</td></tr>"
+            f'<tr><td>{escape(s)}</td><td class="num">{counts[s]}</td>'
+            f"<td>{escape(statuses[s])}</td></tr>"
             for s in statuses
         ),
         "</tbody></table></div></section>",
@@ -426,17 +484,26 @@ def build(
     for g in groups:
         gid = g["id"]
         mine = [r for r in decided if r["hypothesis"] == gid]
-        inputs = [r for r in results if r["hypothesis"] == gid and r not in decided and r not in proofs]
+        inputs = [
+            r for r in results if r["hypothesis"] == gid and r not in decided and r not in proofs
+        ]
         body.append(f'<div id="g-{escape(gid.lower())}"><h3>{escape(g["title"])}</h3>')
         if mine:
             body += [p.card(r, figure=True) for r in mine]
         else:
+            tests = ", ".join(sorted(hypothesis_results))
+            why = (
+                f"No MANIFEST row serving {escape(gid)} has a status that tests it "
+                f"({escape(tests)})."
+                if tests
+                else "The register defines no status for a hypothesis result yet, so no "
+                f"MANIFEST row serving {escape(gid)} tests it."
+            )
             body.append(
-                f'<p class="verdict"><strong>No result for {escape(gid)} yet.</strong> No MANIFEST row '
-                f"serving {escape(gid)} has a status that tests it ({escape(', '.join(sorted(hypothesis_results)) or 'none is defined yet')}).</p>"
+                f'<p class="verdict"><strong>No result for {escape(gid)} yet.</strong> {why}</p>'
             )
         if g.get("needs"):
-            body.append(f"<p><strong>What it still needs.</strong> {escape(g['needs'])}</p>")
+            body.append(f"<p><strong>What it still needs.</strong> {_text(g['needs'])}</p>")
         if inputs:
             body.append(
                 f"<details><summary>{len(inputs)} committed file{'s' if len(inputs) != 1 else ''} "
@@ -447,15 +514,20 @@ def build(
         body.append("</div>")
     body.append("</section>")
 
-    body += ['<section id="proofs"><h2>Proofs of concept</h2>', f"<p>{escape(page['proofs_intro'])}</p>"]
+    body += [
+        '<section id="proofs"><h2>Proofs of concept</h2>',
+        f"<p>{_text(page['proofs_intro'])}</p>",
+    ]
     if proofs:
         body += [p.card(r) for r in proofs]
     else:
         body.append('<p class="verdict">No proof of concept is committed yet.</p>')
     body.append("</section>")
 
-    other = [r for r in results if r["hypothesis"] == "none" and r not in proofs and r not in decided]
-    body += ['<section id="other"><h2>Other checks</h2>', f"<p>{escape(page['other_intro'])}</p>"]
+    other = [
+        r for r in results if r["hypothesis"] == "none" and r not in proofs and r not in decided
+    ]
+    body += ['<section id="other"><h2>Other checks</h2>', f"<p>{_text(page['other_intro'])}</p>"]
     body += [p.card(r) for r in other]
     body.append("</section>")
 
@@ -471,7 +543,7 @@ def build(
         r = by_file[file]
         status = escape(r["status"])
         if r.get("prereg") in p.proposed:
-            status += f"<br><span class=\"badge warn\">{EXPLORATORY}</span>"
+            status += f'<br><span class="badge warn">{EXPLORATORY}</span>'
         serves = "no hypothesis" if r["hypothesis"] == "none" else escape(r["hypothesis"])
         body.append(
             f'<tr><td><a href="#{anchor(file)}"><code>{escape(file)}</code></a></td>'
@@ -482,9 +554,10 @@ def build(
     body.append(
         "<footer><p>Generated by <code>research/scripts/results_page.py</code> from "
         "<code>research/configs/results-page.json</code>, the register's config "
-        f"<code>{escape(page['register'])}</code>, <code>research/results/MANIFEST.md</code> and the "
-        "results files; run <code>make results-page</code> after any of them changes. The register, "
-        "<code>docs/research/results.md</code>, lists the log entries that record each row.</p></footer>"
+        f"<code>{escape(page['register'])}</code>, <code>research/results/MANIFEST.md</code> "
+        "and the results files; run <code>make results-page</code> after any of them changes. "
+        "The register, <code>docs/research/results.md</code>, lists the log entries that "
+        "record each row.</p></footer>"
     )
     if p.problems:
         raise PageError(p.problems)

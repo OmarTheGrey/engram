@@ -213,7 +213,11 @@ def test_a_hypothesis_result_is_shown_with_its_figure_and_cost(tmp_path: Path) -
     assert "<?xml" not in text
     assert "model calls: 900; dollars: 12.5" in text
     hypotheses = text.index('<section id="hypotheses"')
-    assert hypotheses < text.index(f'id="{results_page.anchor(table)}"') < text.index("</section>", hypotheses)
+    assert (
+        hypotheses
+        < text.index(f'id="{results_page.anchor(table)}"')
+        < text.index("</section>", hypotheses)
+    )
 
 
 def test_a_proof_of_concept_gets_its_own_section_and_meter(tmp_path: Path) -> None:
@@ -229,6 +233,24 @@ def test_a_proof_of_concept_gets_its_own_section_and_meter(tmp_path: Path) -> No
     proofs = text.index('<section id="proofs"')
     assert proofs < text.index("Planted proof")
     assert "3 of 1,500 probes passed" in text
+    assert 'width="1.20"' in text  # 3 / 1,500 of the 600-unit bar
+
+
+def test_a_complement_meter_fills_with_whole_minus_part(tmp_path: Path) -> None:
+    meter = {"part": ["k"], "whole": ["n"], "label": "held", "complement": "leaked"}
+    poc = _entry(X, status="proof of concept", hypothesis="none", title="T", meter=meter)
+    text = build(_repo(tmp_path, {X: BODY}), _page(), _register(poc))
+    assert "1,497 of 1,500 held; 3 leaked" in text
+    assert 'width="598.80"' in text
+
+
+def test_a_proof_of_concept_serving_a_hypothesis_stays_out_of_its_section(tmp_path: Path) -> None:
+    poc = _entry(X, status="proof of concept", title="Planted proof")
+    text = build(_repo(tmp_path, {X: BODY}), _page(), _register(poc))
+    where = text.index(f'id="{results_page.anchor(X)}"')
+    assert where > text.index('<section id="proofs"')
+    assert "serves H1" in text
+    assert "No result for H1 yet" in text
 
 
 def test_a_proposed_arm_is_marked_exploratory(tmp_path: Path) -> None:

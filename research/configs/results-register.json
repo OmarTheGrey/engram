@@ -1000,7 +1000,8 @@
       "meter": {
         "part": ["totals", "leaks"],
         "whole": ["totals", "probes"],
-        "label": "probes leaked a canary"
+        "label": "probes leaked nothing",
+        "complement": "leaked a canary"
       },
       "hypothesis": "none",
       "status": "proof of concept",
