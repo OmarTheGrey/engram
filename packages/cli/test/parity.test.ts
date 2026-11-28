@@ -19,7 +19,7 @@
 // exemption fails the suite. Parity tests in the manner of plur-ai/plur
 // (commit 7c6aa73ba14e, Apache-2.0; idea only): one operation per surface,
 // compared field by field.
-import { cpSync, writeFileSync } from "node:fs";
+import { cpSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type Actor, allEvents, type MemoryEvent, openSqlite } from "@engram/core";
 import { createEngramClient } from "@engram/sdk";
@@ -30,6 +30,7 @@ import {
   byLabel,
   CANARIES,
   CONTROL,
+  contentOf,
   DANA,
   LEE,
   leaksIn,
@@ -369,7 +370,8 @@ describe("E8.16: one operation, the same decision on every surface", () => {
       expect(tui.out).toBe(cli.out);
       expect(tui.events).toEqual(cli.events);
       const blind = (r: Run) => opRecord(op.name, "", r.events as never, new Map());
-      for (const r of runs) {
+      // The CLI in process is the reference; each other surface is compared with it.
+      for (const r of [http, served, tui]) {
         // Each surface's answer reports the decisions its log records, and the same ones.
         const same =
           JSON.stringify(blind(r)) === JSON.stringify(blind(cli)) &&
@@ -392,7 +394,8 @@ describe("E8.16: one operation, the same decision on every surface", () => {
       for (const e of acted) expect(reported(cli.json).reason, op.name).toContain(e.reason);
     });
 
-  it("a model's operations: MCP and the HTTP API agree, and both match the pi extension's snapshot", async () => {
+  it("a model's operations: MCP and the HTTP API log the same events, and MCP matches the pi extension's snapshot", async () => {
+    const agent: Actor = { ...DANA, source: "model" };
     const via = async (surface: "mcp" | "http") => {
       const dir = await fresh();
       const ids = { n: 0 };
@@ -402,28 +405,93 @@ describe("E8.16: one operation, the same decision on every surface", () => {
         baseUrl: "http://127.0.0.1:7313",
         fetch: async (r) => app.fetch(r),
       });
-      const call = await mcpAgent({
+      const mcp = await mcpAgent({
         client,
         actor: DANA,
         now: () => NOW,
         newId: () => runId(++ids.n),
       });
+      /** The route each tool calls, with the body the MCP server builds (packages/mcp/src/server.ts). */
+      const http = async (tool: string, args: Record<string, unknown>) => {
+        const post = async (path: string, body: unknown) =>
+          (
+            await app.fetch(
+              new Request(`http://127.0.0.1:7313/api/v1${path}`, {
+                method: "POST",
+                body: JSON.stringify(body),
+                headers: { "content-type": "application/json" },
+              }),
+            )
+          ).text();
+        if (tool === "memory_write") {
+          const id = runId(++ids.n);
+          const item = {
+            ...userItem(
+              id,
+              args.scope as string,
+              args.content as string,
+              (args.confidence as number) ?? 0.5,
+            ),
+            provenance: {
+              kind: "model",
+              ref: "parity",
+              hash: `sha256:${"0".repeat(64)}`,
+              actor: agent.id,
+            },
+          };
+          return post("/items", { actor: agent, item });
+        }
+        if (tool === "memory_read") {
+          const text = await post("/read", { actor: agent, text: args.query });
+          return `read_id="${(JSON.parse(text) as { event: { id: string } }).event.id}"`;
+        }
+        return post(`/explain/${args.read_id as string}`, { actor: agent });
+      };
       const seen = new Map<string, string>();
       const out = [];
+      const raw: MemoryEvent[][] = [];
       let readId = "";
       for (const op of MODEL_OPS) {
         const before = delta(dir).length;
         const args = JSON.parse(JSON.stringify(op.args).replaceAll("{read}", readId));
-        const text = await call(op.tool, args);
+        const text = surface === "mcp" ? await mcp(op.tool, args) : await http(op.tool, args);
         readId = /read_id="([^"]+)"/.exec(text)?.[1] ?? readId;
-        out.push(opRecord(op.name, text, delta(dir).slice(before) as never, seen));
+        raw.push(delta(dir).slice(before));
+        out.push(opRecord(op.name, text, raw.at(-1) as never, seen));
       }
       ws.close();
-      return { surface, out };
+      // The events alone, every id blind by its first appearance in them.
+      const eventsSeen = new Map<string, string>();
+      const events = raw.map(
+        (e, i) => opRecord(MODEL_OPS[i]?.name ?? "", "", e as never, eventsSeen).events,
+      );
+      return { out, events };
     };
-    const mcp = await via("mcp");
-    parity.push(...mcp.out.map((o) => ({ surface: "mcp", operation: o.name, same: true })));
-    await expect(`${JSON.stringify(mcp.out, null, 2)}\n`).toMatchFileSnapshot(MODEL_PARITY);
+    const { out: mcp, events: mcpEvents } = await via("mcp");
+    const { events: httpEvents } = await via("http");
+    // The snapshot as committed, so each operation's record says whether it matched.
+    let snapshot: { events: unknown }[] | undefined;
+    try {
+      snapshot = JSON.parse(readFileSync(MODEL_PARITY, "utf8"));
+    } catch {
+      snapshot = undefined;
+    }
+    for (const [i, o] of mcp.entries()) {
+      const pinned = snapshot?.[i];
+      parity.push({
+        surface: "mcp",
+        operation: o.name,
+        same: pinned !== undefined && JSON.stringify(pinned) === JSON.stringify(o),
+      });
+      parity.push({
+        surface: "http (model)",
+        operation: o.name,
+        same: JSON.stringify(httpEvents[i]) === JSON.stringify(mcpEvents[i]),
+      });
+    }
+    // The HTTP API's answers are its own JSON; the events it logs are MCP's.
+    expect(httpEvents).toEqual(mcpEvents);
+    await expect(`${JSON.stringify(mcp, null, 2)}\n`).toMatchFileSnapshot(MODEL_PARITY);
   });
 });
 
@@ -470,20 +538,44 @@ const seededReadId = () => seeded.danaReadId;
  * The commands no probe runs, each with its reason. An entry naming no
  * command of the registry, or one also probed, fails the suite.
  */
-const EXEMPT: Record<string, string> = {
-  serve:
-    "it serves the HTTP API, whose every route packages/server/test/leakage.test.ts probes, and this suite's parity runs the CLI against it",
-  mcp: "it serves the MCP tools, each of which packages/mcp/test/leakage.test.ts probes",
-  "hook claude-code":
-    "it answers a hook's JSON with allow or deny and records a block; it reads no memory",
-  "key create": "it writes a key file; it reads no log and no store",
-  "key list": "it reads the key file only, masked",
-  "key revoke": "it writes the key file only",
-  doctor: "an operator's check with no actor: counts only, never content (AGENTS.md rule 12)",
-  "log verify":
-    "an operator's check of the hash chain on the machine holding the log, outside the read filter by design: it names links, not content",
-  "log checkpoint": "an operator's checkpoint of the chain's head: a hash, no content",
-  tui: "the TUI itself: each probe here runs through its runner as the surface tui, and its screen after a read is scanned below",
+const EXEMPT: Record<string, { reason: string; holds?: string[] }> = {
+  serve: {
+    reason:
+      "it serves the HTTP API, whose every route packages/server/test/leakage.test.ts probes, and this suite's parity runs the CLI against it",
+  },
+  mcp: {
+    reason: "it serves the MCP tools, each of which packages/mcp/test/leakage.test.ts probes",
+  },
+  "hook claude-code": {
+    reason: "it answers a hook's JSON with allow or deny and records a block; it reads no memory",
+  },
+  "key create": { reason: "it writes a key file; it reads no log and no store" },
+  "key list": {
+    reason: "it reads the key file only, masked",
+    holds: ["key", "list", "--keys", "keys.json"],
+  },
+  "key revoke": { reason: "it writes the key file only" },
+  doctor: {
+    reason: "an operator's check with no actor: counts only, never content (AGENTS.md rule 12)",
+  },
+  "log verify": {
+    reason:
+      "an operator's check of the hash chain on the machine holding the log, outside the read filter by design: it names links, not content",
+    holds: ["log", "verify", "--db", "engram.db"],
+  },
+  "log checkpoint": {
+    reason: "an operator's checkpoint of the chain's head: a hash, no content",
+    holds: ["log", "checkpoint", "--db", "engram.db", "--out", "checkpoint.json"],
+  },
+  discover: {
+    reason:
+      "it counts harness memory files outside every store root, never their content (card E9.10); it reaches no plane",
+    holds: ["discover", "--home", ".", "--project", "."],
+  },
+  tui: {
+    reason:
+      "the TUI itself: each probe here runs through its runner as the surface tui, and its screen after a read is scanned below",
+  },
 };
 
 /** The commands with neither a probe nor an exemption, and the stale entries. */
@@ -496,6 +588,60 @@ function coverage(names: readonly string[], probes: object, exempt: object) {
   };
 }
 
+/**
+ * Every probe of every command as `probe`, through the CLI or the TUI's
+ * runner, in the three passes the HTTP suite uses: the commands naming no id
+ * first, so none may show a canary id; then each naming command, which may
+ * echo its own ids; then the first again, which may echo the ids the actor's
+ * own events named, never a nonce. Every probed command must run at least
+ * once, and none may end in a usage error.
+ */
+async function probeAll(probe: ProbeActor, surface: "cli" | "tui") {
+  const dir = await fresh();
+  writeFileSync(join(dir, "claude.txt"), "- a probe's pasted memory\n");
+  const ids = { n: 0 };
+  const leaks: string[] = [];
+  const outs = new Map<string, string[]>();
+  const named = (words: readonly string[]) => words.filter((w) => /^[0-9a-f]{8}-/.test(w));
+  const all = Object.entries(PROBES).flatMap(([name, make]) =>
+    make(probe.actor).map((words) => ({ name, words })),
+  );
+  const naming = all.filter((p) => named(p.words).length > 0);
+  const plainCalls = all.filter((p) => named(p.words).length === 0);
+  const asked = naming.flatMap((p) => named(p.words));
+  const passes = [
+    { calls: plainCalls, echo: (_: readonly string[]) => [] as string[] },
+    { calls: naming, echo: named },
+    { calls: plainCalls, echo: (_: readonly string[]) => asked },
+  ];
+  for (const { calls, echo } of passes)
+    for (const { name, words } of calls) {
+      const argv = withWorkspace([...words, ...actorFlags(words, probe.actor)]);
+      const { io: plain, out } = io(dir, ids);
+      const r =
+        surface === "tui"
+          ? await runCommand(argv, plain)
+          : { code: await run(argv, plain), ...out };
+      expect(r.code, `${argv.join(" ")}: ${r.err}`).toBeLessThan(2);
+      outs.set(name, [...(outs.get(name) ?? []), r.out]);
+      const leaked = leaksIn(`${r.out}\n${r.err}`, probe, echo(words));
+      records.push({ surface, probe: name, actor: probe.name, leaked });
+      if (leaked.length > 0) leaks.push(`${argv.join(" ")}: ${leaked.join(", ")}: ${r.out}`);
+    }
+  expect(
+    Object.keys(PROBES).filter((n) => !outs.has(n)),
+    "commands never run",
+  ).toEqual([]);
+  return { leaks, outs };
+}
+
+/** No actor may see any canary: what an exempt command shows must carry none. */
+const NOBODY: ProbeActor = {
+  name: "nobody",
+  actor: { id: "person:nobody", level: "person", memberships: ["person:nobody"] },
+  allowed: [],
+};
+
 describe("E8.16: no command leaks a canary, through the CLI or the TUI", () => {
   const names = REGISTRY.map((s) => s.name);
 
@@ -506,48 +652,60 @@ describe("E8.16: no command leaks a canary, through the CLI or the TUI", () => {
     expect(coverage(names, PROBES, { ...EXEMPT, gone: "x" }).stale).toEqual(["gone"]);
   });
 
+  it("the exemptions that can be run still hold: they show no canary from the canary workspace", async () => {
+    const dir = await fresh();
+    // A harness memory file with a canary's content, which discover must count and never show.
+    writeFileSync(join(dir, "CLAUDE.md"), `${contentOf(byLabel("dana-person"))}\n`);
+    for (const [name, { holds }] of Object.entries(EXEMPT)) {
+      if (holds === undefined) continue;
+      const { io: plain, out } = io(dir, { n: 0 });
+      const code = await run(holds, plain);
+      expect(code, `${name}: ${out.err}`).toBeLessThan(4);
+      expect(`${out.out}\n${out.err}`.length, name).toBeGreaterThan(1);
+      expect(leaksIn(`${out.out}\n${out.err}`, NOBODY), name).toEqual([]);
+    }
+  });
+
   for (const probe of PROBE_ACTORS)
     for (const surface of ["cli", "tui"] as const)
       it(`${probe.name} (${probe.actor.id}) through the ${surface}`, async () => {
-        const dir = await fresh();
-        writeFileSync(join(dir, "claude.txt"), "- a probe's pasted memory\n");
-        const ids = { n: 0 };
-        const leaks: string[] = [];
-        const named = (words: readonly string[]) => words.filter((w) => /^[0-9a-f]{8}-/.test(w));
-        const all = Object.entries(PROBES).flatMap(([name, make]) =>
-          make(probe.actor).map((words) => ({ name, words })),
-        );
-        const naming = all.filter((p) => named(p.words).length > 0);
-        const plainCalls = all.filter((p) => named(p.words).length === 0);
-        const asked = naming.flatMap((p) => named(p.words));
-        // As over HTTP: the commands naming no id first, so none may show a
-        // canary id; then each naming command, which may echo its own ids;
-        // then the first again, which may echo the ids the actor's own events
-        // named, never a nonce.
-        const passes = [
-          { calls: plainCalls, echo: (_: readonly string[]) => [] as string[] },
-          { calls: naming, echo: named },
-          { calls: plainCalls, echo: (_: readonly string[]) => asked },
-        ];
-        for (const { calls, echo } of passes)
-          for (const { name, words } of calls) {
-            const argv = withWorkspace([...words, ...actorFlags(words, probe.actor)]);
-            const { io: plain, out } = io(dir, ids);
-            const r =
-              surface === "tui"
-                ? await runCommand(argv, plain)
-                : { code: await run(argv, plain), ...out };
-            expect(r.code, `${argv.join(" ")}: ${r.err}`).toBeLessThan(2);
-            const leaked = leaksIn(`${r.out}\n${r.err}`, probe, echo(words));
-            records.push({ surface, probe: name, actor: probe.name, leaked });
-            if (leaked.length > 0) leaks.push(`${argv.join(" ")}: ${leaked.join(", ")}: ${r.out}`);
-          }
-        expect(leaks).toEqual([]);
+        expect((await probeAll(probe, surface)).leaks).toEqual([]);
       });
 
-  it("the TUI's screen after a read, as drawn, shows each probe actor no canary", async () => {
+  for (const surface of ["cli", "tui"] as const)
+    it(`the positive control through the ${surface}: every command that shows items or events shows a member of team:x the team's canaries`, async () => {
+      const { leaks, outs } = await probeAll(CONTROL, surface);
+      expect(leaks).toEqual([]);
+      const found = new Set<string>();
+      for (const name of ["read", "read --item", "events", "export"]) {
+        // By nonce or, where a command prints ids only (the events' plain lines), by id.
+        const text = (outs.get(name) ?? []).join("\n");
+        const shown = CANARIES.filter((c) => text.includes(c.nonce) || text.includes(c.id)).map(
+          (c) => c.label,
+        );
+        expect(shown, name).toEqual(expect.arrayContaining(["lee-team"]));
+        for (const l of shown) found.add(l);
+      }
+      expect(noncesIn((outs.get("read") ?? []).join("\n"))).toEqual(
+        expect.arrayContaining(["dana-team", "fred-team", "lee-team"]),
+      );
+      controls.push({ surface, found: [...found].sort() });
+    });
+
+  it("the TUI's screen after a read, as drawn to its last page, shows each actor what the CLI's read shows it", async () => {
     for (const probe of [...PROBE_ACTORS, CONTROL]) {
       const dir = await fresh();
+      // What the CLI's read shows this actor, plain and as JSON.
+      const readIds = { n: 0 };
+      const cliRead = async (json: boolean) => {
+        const { io: plain, out } = io(dir, readIds);
+        await run(
+          withWorkspace(["read", "canary", ...as(probe.actor), ...(json ? ["--json"] : [])]),
+          plain,
+        );
+        return noncesIn(out.out);
+      };
+      const expected = { plain: await cliRead(false), json: await cliRead(true) };
       const h = await startHarness({
         cwd: dir,
         home: dir,
@@ -556,14 +714,18 @@ describe("E8.16: no command leaks a canary, through the CLI or the TUI", () => {
       await h.press("r");
       await h.type("canary");
       await h.press(CTRL_S, "y");
-      // Every page of the result, then of its JSON view, as drawn.
+      // Every page, until two in a row are the same (the end); 60 without that fails.
       const pages = async () => {
         let all = "";
-        for (let i = 0; i < 20; i++) {
-          all += `${await h.text()}\n`;
+        let last = "";
+        for (let i = 0; i < 60; i++) {
+          const page = await h.text();
+          if (page === last) return all;
+          all += `${page}\n`;
+          last = page;
           await h.press(PGDN);
         }
-        return all;
+        throw new Error(`${probe.name}: no last page within 60`);
       };
       const plain = await pages();
       await h.press("J");
@@ -572,21 +734,10 @@ describe("E8.16: no command leaks a canary, through the CLI or the TUI", () => {
       const leaked = leaksIn(`${plain}\n${json}`, probe);
       records.push({ surface: "tui", probe: "screen", actor: probe.name, leaked });
       expect(leaked, probe.name).toEqual([]);
-      if (probe === CONTROL) {
-        controls.push({ surface: "tui", found: noncesIn(json) });
-        expect(noncesIn(json).length, json).toBeGreaterThan(0);
-      }
+      expect(noncesIn(plain), `${probe.name}: the plain view`).toEqual(expected.plain);
+      expect(noncesIn(json), `${probe.name}: the JSON view`).toEqual(expected.json);
+      if (probe === CONTROL) expect(expected.json.length).toBeGreaterThan(0);
     }
-  });
-
-  it("the positive control: through the CLI a member of team:x is shown the team's canaries", async () => {
-    const dir = await fresh();
-    const { io: plain, out } = io(dir, { n: 0 });
-    await run(withWorkspace(["read", "canary", ...as(CONTROL.actor), "--json"]), plain);
-    const found = noncesIn(out.out);
-    controls.push({ surface: "cli", found });
-    expect(found).toEqual(expect.arrayContaining(["dana-team", "fred-team", "lee-team"]));
-    expect(leaksIn(out.out, CONTROL as ProbeActor)).toEqual([]);
   });
 
   it("writes its probe records when ENGRAM_LEAKAGE_OUT names a folder", () => {
