@@ -257,6 +257,8 @@ const NOT_CLIENT = [
   // Card E9.15.
   "audit export",
   "audit verify",
+  // Card E9.16.
+  "audit ropa",
 ];
 
 /** The hand-made screens' JSON view, by command: every one but those with none (export) or a second effect. */
@@ -271,7 +273,7 @@ describe("E8.15d parity: this part's commands", () => {
     const h = await startHarness({ cwd, home: cwd, given: {} });
     for (const name of MINE) {
       h.app.openCommand(command(name) as CommandSpec);
-      const form = name === "log checkpoint" || name === "audit export";
+      const form = name === "log checkpoint" || name === "audit export" || name === "audit ropa";
       expect(h.screen(), name).toBe(form ? "form" : "surface");
       h.app.pop();
     }
@@ -288,6 +290,7 @@ describe("E8.15d parity: this part's commands", () => {
     for (const [id, title, kind] of [
       ["button:audit-export", "Export an audit report", "form"],
       ["button:audit-verify", "Verify an audit report", "surface"],
+      ["button:audit-ropa", "Record of processing", "form"],
     ] as const) {
       const button = log.buttons().find((b) => b.id === id);
       expect(button, id).toBeDefined();

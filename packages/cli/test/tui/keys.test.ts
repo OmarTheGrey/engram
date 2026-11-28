@@ -174,7 +174,13 @@ describe("the frame's keys", () => {
     // the audit report's export and verify on the log verify screen (card E9.15).
     for (const s of offered().filter((x) => x.home !== false)) expect(text).toContain(s.title);
     for (const s of offered().filter((x) => x.home === false))
-      expect(["hook codex", "hook install", "audit export", "audit verify"]).toContain(s.name);
+      expect([
+        "hook codex",
+        "hook install",
+        "audit export",
+        "audit verify",
+        "audit ropa",
+      ]).toContain(s.name);
     await wide.quit();
   });
 
@@ -185,6 +191,7 @@ describe("the frame's keys", () => {
       ["hook install", "Install a hook"],
       ["audit export", "Export an audit report"],
       ["audit verify", "Verify an audit report"],
+      ["audit ropa", "Record of processing"],
     ] as const) {
       await h.press(";");
       await h.type(typed);

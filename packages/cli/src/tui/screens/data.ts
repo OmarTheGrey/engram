@@ -62,6 +62,12 @@ export class ExportScreen extends SurfaceScreen {
     if (this.encryption === "recipients")
       rows.push({ kind: "field", id: "recipient", label: "Recipients" });
     if (this.encryption === "passphrase") rows.push({ kind: "field", id: "passphrase-file" });
+    // Card E9.16: a subject access export, the report shown below.
+    rows.push({
+      kind: "field",
+      id: "subject",
+      hint: "your own person:<id> for a subject access export; the report is shown here",
+    });
     return rows;
   }
   protected override hidden(): ReadonlySet<string> {
@@ -479,6 +485,12 @@ export class LogVerifyScreen extends SurfaceScreen {
         id: "button:audit-verify",
         label: "Verify an audit report",
         press: (c) => c.openCommand(spec("audit verify"), { db: db() }),
+      },
+      {
+        // Card E9.16: the record of processing, counts from this log.
+        id: "button:audit-ropa",
+        label: "Record of processing",
+        press: (c) => c.openCommand(spec("audit ropa"), { db: db() }),
       },
     ];
   }
