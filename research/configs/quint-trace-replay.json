@@ -1,0 +1,22 @@
+{
+  "name": "quint-trace-replay",
+  "kind": "proof of concept",
+  "card": "E1.8",
+  "hypothesis": "none",
+  "status": "proof of concept",
+  "filed_under": "research/results/h1-* only because research/tests/test_prereg.py maps every MANIFEST file to one hypothesis's results glob; the result decides no hypothesis",
+  "traces": "specs/traces",
+  "min_traces": 200,
+  "generation": {
+    "spec": "specs/replay.qnt",
+    "module": "replay",
+    "step": "replayStep",
+    "quint": "0.33.1",
+    "seed": 1,
+    "count": 200,
+    "max_steps": 60,
+    "threads": 1,
+    "prefix": "replay-",
+    "make": "make verify-spec (SPEC_TRACE_SEED, SPEC_TRACE_COUNT, SPEC_TRACE_STEPS)"
+  }
+}
