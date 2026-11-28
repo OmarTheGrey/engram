@@ -11,19 +11,22 @@
 // - `promoted`: the hit is in an item outside the person scope that a
 //   promotion out of the person scope made (its `promote` event names the
 //   person scope as scope_from), so it is the target scope's, not the person's;
-// - `outside-person-scope`: the hit is in another item that lives outside the
-//   person scope, which offboarding does not erase;
-// - `shared-store-ref`: the hit is in a store record whose ref an item
-//   outside the person scope holds, which offboarding keeps and reports;
-// - `erased-content-hash`: the hit is in the reason of an erase or sweep event
-//   carrying LEFT_CONTENT_CLAUSE, the hashes the log keeps by design so that
-//   adoption refuses a record left in a store or not found at its ref;
+// - `shared-store-ref`: the hit is in a store record, or an item outside the
+//   person scope, at a store ref an item of the person scope also held, which
+//   offboarding keeps and reports (review of PR #33);
+// - `erased-content-hash`: the needle is one of the merging content hashes the
+//   reason of an erase or sweep event names after LEFT_CONTENT_CLAUSE, kept by
+//   design so that adoption refuses a record left in a store or not found at
+//   its ref; a needle that is not one of those hashes gets no such label;
 // - `surviving-hash`: the needle is a hash a surviving item also holds (its
 //   content's strict hash or its provenance hash), so it is not the erased
 //   item's alone.
 // Anything else is residue: a copy of erased content the erasure should have
 // removed, including a record left in a store the plane could not delete
-// from (the deletion report lists it, but the bytes are there).
+// from (the deletion report lists it, but the bytes are there), and a copy in
+// another scope that no promotion made and that holds no shared ref (a derived
+// write left after a crash, a copy under a fresh id: gaps, not decisions,
+// ADR 0010).
 //
 // What this scan cannot see is the caller's to search with scanBytes: the
 // database file's free pages and write-ahead log, a store's files on disk and
@@ -33,10 +36,16 @@
 // Read-only: no event is appended, nothing in the store changes. Core reads
 // no clock and draws no randomness; the result is in a fixed order. Card
 // E9.14 (the signed erasure receipt) calls it with the hashes a receipt names.
+//
+// An ungated audit read: it lists and reads the store across every scope the
+// log names, with no membership check and no event, so it answers whether any
+// scope holds a given string. It must not be reachable from a viewer-facing
+// path as it is; a surface that exposes it (E9.14's verify-receipt or any
+// other) gates it as a read and records the decision (AGENTS.md rules 2 and 3).
 import type { Adapter, StoreRef } from "./adapter.ts";
 import { strictContentHash } from "./content-hash.ts";
 import type { Db } from "./db/db.ts";
-import { ERASURE_ID, keptInStore } from "./events.ts";
+import { ERASURE_ID, keptInStore, LEFT_CONTENT_CLAUSE } from "./events.ts";
 import { itemById, itemsByStoreRef } from "./items.ts";
 import type { MemoryEvent, MemoryItem } from "./schema.ts";
 
@@ -60,7 +69,6 @@ export type ResidueTier = (typeof RESIDUE_TIERS)[number];
 
 export const RETAINED_KINDS = [
   "promoted",
-  "outside-person-scope",
   "shared-store-ref",
   "erased-content-hash",
   "surviving-hash",
@@ -160,6 +168,8 @@ interface Context {
   person: string;
   /** Item ids a promotion out of the person scope made. */
   promotedOut: Set<string>;
+  /** The store refs (refKey) any item of the person scope held, by the log's events. */
+  personRefs: Set<string>;
   /** Strict content hashes and provenance hashes of items outside the person scope. */
   survivingHashes: Set<string>;
   needles: readonly ResidueNeedle[];
@@ -172,6 +182,12 @@ function context(db: Db, request: ResidueRequest): Context {
     if (e.decision === "allow" && e.scope_from === request.person && e.item_id !== null)
       promotedOut.add(e.item_id);
   }
+  const personRefs = new Set<string>();
+  for (const row of db.prepare("SELECT body FROM events").all()) {
+    const e = JSON.parse(String(row.body)) as MemoryEvent;
+    if (e.item?.scope === request.person && e.item.store_ref)
+      personRefs.add(refKey(e.item.store_ref));
+  }
   const survivingHashes = new Set<string>();
   for (const row of db.prepare("SELECT body FROM items").all()) {
     const i = JSON.parse(String(row.body)) as MemoryItem;
@@ -179,7 +195,13 @@ function context(db: Db, request: ResidueRequest): Context {
     survivingHashes.add(strictContentHash(i.content));
     survivingHashes.add(i.provenance.hash);
   }
-  return { person: request.person, promotedOut, survivingHashes, needles: request.needles };
+  return {
+    person: request.person,
+    promotedOut,
+    personRefs,
+    survivingHashes,
+    needles: request.needles,
+  };
 }
 
 /** Whether `needle` is part of a hash a surviving item holds. */
@@ -191,7 +213,24 @@ function itemRetention(db: Db, ctx: Context, id: string | null): RetainedKind | 
   if (id === null) return null;
   const item = itemById(db, id);
   if (!item || item.scope === ctx.person) return null;
-  return ctx.promotedOut.has(id) ? "promoted" : "outside-person-scope";
+  if (ctx.promotedOut.has(id)) return "promoted";
+  if (item.store_ref && ctx.personRefs.has(refKey(item.store_ref))) return "shared-store-ref";
+  return null;
+}
+
+/** The merging content hashes an erase or sweep event's LEFT_CONTENT_CLAUSE names (events.ts). */
+function leftHashes(event: MemoryEvent): string[] {
+  if (event.policy_id !== ERASURE_ID && event.policy_id !== SWEPT_ID) return [];
+  if (!keptInStore(event)) return [];
+  const open = `${LEFT_CONTENT_CLAUSE} (`;
+  const start = event.reason.lastIndexOf(open);
+  if (start < 0) return [];
+  const end = event.reason.indexOf(")", start + open.length);
+  if (end < 0) return [];
+  return event.reason
+    .slice(start + open.length, end)
+    .split(", ")
+    .filter((h) => h !== "");
 }
 
 function retention(
@@ -245,10 +284,10 @@ function scanLog(db: Db, ctx: Context, searched: ResidueScan["searched"]): Resid
       if (found.length === 0) continue;
       if (tier === "events") {
         const event = JSON.parse(String(row.body)) as MemoryEvent;
-        const kept =
-          (event.policy_id === ERASURE_ID || event.policy_id === SWEPT_ID) && keptInStore(event);
+        const kept = leftHashes(event);
         for (const key of found) {
           const needle = byKey.get(key) as ResidueNeedle;
+          const isKept = kept.some((h) => h.includes(needle.text));
           for (const field of eventFields(event, needle.text))
             hits.push({
               needle: key,
@@ -257,7 +296,7 @@ function scanLog(db: Db, ctx: Context, searched: ResidueScan["searched"]): Resid
               row: event.id,
               field,
               item_id: event.item_id,
-              retained: retention(db, ctx, needle, event.item_id, kept && field === "reason"),
+              retained: retention(db, ctx, needle, event.item_id, isKept && field === "reason"),
             });
         }
         continue;
@@ -345,7 +384,7 @@ async function scanStore(
         item_id: record.id,
         retained:
           own ??
-          (holders.length > 0
+          (holders.length > 0 && ctx.personRefs.has(key)
             ? "shared-store-ref"
             : survivingHash(ctx, needle)
               ? "surviving-hash"

@@ -169,10 +169,52 @@ forEachBackend((backend) => {
       const kinds = (needle: string) =>
         [...new Set(scan.hits.filter((h) => h.needle === needle).map((h) => h.retained))].sort();
       expect(kinds("promoted/text")).toEqual(["promoted"]);
-      expect(kinds("shared/text")).toEqual(["outside-person-scope", "shared-store-ref"]);
+      expect(kinds("shared/text")).toEqual(["shared-store-ref"]);
       // The left record's merging hash, kept in its erase event's reason.
       expect(kinds("left/merging")).toEqual(["erased-content-hash"]);
+      // Its text, were it there, would not be: only the named hashes are kept.
+      expect(kinds("left/text")).toEqual([null]);
       expect(found(scan.hits)).not.toContain(NEVER.key);
+    });
+
+    test("a team copy of an erased fact that no promotion made and that shares no ref is residue; its hash a surviving item holds is surviving-hash", async () => {
+      const env = await seeded(backend.open());
+      const plain = currentItems(env.db).find((i) => i.id === id(N.plain)) as MemoryItem;
+      // A derived write into the team under a fresh id, its lineage the person
+      // item, with no promotion and no store record of its own: a gap, not a
+      // decision (ADR 0010).
+      const copy = {
+        ...plain,
+        id: id(60),
+        scope: "team:core",
+        lineage: [plain.id],
+        grants: [],
+        store_ref: null,
+        // The copy names its source's content hash as its evidence.
+        provenance: { ...plain.provenance, hash: strictContentHash(FACTS.plain) },
+      } as MemoryItem;
+      appendEvent(env.db, {
+        id: id(800_002),
+        ts: AT,
+        op: "write",
+        item_id: copy.id,
+        actor: PERSON,
+        scope_from: null,
+        scope_to: copy.scope,
+        decision: "allow",
+        reason: "a derived copy left in the team",
+        policy_id: "test/fixture",
+        item: copy,
+        schema_version: 1,
+      });
+      await offboard(env.deps, dana, LEAVE, LATER);
+      const scan = await findResidue(env, { person: PERSON, needles: [...NEEDLES, NEVER] });
+      const at = (needle: string) =>
+        scan.hits
+          .filter((h) => h.needle === needle && h.tier === "projection")
+          .map((h) => [h.item_id, h.retained]);
+      expect(at("plain/text")).toEqual([[id(60), null]]);
+      expect(at("plain/hash")).toEqual([[id(60), "surviving-hash"]]);
     });
   });
 });
