@@ -44,7 +44,10 @@ import { PROMOTE_REPLAY_ITEM_ID, PROMOTE_REPLAY_SPLIT_ID } from "../../../src/po
 import type { MemoryItem, Policy } from "../../../src/schema.ts";
 import { AT, id, item, testPolicy } from "../plane/helpers.ts";
 
-const FIXTURE = new URL("../../../../../fixtures/distill/d4-drift/revalidation.json", import.meta.url);
+const FIXTURE = new URL(
+  "../../../../../fixtures/distill/d4-drift/revalidation.json",
+  import.meta.url,
+);
 
 interface DriftFixture {
   config: string;
@@ -130,7 +133,9 @@ describe("acceptance (card D4): a fixture with a changed task retires the skill"
       item_id: fixture.item.id,
       policy_id: `${fixture.policy.id}/drift/environment-changed`,
     });
-    expect(result.event.reason).toContain(`environment ${a.environment} changed to ${d.environment}`);
+    expect(result.event.reason).toContain(
+      `environment ${a.environment} changed to ${d.environment}`,
+    );
     expect(result.event.reason).toMatch(/below the success floor 0\.700 after at least 10 trials/);
     const retired = itemById(db, fixture.item.id);
     expect(retired?.status).toBe("retired");
@@ -204,9 +209,12 @@ describe("when a re-validation is due (procedures.drift)", () => {
   test("drift without ADR 0011's thresholds is refused by the loader's check", () => {
     const bare = { ...DRIFT, lints: { enabled: [], thresholds: {} } };
     expect(driftThresholdProblem(bare)).toMatch(/replay-drift\.success-floor/);
-    expect(driftThresholdProblem({ ...bare, lints: { enabled: [], thresholds: { "replay-drift.success-floor": 0.7 } } })).toMatch(
-      /replay-drift\.min-trials/,
-    );
+    expect(
+      driftThresholdProblem({
+        ...bare,
+        lints: { enabled: [], thresholds: { "replay-drift.success-floor": 0.7 } },
+      }),
+    ).toMatch(/replay-drift\.min-trials/);
     expect(driftThresholdProblem(DRIFT)).toBeNull();
     expect(driftThresholdProblem(testPolicy())).toBeNull();
   });
@@ -219,7 +227,10 @@ describe("whether it retires: the success floor after min-trials (ADR 0011)", ()
     expect(judgeDrift(DRIFT, replay(10))).toMatchObject({ trials: 15, successes: 10 });
   });
   test("fewer trials than min-trials never retire", () => {
-    const fewer = { ...DRIFT, lints: { enabled: [], thresholds: { ...thresholds, "replay-drift.min-trials": 16 } } };
+    const fewer = {
+      ...DRIFT,
+      lints: { enabled: [], thresholds: { ...thresholds, "replay-drift.min-trials": 16 } },
+    };
     const j = judgeDrift(fewer, replay(0));
     expect(j.decision).toBe("keep");
     expect(j.text).toContain("fewer than the 16 trials");
@@ -272,16 +283,26 @@ describe("Plane.revalidate", () => {
     const { db, plane } = await active();
     const r = await plane.revalidate(omar, id(1), AT, { replay: replay(12), environment: changed });
     expect(r.outcome).toBe("kept");
-    expect(r.event).toMatchObject({ op: "retire", decision: "deny", policy_id: "test/drift/environment-changed" });
-    expect(r.event.reason).toContain("a success rate of 0.800 (12 of 15 trials with the procedure)");
+    expect(r.event).toMatchObject({
+      op: "retire",
+      decision: "deny",
+      policy_id: "test/drift/environment-changed",
+    });
+    expect(r.event.reason).toContain(
+      "a success rate of 0.800 (12 of 15 trials with the procedure)",
+    );
     expect(itemById(db, id(1))?.status).toBe("active");
   });
 
   test("the period retires under replay-drift, counted from the last validation", async () => {
     const { db, plane } = await active();
-    const early = await plane.revalidate(omar, id(1), "2026-10-26T11:00:00Z", { replay: replay(3) });
+    const early = await plane.revalidate(omar, id(1), "2026-10-26T11:00:00Z", {
+      replay: replay(3),
+    });
     expect(early.event.policy_id).toBe(DRIFT_NOT_DUE_ID);
-    expect(early.event.reason).toContain("the period of 86400 seconds since its last validation at 2026-10-25T12:00:00Z has not passed");
+    expect(early.event.reason).toContain(
+      "the period of 86400 seconds since its last validation at 2026-10-25T12:00:00Z has not passed",
+    );
     const due = await plane.revalidate(omar, id(1), "2026-10-26T12:00:00Z", { replay: replay(3) });
     expect(due.outcome).toBe("retired");
     expect(due.event.policy_id).toBe("test/drift/replay-drift");
@@ -290,7 +311,9 @@ describe("Plane.revalidate", () => {
 
   test("a kept re-validation restarts the period", async () => {
     const { plane } = await active();
-    const kept = await plane.revalidate(omar, id(1), "2026-10-26T12:00:00Z", { replay: replay(15) });
+    const kept = await plane.revalidate(omar, id(1), "2026-10-26T12:00:00Z", {
+      replay: replay(15),
+    });
     expect(kept.outcome).toBe("kept");
     const next = await plane.revalidate(omar, id(1), "2026-10-27T11:00:00Z", { replay: replay(0) });
     expect(next.event.policy_id).toBe(DRIFT_NOT_DUE_ID);
@@ -307,7 +330,10 @@ describe("Plane.revalidate", () => {
       })),
     });
     const short = await plane.revalidate(omar, id(1), AT, { replay: spread });
-    expect(short).toMatchObject({ outcome: "refused", event: { op: "promote", decision: "deny", policy_id: "test/drift/restored" } });
+    expect(short).toMatchObject({
+      outcome: "refused",
+      event: { op: "promote", decision: "deny", policy_id: "test/drift/restored" },
+    });
     expect(itemById(db, id(1))?.status).toBe("retired");
     const back = await plane.revalidate(omar, id(1), AT, { replay: replay(15) });
     expect(back.outcome).toBe("restored");
@@ -319,7 +345,10 @@ describe("Plane.revalidate", () => {
     delete (off as { procedures?: unknown }).procedures;
     const { db, plane } = await active(off);
     const r = await plane.revalidate(omar, id(1), AT, { replay: replay(0), environment: changed });
-    expect(r).toMatchObject({ outcome: "refused", event: { op: "retire", decision: "deny", policy_id: DRIFT_OFF_ID } });
+    expect(r).toMatchObject({
+      outcome: "refused",
+      event: { op: "retire", decision: "deny", policy_id: DRIFT_OFF_ID },
+    });
     expect(itemById(db, id(1))?.status).toBe("active");
   });
 
@@ -347,30 +376,58 @@ describe("Plane.revalidate", () => {
 
   test("a non-member is refused opaquely, its event naming no scope", async () => {
     const { plane } = await active();
-    const stranger: Actor = { id: "person:eve", level: "person", memberships: ["person:eve"], source: "user" };
-    const r = await plane.revalidate(stranger, id(1), AT, { replay: replay(0), environment: changed });
-    expect(r.event).toMatchObject({ policy_id: DRIFT_MEMBERSHIP_ID, scope_from: null, scope_to: null });
-    const unknown = await plane.revalidate(omar, id(77), AT, { replay: replay(0, { item_id: id(77) }) });
-    expect(unknown.event.reason.replace(id(77), "X")).toBe(r.event.reason.replace(id(1), "X").replace("person:eve", "person:omar"));
+    const stranger: Actor = {
+      id: "person:eve",
+      level: "person",
+      memberships: ["person:eve"],
+      source: "user",
+    };
+    const r = await plane.revalidate(stranger, id(1), AT, {
+      replay: replay(0),
+      environment: changed,
+    });
+    expect(r.event).toMatchObject({
+      policy_id: DRIFT_MEMBERSHIP_ID,
+      scope_from: null,
+      scope_to: null,
+    });
+    const unknown = await plane.revalidate(omar, id(77), AT, {
+      replay: replay(0, { item_id: id(77) }),
+    });
+    expect(unknown.event.reason.replace(id(77), "X")).toBe(
+      r.event.reason.replace(id(1), "X").replace("person:eve", "person:omar"),
+    );
   });
 
   test("a candidate, a non-procedure and an item retired otherwise are not re-validated", async () => {
     const db = openSqlite(":memory:");
     migrate(db);
     let n = 0;
-    const plane = createPlane({ db, adapter: createFakeAdapter(), policy: DRIFT, newId: () => id(900_000 + ++n), distillTasks: SESSIONS });
+    const plane = createPlane({
+      db,
+      adapter: createFakeAdapter(),
+      policy: DRIFT,
+      newId: () => id(900_000 + ++n),
+      distillTasks: SESSIONS,
+    });
     await plane.write({ ...omar, source: "model" }, procedure(), AT);
     const r = await plane.revalidate(omar, id(1), AT, { replay: replay(0), environment: changed });
     expect(r.event.policy_id).toBe(DRIFT_STATUS_ID);
     expect(r.event.reason).toContain("a candidate; Plane.promote admits it");
     await plane.write(omar, item(2, { scope: "person:omar" }), AT);
-    const s = await plane.revalidate(omar, id(2), AT, { replay: replay(0, { item_id: id(2) }), environment: changed });
+    const s = await plane.revalidate(omar, id(2), AT, {
+      replay: replay(0, { item_id: id(2) }),
+      environment: changed,
+    });
     expect(s.event.reason).toContain("only procedures are re-validated");
   });
 
   test("a replay that is not the item's is refused under D3's rules", async () => {
     const { plane } = await active();
-    const other = await plane.revalidate(omar, id(1), AT, { replay: replay(0, { item_id: id(2) }), environment: changed });
+    const other = await plane.revalidate(omar, id(1), AT, {
+      replay: replay(0, { item_id: id(2) }),
+      environment: changed,
+    });
     expect(other.event.policy_id).toBe(PROMOTE_REPLAY_ITEM_ID);
     const fewer = replay(0);
     const four = await plane.revalidate(omar, id(1), AT, {
@@ -383,11 +440,18 @@ describe("Plane.revalidate", () => {
   test("a malformed replay or environment is refused before the log is touched", async () => {
     const { plane } = await active();
     const before = plane.events().length;
-    await expect(plane.revalidate(omar, id(1), AT, { replay: replay(0, { threshold: 0.5 }) })).rejects.toThrow(InvalidCallError);
     await expect(
-      plane.revalidate(omar, id(1), AT, { replay: replay(0), environment: { validated: "a", current: "b" } }),
+      plane.revalidate(omar, id(1), AT, { replay: replay(0, { threshold: 0.5 }) }),
     ).rejects.toThrow(InvalidCallError);
-    await expect(plane.revalidate(omar, "nope", AT, { replay: replay(0) })).rejects.toThrow(InvalidCallError);
+    await expect(
+      plane.revalidate(omar, id(1), AT, {
+        replay: replay(0),
+        environment: { validated: "a", current: "b" },
+      }),
+    ).rejects.toThrow(InvalidCallError);
+    await expect(plane.revalidate(omar, "nope", AT, { replay: replay(0) })).rejects.toThrow(
+      InvalidCallError,
+    );
     expect(plane.events().length).toBe(before);
   });
 });

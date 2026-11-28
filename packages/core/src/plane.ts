@@ -40,11 +40,7 @@ import { filteredRead, readOne, storedExplanations } from "./plane/read.ts";
 export { accessTime } from "./plane/read.ts";
 
 import { retain } from "./plane/retention.ts";
-import {
-  type RevalidateOptions,
-  type RevalidationResult,
-  revalidate,
-} from "./plane/revalidate.ts";
+import { type RevalidateOptions, type RevalidationResult, revalidate } from "./plane/revalidate.ts";
 import { listScopes, type ScopeList } from "./plane/scopes.ts";
 import { simulate } from "./plane/simulate.ts";
 import type { WhoCanReadAnswer } from "./plane/who-can-read.ts";
@@ -522,8 +518,7 @@ export function createPlane(deps: PlaneDeps): Plane {
     lint: async (actor, at, scope, options) => lint(deps, actor, at, scope, options),
     changeGrants: async (actor, itemId, change, at) =>
       changeGrants(deps, actor, itemId, change, at),
-    revalidate: async (actor, itemId, at, options) =>
-      revalidate(deps, actor, itemId, at, options),
+    revalidate: async (actor, itemId, at, options) => revalidate(deps, actor, itemId, at, options),
     simulate: (workload, policy) => simulate(deps, workload, policy),
     distill: async () => {
       // Card D2 built the induction as a Distiller (distill/induce.ts); this

@@ -19,8 +19,8 @@ import {
   visit,
 } from "yaml";
 import type { z } from "zod";
-import { NLI_LINT_ID, nliThresholdProblems } from "../lint/nli.ts";
 import { driftThresholdProblem } from "../distill/drift.ts";
+import { NLI_LINT_ID, nliThresholdProblems } from "../lint/nli.ts";
 import { LIFECYCLE_TRIGGERS, LINT_IDS, LINT_THRESHOLD_KEYS } from "../lint.ts";
 import { Policy, ScopeLevel } from "../schema.ts";
 import { notBuiltOptions } from "./options.ts";

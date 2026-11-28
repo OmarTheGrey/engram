@@ -47,12 +47,12 @@ export {
   type WalkedItem,
   walkToAdmitted,
 } from "./plane/retrieve.ts";
-export * from "./plane.ts";
 export {
   lastValidated,
   type RevalidateOptions,
   type RevalidationResult,
 } from "./plane/revalidate.ts";
+export * from "./plane.ts";
 export * from "./policy/evaluate.ts";
 export * from "./policy/grants.ts";
 export * from "./policy/load.ts";

@@ -33,6 +33,18 @@
 //    the promote event (allow, or deny leaving a candidate) carries the
 //    counts. The owner who ran the replay presents it, user-sourced.
 //
+// Drift (card D4 of the second absorb plan; ADR 0011 as amended 2026-11-28):
+// runDriftConfig takes a D3 config's admitted procedure, admitted again in
+// its own plane from D3's committed cassettes, and re-validates it on
+// another task pool: the same held-out tasks, one of them changed. Each
+// session of a task unchanged since D3 replays from D3's cassettes, read
+// only; a changed task's sessions are recorded into the drift config's own,
+// from D3's scripted agent. The environment hash is sha256 of the held-out
+// tasks' files and command answers, so the changed task changes it, and the
+// re-validation goes to Plane.revalidate (the plane judges; core's drift.ts
+// is the rule). Then it re-validates once more on D3's pool, the
+// environment put back, to show the retired version restored.
+//
 // The repositories are synthetic: invented files, no real person (AGENTS.md
 // rule 12).
 import { createHash } from "node:crypto";
@@ -59,11 +71,14 @@ import {
   type MemoryItem,
   migrate,
   openSqlite,
+  Policy,
   parseDistillRef,
   parseSkillMd,
   REPLAY_THRESHOLD,
+  type ReplayEvidence,
   type ReplayOutcome,
   type ReplayRecord,
+  type RevalidationResult,
   strictContentHash,
   type TaskScore,
   toSkillMd,
@@ -513,7 +528,7 @@ function answersFor(config: ReplayConfig, steps: unknown[] | undefined, key: str
   });
 }
 
-async function replaySession(
+export async function replaySession(
   config: ReplayConfig,
   task: Task,
   candidate: Candidate | null,
@@ -599,7 +614,10 @@ async function replaySession(
 /** An item's status as the last event carrying it left it. */
 function itemStatus(events: readonly MemoryEvent[], id: string): MemoryItem["status"] {
   let status: MemoryItem["status"] = "candidate";
-  for (const e of events) if (e.item_id === id && e.item) status = e.item.status;
+  for (const e of events)
+    if (e.item_id === id && e.item) status = e.item.status;
+    else if (e.item_id === id && e.decision === "allow" && (e.op === "retire" || e.op === "evict"))
+      status = "retired";
   return status;
 }
 
@@ -811,4 +829,358 @@ export async function countReplayConfig(config: ReplayConfig, repo?: string): Pr
     candidate_sessions,
     sessions: baseline_sessions + candidate_sessions,
   };
+}
+
+// Drift: re-validation of admitted procedures (card D4).
+
+export const DRIFT_BENCHMARK = "replay-drift";
+
+export const DriftConfig = z.strictObject({
+  name: z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
+  kind: z.literal("pipeline"),
+  benchmark: z.literal(DRIFT_BENCHMARK),
+  /** Card D3's replay config: its admission, its model, seeds, script and cassettes. */
+  admit: z.string(),
+  /** A folder holding tasks.json: the pool the procedure is re-validated on. */
+  data: z.string(),
+  /** `procedures.drift` for this run, over D3's preset (its id suffixed `.drift`). */
+  drift: z.strictObject({
+    environment_change: z.enum(["off", "on"]).optional(),
+    period: z.number().int().positive().optional(),
+  }),
+  /** The admitted procedure re-validated, by skill name. */
+  candidate: z.string().min(1),
+  /** When each re-validation is presented; injected, never read from a clock. */
+  at: z.strictObject({ drift: z.iso.datetime(), restore: z.iso.datetime() }),
+  /** The status the fixture expects after each re-validation. */
+  expected: z.strictObject({
+    drift: z.enum(["active", "retired"]),
+    restore: z.enum(["active", "retired"]),
+  }),
+  /** The cassettes of the changed tasks' sessions. */
+  cassettes: z.string(),
+  /** What the run presented to the plane, for core's acceptance test; written by a recording. */
+  fixture: z.string(),
+});
+export type DriftConfig = z.infer<typeof DriftConfig>;
+
+/** Whether the JSON config at `path` is a drift config. */
+export function isDriftConfig(path: string): boolean {
+  const raw = JSON.parse(readFileSync(path, "utf8")) as { benchmark?: unknown };
+  return raw.benchmark === DRIFT_BENCHMARK;
+}
+
+/** A drift config read from disk, its paths resolved against the file's folder. */
+export function readDriftConfig(path: string): DriftConfig {
+  const config = DriftConfig.parse(JSON.parse(readFileSync(path, "utf8")));
+  const at = (p: string) => resolve(dirname(resolve(path)), p);
+  return {
+    ...config,
+    admit: at(config.admit),
+    data: at(config.data),
+    cassettes: at(config.cassettes),
+    fixture: at(config.fixture),
+  };
+}
+
+/**
+ * The environment a procedure ran in: sha256 of the held-out tasks' files
+ * and command answers, by task id, as canonical JSON. A task's prompt and
+ * check are not its environment.
+ */
+export function environmentHash(tasks: readonly Task[], held: readonly string[]): string {
+  const byId = new Map(tasks.map((t) => [t.id, t]));
+  const env = held.map((id) => {
+    const t = byId.get(id);
+    if (t === undefined) throw new Error(`the pool has no held-out task ${id}`);
+    return { id, files: t.files, commands: t.commands };
+  });
+  return `sha256:${sha256(canonicalJson(env))}`;
+}
+
+/** A cache that only reads: a session of an unchanged task is never recorded into D3's cassettes. */
+function readOnly(cache: CacheStore): CacheStore {
+  return {
+    get: (key) => cache.get(key),
+    set: (entry) => {
+      throw new Error(
+        `the drift run would record ${entry.key} into card D3's cassettes; a task unchanged since D3 replays from them only`,
+      );
+    },
+  };
+}
+
+/** One replay the run presented, as core's acceptance test reads it. */
+export interface DriftPhase {
+  name: "admission" | "drift" | "restore";
+  at: string;
+  replay: ReplayEvidence;
+  environment: string;
+}
+
+export interface DriftPhaseResult {
+  name: "drift" | "restore";
+  environment: { validated: string; current: string };
+  outcome: RevalidationResult["outcome"];
+  trigger: RevalidationResult["trigger"];
+  event: Pick<MemoryEvent, "op" | "decision" | "policy_id" | "reason">;
+  status: MemoryItem["status"];
+  expected: "active" | "retired";
+}
+
+export interface DriftFixture {
+  config: string;
+  policy: Policy;
+  item: MemoryItem;
+  sessions: Record<string, string>;
+  calls: { new: number; cached: number };
+  phases: DriftPhase[];
+}
+
+export interface DriftResult {
+  config: string;
+  candidate: string;
+  item_id: string;
+  held_out: string[];
+  /** The held-out tasks whose definition differs from D3's. */
+  changed: string[];
+  rows: (ReplayRow & { phase: "drift" | "restore" })[];
+  phases: DriftPhaseResult[];
+  events: MemoryEvent[];
+  /** Every call of the run: D3's admission rerun, the drift and the restore. */
+  calls: { new: number; cached: number };
+  usage: UsageRecord[];
+  fixture: DriftFixture;
+  mismatches: string[];
+}
+
+/** The replay of `c` on `held`, both arms per task and seed, from `run`'s sessions. */
+async function replayOn(
+  c: Candidate,
+  held: readonly string[],
+  seeds: readonly number[],
+  run: (task: string, c: Candidate | null, seed: number) => Promise<ReplayRow>,
+): Promise<{ replay: ReplayEvidence; rows: ReplayRow[] }> {
+  const rows: ReplayRow[] = [];
+  const outcomes: ReplayOutcome[] = [];
+  for (const t of held)
+    for (const seed of seeds) {
+      const without = await run(t, null, seed);
+      const withIt = await run(t, c, seed);
+      rows.push(without, withIt);
+      outcomes.push({ task: t, seed, without: without.reward, with: withIt.reward });
+    }
+  return {
+    replay: {
+      item_id: c.item.id,
+      content_hash: strictContentHash(c.item.content),
+      induced_from: c.induced_from,
+      threshold: REPLAY_THRESHOLD,
+      outcomes,
+    },
+    rows,
+  };
+}
+
+/**
+ * Card D3's admission, then the drift re-validation on the config's pool and
+ * the restoring one on D3's, each presented to Plane.revalidate under D3's
+ * preset with the config's `procedures.drift`.
+ */
+export async function runDriftConfig(
+  config: DriftConfig,
+  options: ReplayOptions = {},
+): Promise<DriftResult> {
+  const d3 = readReplayConfig(config.admit);
+  // D3's run from its committed cassettes: its rows are the admission replay.
+  const admitted = await runReplayConfig(d3, { offline: true });
+  const base = loadPreset(d3.preset);
+  const policy = Policy.parse({
+    ...base,
+    id: `${base.id}.drift`,
+    procedures: { drift: config.drift },
+  });
+  const { candidates } = await induceCandidates(d3, { offline: true });
+  const c = candidates.find((x) => x.name === config.candidate);
+  const admittedAs = admitted.candidates.find((x) => x.name === config.candidate);
+  if (c === undefined || admittedAs === undefined)
+    throw new Error(`config ${config.name}: D3 replayed no candidate ${config.candidate}`);
+  if (admittedAs.status !== "active")
+    throw new Error(
+      `config ${config.name}: D3 left ${config.candidate} ${admittedAs.status}; only an admitted procedure drifts`,
+    );
+  const held = admittedAs.held_out;
+  const before = loadReplayTasks(d3);
+  const after = loadReplayTasks({ data: config.data, name: config.name });
+  const same = (t: Task | undefined, u: Task | undefined) =>
+    t !== undefined && u !== undefined && canonicalJson(t) === canonicalJson(u);
+  const beforeById = new Map(before.map((t) => [t.id, t]));
+  const afterById = new Map(after.map((t) => [t.id, t]));
+  const changed = held.filter((t) => !same(beforeById.get(t), afterById.get(t)));
+
+  const script = Script.parse(JSON.parse(readFileSync(d3.script, "utf8"))).sessions;
+  const d3Cache = readOnly(fileCache(d3.cassettes));
+  const ownCache = options.cache ?? fileCache(config.cassettes);
+  const usage: UsageRecord[] = [...admitted.usage];
+  const onUsage = (u: UsageRecord) => usage.push(u);
+  const runner =
+    (pool: ReadonlyMap<string, Task>) =>
+    async (taskId: string, cand: Candidate | null, seed: number) => {
+      const task = pool.get(taskId) as Task;
+      const cache = same(task, beforeById.get(taskId)) ? d3Cache : ownCache;
+      return replaySession(d3, task, cand, seed, script, cache, options, onUsage);
+    };
+
+  const reward = (t: string, seed: number, cand: string | null) => {
+    const row = admitted.rows.find((r) => r.task === t && r.seed === seed && r.candidate === cand);
+    if (row === undefined) throw new Error(`D3's run has no session ${t} at seed ${seed}`);
+    return row.reward;
+  };
+  const admission: ReplayEvidence = {
+    item_id: c.item.id,
+    content_hash: strictContentHash(c.item.content),
+    induced_from: c.induced_from,
+    threshold: REPLAY_THRESHOLD,
+    outcomes: held.flatMap((t) =>
+      d3.seeds.map((seed) => ({
+        task: t,
+        seed,
+        without: reward(t, seed, null),
+        with: reward(t, seed, c.name),
+      })),
+    ),
+  };
+  const drift = await replayOn(c, held, d3.seeds, runner(afterById));
+  const restore = await replayOn(c, held, d3.seeds, runner(beforeById));
+  const env = {
+    admission: environmentHash(before, held),
+    drift: environmentHash(after, held),
+  };
+
+  const db = openSqlite(":memory:");
+  try {
+    migrate(db);
+    const plane = createPlane({
+      db,
+      adapter: createFakeAdapter(),
+      policy,
+      newId: sequentialIds("9"),
+      distillTasks: sessionTasks(d3),
+    });
+    const writer: Actor = {
+      id: c.item.owner,
+      level: "person",
+      memberships: [c.item.scope],
+      source: c.item.provenance.kind,
+    };
+    const operator: Actor = { ...writer, source: "user" };
+    const item = { ...c.item, store_ref: null } as MemoryItem;
+    const written = await plane.write(writer, item, d3.at);
+    if (written.event.decision !== "allow")
+      throw new Error(`candidate ${c.name} was not written: ${written.event.reason}`);
+    const promoted = await plane.promote(operator, c.item.id, c.item.scope, d3.at, {
+      replay: admission,
+    });
+    if (promoted.decision !== "allow")
+      throw new Error(`candidate ${c.name} was not admitted: ${promoted.event.reason}`);
+    const phases: DriftPhaseResult[] = [];
+    const present = async (
+      name: "drift" | "restore",
+      replay: ReplayEvidence,
+      environment: { validated: string; current: string },
+    ) => {
+      const r = await plane.revalidate(operator, c.item.id, config.at[name], {
+        replay,
+        environment,
+      });
+      phases.push({
+        name,
+        environment,
+        outcome: r.outcome,
+        trigger: r.trigger,
+        event: {
+          op: r.event.op,
+          decision: r.event.decision,
+          policy_id: r.event.policy_id,
+          reason: r.event.reason,
+        },
+        status: itemStatus(plane.events(), c.item.id),
+        expected: config.expected[name],
+      });
+    };
+    await present("drift", drift.replay, { validated: env.admission, current: env.drift });
+    await present("restore", restore.replay, { validated: env.drift, current: env.admission });
+    const calls = {
+      new: usage.filter((u) => !u.hit).length,
+      cached: usage.filter((u) => u.hit).length,
+    };
+    const own = new Set(c.sessions);
+    return {
+      config: config.name,
+      candidate: c.name,
+      item_id: c.item.id,
+      held_out: held,
+      changed,
+      rows: [
+        ...drift.rows.map((r) => ({ ...r, phase: "drift" as const })),
+        ...restore.rows.map((r) => ({ ...r, phase: "restore" as const })),
+      ],
+      phases,
+      events: plane.events(),
+      calls,
+      usage,
+      fixture: {
+        config: config.name,
+        policy,
+        item,
+        sessions: Object.fromEntries(
+          [...sessionTasks(d3)].filter(([s]) => own.has(s)).sort(([a], [b]) => (a < b ? -1 : 1)),
+        ),
+        calls,
+        phases: [
+          { name: "admission", at: d3.at, replay: admission, environment: env.admission },
+          { name: "drift", at: config.at.drift, replay: drift.replay, environment: env.drift },
+          {
+            name: "restore",
+            at: config.at.restore,
+            replay: restore.replay,
+            environment: env.admission,
+          },
+        ],
+      },
+      mismatches: phases
+        .filter((p) => p.status !== p.expected)
+        .map(
+          (p) =>
+            `after the ${p.name} re-validation ${c.name} is ${p.status}, the fixture expects ${p.expected}`,
+        ),
+    };
+  } finally {
+    db.close();
+  }
+}
+
+/** The core fixture's bytes: two-space JSON and a final newline. */
+export const driftFixtureText = (result: Pick<DriftResult, "fixture">) =>
+  `${JSON.stringify(result.fixture, null, 2)}\n`;
+
+/** results.jsonl, events.jsonl, summary.json, usage.json and revalidation.json (the core fixture's bytes). */
+export function writeDriftResult(result: DriftResult, out: string, fixture?: string): void {
+  mkdirSync(out, { recursive: true });
+  const lines = (xs: readonly unknown[]) => xs.map((x) => `${JSON.stringify(x)}\n`).join("");
+  writeFileSync(join(out, "results.jsonl"), lines(result.rows));
+  writeFileSync(join(out, "events.jsonl"), lines(result.events));
+  const { config, candidate, item_id, held_out, changed, phases, calls, usage, mismatches } =
+    result;
+  writeFileSync(
+    join(out, "summary.json"),
+    `${JSON.stringify({ config, candidate, item_id, held_out, changed, phases, mismatches }, null, 2)}\n`,
+  );
+  writeFileSync(join(out, "usage.json"), `${JSON.stringify({ config, calls, usage }, null, 2)}\n`);
+  const text = driftFixtureText(result);
+  writeFileSync(join(out, "revalidation.json"), text);
+  if (fixture !== undefined) {
+    mkdirSync(dirname(fixture), { recursive: true });
+    writeFileSync(fixture, text);
+  }
 }
