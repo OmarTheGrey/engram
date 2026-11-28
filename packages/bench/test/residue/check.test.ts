@@ -75,9 +75,15 @@ describe.each(["mcp-memory", "files"] as const)("the check on SQLite and %s", (s
     }
     for (const c of exposed(o).filter((c) => c.slot === 4)) {
       expect(c.text["store-records"]).toBe("shared-store-ref");
-      expect(c.text.projection).toBe("outside-person-scope");
+      expect(c.text.projection).toBe("shared-store-ref");
       expect(Object.values(c.text)).not.toContain("residue");
     }
+    // In the bytes a kept canary is indeterminate, never retained and never residue.
+    for (const c of exposed(o).filter((c) => c.slot === 3 || c.slot === 4))
+      for (const tier of ["db-file", "db-wal", "store-files"] as const) {
+        expect([undefined, "indeterminate"]).toContain(c.text[tier]);
+        expect([undefined, "indeterminate"]).toContain(c.hash[tier]);
+      }
     for (const c of o.canaries.filter((c) => c.role === "never")) {
       expect(c.text).toEqual({});
       expect(c.hash).toEqual({});

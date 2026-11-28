@@ -84,7 +84,16 @@ export async function openStore(
       embedder: createHashingEmbedder(),
       dbPath: join(root, "vectors.db"),
     });
-    return { adapter, fileBytes: async () => filesUnder(root), historyBytes: none, close: done };
+    // Its home folder is searched too: the adapter writes nothing there
+    // (packages/adapters/src/mem0/index.ts), and if Mem0 ever did, the bytes
+    // would be in this tier rather than unsearched.
+    const home = join(dir, "mem0-home");
+    return {
+      adapter,
+      fileBytes: async () => [...filesUnder(root), ...filesUnder(home)],
+      historyBytes: none,
+      close: done,
+    };
   }
   if (name === "letta") {
     const root = join(dir, "memfs");

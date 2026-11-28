@@ -358,7 +358,13 @@ function movedRecord(adapter: Adapter, moved: () => StoreRef | undefined): Adapt
 }
 
 /** One needle's hits in one tier, reduced: residue, or the first retained kind, or absent. */
-export type Outcome = "residue" | (ResidueHit["retained"] & string);
+/**
+ * What a needle was found as in one tier: residue, a retained kind (live
+ * tiers only), or, in a byte tier, indeterminate: bytes of a canary the plane
+ * keeps by decision in a live tier, which cannot be told from a stale copy of
+ * the erased version (identical content).
+ */
+export type Outcome = "residue" | "indeterminate" | (ResidueHit["retained"] & string);
 
 export interface CanaryRow {
   person: number;
@@ -397,8 +403,8 @@ export interface CheckOutcome {
 
 const RANK: Outcome[] = [
   "residue",
+  "indeterminate",
   "promoted",
-  "outside-person-scope",
   "shared-store-ref",
   "erased-content-hash",
   "surviving-hash",
@@ -643,9 +649,15 @@ async function check(
     }
   }
   // The bytes the log and store tiers cannot see. A byte hit cannot be
-  // attributed to an item: it counts as retained when the same needle is
-  // retained by decision in a live tier and has no residue there, else as
-  // residue (the result's limits say so).
+  // attributed to an item, so it is never counted as retained: it is
+  // indeterminate when its canary lives on by decision in a live tier (a
+  // promoted or shared-ref copy holds the same bytes as the erased version),
+  // or when that very needle is a hash the log keeps by decision and is found
+  // as nothing else there; otherwise it is residue (the result's limits say so).
+  const keptCanaries = new Set<string>();
+  for (const [key, outcome] of live)
+    if (outcome === "promoted" || outcome === "shared-store-ref")
+      keptCanaries.add(key.split("#")[0] as string);
   const sources: { tier: ByteTier; bytes: () => Promise<Uint8Array[]> }[] = [
     { tier: "db-file", bytes: () => backend.fileBytes() },
     { tier: "db-wal", bytes: () => backend.walBytes() },
@@ -661,7 +673,11 @@ async function check(
     for (const key of [...found].sort()) {
       const { row, part } = split(key);
       const known = live.get(key);
-      const outcome: Outcome = known === undefined || known === "residue" ? "residue" : known;
+      const outcome: Outcome =
+        keptCanaries.has(key.split("#")[0] as string) ||
+        (known !== undefined && known !== "residue")
+          ? "indeterminate"
+          : "residue";
       row[part][tier] = worst(row[part][tier], outcome);
     }
   }
