@@ -133,7 +133,7 @@ function schemaProblems(issue: z.core.$ZodIssue, js: unknown): Located[] {
     (node, seg) => (node !== null && typeof node === "object" ? (node as never)[seg] : undefined),
     js,
   );
-  if (OPTION_BLOCKS.includes(String(path[0])) && typeof value === "boolean")
+  if (inOptionBlock(path) && typeof value === "boolean")
     return [
       {
         path,
@@ -159,7 +159,37 @@ const NOT_ENFORCED_YET = {
   content_guards: {},
   trust: {},
 } as const;
-const OPTION_BLOCKS: readonly string[] = Object.keys(NOT_ENFORCED_YET);
+
+/**
+ * The options card E2.14 of the second absorb plan added (ADR 0002, decision
+ * D2), each with the card that builds it. Absent is the only value the
+ * loader accepts until then: every present value is refused, `off` too, so
+ * a policy never sets an option the plane silently ignores, and an empty
+ * container (`procedures: {}`) holds every option absent. Each card deletes
+ * its own row when it lands, with a loader test.
+ */
+const NOT_BUILT_YET: readonly { path: readonly string[]; card: string }[] = [
+  { path: ["lints", "model", "evidence"], card: "L9" },
+  { path: ["procedures", "safety_scan"], card: "D5" },
+  { path: ["procedures", "drift"], card: "D4" },
+  { path: ["consent"], card: "E9.12" },
+  { path: ["erasure", "mode"], card: "E9.13" },
+  { path: ["approval"], card: "E2.19" },
+  { path: ["grants", "expiry_cap"], card: "E2.21" },
+];
+
+/** The blocks whose options are words, where YAML 1.1 may read a bare on or off as a boolean. */
+const OPTION_BLOCKS: readonly (readonly string[])[] = [
+  ...Object.keys(NOT_ENFORCED_YET).map((block) => [block]),
+  ["lints", "model"],
+  ["procedures"],
+  ["consent"],
+  ["erasure"],
+  ["approval"],
+  ["grants"],
+];
+const inOptionBlock = (path: PolicyPath) =>
+  OPTION_BLOCKS.some((block) => block.every((seg, i) => path[i] === seg));
 
 /**
  * Checks the schema cannot express. The evaluator looks a rule up by scope
@@ -273,6 +303,22 @@ function semanticProblems(policy: Policy): Located[] {
         message: `${block}.${option} is not enforced yet: card ${card} enforces it; until then set it to "off" or leave it out`,
       });
     }
+  }
+  for (const { path, card } of NOT_BUILT_YET) {
+    const value = path.reduce<unknown>(
+      (node, seg) =>
+        node !== null && typeof node === "object"
+          ? (node as Record<string, unknown>)[seg]
+          : undefined,
+      policy,
+    );
+    if (value === undefined) continue;
+    const name = path.join(".");
+    out.push({
+      path: [...path],
+      atKey: true,
+      message: `${name} is not built yet: card ${card} builds it; until then leave it out (absent is today's behaviour)`,
+    });
   }
   const { replay_k, replay_n } = policy.promotion.procedural;
   if (replay_k > replay_n)
