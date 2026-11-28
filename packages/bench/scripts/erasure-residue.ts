@@ -2,7 +2,10 @@
 // one store (packages/bench/src/residue/):
 //
 //   node packages/bench/scripts/erasure-residue.ts --backend <sqlite|postgres> \
-//     --store <files|mem0|letta|mcp-memory> --seed <n> --cassettes <dir> --out <file.json> [--record]
+//     --store <files|mem0|letta|mcp-memory> --seed <n> --cassettes <dir> --out <file.json> //     [--record] [--work <empty dir>]
+//
+// --work names the folder the log and the store are made in, which the caller
+// removes after this process exits (Mem0 keeps its files open until then).
 //
 // Replays the scripted summaries from the committed cassettes in <dir>, a
 // miss an error; --record writes them from the scripted model instead (`make
@@ -30,10 +33,11 @@ async function main(): Promise<number> {
       cassettes: { type: "string" },
       out: { type: "string" },
       record: { type: "boolean", default: false },
+      work: { type: "string" },
     },
   });
   const usage =
-    "usage: erasure-residue.ts --backend <sqlite|postgres> --store <files|mem0|letta|mcp-memory> --seed <n> --cassettes <dir> --out <file.json> [--record]";
+    "usage: erasure-residue.ts --backend <sqlite|postgres> --store <files|mem0|letta|mcp-memory> --seed <n> --cassettes <dir> --out <file.json> [--record] [--work <empty dir>]";
   const backend = values.backend as BackendName;
   const store = values.store as StoreName;
   const seed = Number(values.seed);
@@ -53,6 +57,7 @@ async function main(): Promise<number> {
     seed,
     cassettes: values.cassettes,
     record: values.record,
+    ...(values.work === undefined ? {} : { work: values.work }),
   });
   writeFileSync(values.out, `${JSON.stringify(outcome, null, 2)}\n`);
   return 0;

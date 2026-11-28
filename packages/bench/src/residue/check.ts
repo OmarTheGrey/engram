@@ -128,6 +128,13 @@ export interface CheckOptions {
   record?: boolean;
   /** The first this many persons only (tests); default PERSONS. The canaries drawn are the same. */
   persons?: number;
+  /**
+   * An empty folder the log and the store are made in, which the caller
+   * removes once the process has exited; default a temporary folder removed
+   * here. Mem0's SQLite files stay open until the process ends (its vector
+   * store has no close), and Windows will not delete an open file.
+   */
+  work?: string;
 }
 
 const pad = (n: number, width: number) => String(n).padStart(width, "0");
@@ -391,7 +398,7 @@ const worst = (a: Outcome | undefined, b: Outcome): Outcome =>
 
 /** Runs the check on one backend and store and returns its outcome; everything it made is removed. */
 export async function runResidueCheck(options: CheckOptions): Promise<CheckOutcome> {
-  const work = mkdtempSync(join(tmpdir(), "engram-x19-"));
+  const work = options.work ?? mkdtempSync(join(tmpdir(), "engram-x19-"));
   let backend: BackendHandle | undefined;
   let store: StoreHandle | undefined;
   try {
@@ -401,7 +408,7 @@ export async function runResidueCheck(options: CheckOptions): Promise<CheckOutco
   } finally {
     await store?.close();
     await backend?.close();
-    rmSync(work, { recursive: true, force: true });
+    if (options.work === undefined) rmSync(work, { recursive: true, force: true });
   }
 }
 
