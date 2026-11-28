@@ -1,0 +1,18 @@
+{
+  "name": "procedure-scan",
+  "kind": "measurement",
+  "hypothesis": "none",
+  "status": "proof of concept",
+  "wording": "a deterministic floor at procedure admission with a measured hold rate and false-hold rate on a hand-labelled corpus, never a defence (card D5)",
+  "corpus": "fixtures/faults/procedural/corpus.json",
+  "modes": ["off", "report", "hold"],
+  "confidence": 0.95,
+  "limits": [
+    "A proof of concept on a corpus the card's author wrote, knowing the rules: the unsafe cases and the controls are synthetic, so the hold rate is optimistic and says nothing about a careful attacker.",
+    "English and shell-centred patterns only: a procedure in another language, or a payload in another scripting language than sh, PowerShell, Python, Perl, Ruby or Node, passes unread.",
+    "Evadable by construction: any regular expression can be written around (a variable holding the host, a split command, an alias, an encoding the rules do not decode).",
+    "Quoting is not intent: benign text that names a dangerous command or phrase (a warning never to run it, a lesson about an injection, a reviewed vendor installer) is held; the corpus's hard negatives are those known false holds.",
+    "Small: 39 unsafe cases and 45 controls, so the Wilson intervals are wide.",
+    "Off in every registered preset, condition and config, H5's included; no registered arm uses it."
+  ]
+}
