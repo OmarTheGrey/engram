@@ -88,7 +88,7 @@
       "file": "packages/core/src/policy/evaluate.ts",
       "id": "I2-forbidden-class-ignored",
       "invariant": "I2",
-      "killed_by": "an episodic item from source tool, with grants [], written by person:omar (member of [org]), landed in org, which policy generated-a forbids: expected [ …(2) ] to not include 'b2ad1321-a83e-7bc6-abc7-",
+      "killed_by": "a semantic item from source model, with grants [], written by person:omar (member of [person:a]), landed in person:a, which policy generated-a forbids: expected [ …(2) ] to not include '3cb166bc-35ee-",
       "verdict": "killed",
       "what": "the write rule's forbidden classes are not checked"
     },
@@ -97,7 +97,7 @@
       "file": "packages/core/src/policy/evaluate.ts",
       "id": "I2-grant-class-optional",
       "invariant": "I2",
-      "killed_by": "an episodic item from source user, with grants [{\"to\":\"agent:claude*\",\"mode\":\"read\",\"expires\":\"2026-01-01T00:00:00Z\"}], written by person:omar (member of [person:a]), landed in person:a, which policy ",
+      "killed_by": "an episodic item from source user, with grants [{\"to\":\"person:omar\",\"mode\":\"read\",\"expires\":\"2026-10-25T12:00:00Z\"}], written by person:omar (member of [person:a]), landed in person:a, which policy ge",
       "verdict": "killed",
       "what": "a grant naming no class is accepted"
     },
@@ -106,7 +106,7 @@
       "file": "packages/core/src/policy/evaluate.ts",
       "id": "I2-membership-ignored",
       "invariant": "I2",
-      "killed_by": "a procedural item from source import, with grants [], written by person:omar (member of []), landed in person:b, which policy generated-a forbids: expected [ …(2) ] to not include '02fe8fcf-f9b9-7d4a-",
+      "killed_by": "an episodic item from source document, with grants [{\"to\":\"agent:claude-code\",\"class\":\"procedural\",\"mode\":\"read\",\"expires\":\"2026-08-27T00:30:05Z\"}], written by person:omar (member of []), landed in or",
       "verdict": "killed",
       "what": "a writer who is not a member of the item's scope may write into it"
     },
@@ -133,7 +133,7 @@
       "file": "packages/core/src/policy/evaluate.ts",
       "id": "I2-retired-content-ignored",
       "invariant": "I2",
-      "killed_by": "an episodic item from source model, with grants [], written by person:omar (member of [person:a]), landed in person:a, which policy generated-a forbids: expected [ …(4) ] to not include 'aaa00a0a-0000",
+      "killed_by": "an episodic item from source model, with grants [], written by person:omar (member of [person:a]), landed in person:a, which policy generated-a forbids: expected [ …(4) ] to not include 'a0aa0aa0-0aa0",
       "verdict": "killed",
       "what": "a model, compaction or tool write may restate content retired in its scope"
     },
@@ -142,7 +142,7 @@
       "file": "packages/core/src/policy/evaluate.ts",
       "id": "I2-source-isolation-ignored",
       "invariant": "I2",
-      "killed_by": "a semantic item from source external, with grants [], written by person:omar (member of [team:b]), landed in team:b, which policy generated-a forbids: expected [ …(2) ] to not include 'b8fc8bc8-1ec5-7",
+      "killed_by": "an episodic item from source model, with grants [], written by person:omar (member of [role:a]), landed in role:a, which policy generated-a forbids: expected [ …(2) ] to not include 'aaaaa000-a0aa-7aa",
       "verdict": "killed",
       "what": "model, compaction and external content may leave person scope"
     },
@@ -304,7 +304,7 @@
       "file": "packages/core/src/log/chain.ts",
       "id": "I9-commitment-ignores-value",
       "invariant": "I9",
-      "killed_by": "an edited lint evidence: [{\"name\":\"tables\",\"ok\":true},{\"name\":\"genesis\",\"ok\":true},{\"name\":\"links\",\"ok\":true},{\"name\":\"anchor\",\"ok\":true},{\"name\":\"commitments\",\"ok\":true},{\"name\":\"checkpoints\",\"ok\":tr",
+      "killed_by": "an edited lint evidence: [{\"name\":\"tables\",\"ok\":true},{\"name\":\"genesis\",\"ok\":true},{\"name\":\"links\",\"ok\":true},{\"name\":\"anchor\",\"ok\":true},{\"name\":\"commitments\",\"ok\":true},{\"name\":\"attestations\",\"ok\":t",
       "verdict": "killed",
       "what": "a part's commitment does not cover its value, so edited content verifies"
     },
@@ -313,7 +313,7 @@
       "file": "packages/core/src/log/chain.ts",
       "id": "I9-link-ignores-previous",
       "invariant": "I9",
-      "killed_by": "chain entry 0 (genesis) does not cover its predecessor: expected '75d39aac658ad2a95e2a051c13fee21b3b3b7…' to be 'f476e67412d39c3e0a7406feddbc3e9fe7bef…' // Object.is equality",
+      "killed_by": "chain entry 0 (genesis) does not cover its predecessor: expected 'cafa36a4d5c3015d5133ea4f507fa6c1f38fa…' to be 'f5fc0284a31966df2e994b977982e52e5e2e3…' // Object.is equality",
       "verdict": "killed",
       "what": "a chain link does not cover the previous hash"
     }

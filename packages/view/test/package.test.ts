@@ -150,6 +150,11 @@ describe("@engram/view", () => {
       seq: 4,
       policy_id: "engram/offboard/erase",
     } as MemoryEvent;
-    expect(view.knownItems([], [promoted, erased]).has(state.id)).toBe(false);
+    // Core's predicate is injected (no rule id in the view, no-policy.test.ts);
+    // restated here as core's events.ts states it. Without it, retired.
+    const erases = (e: MemoryEvent) =>
+      e.decision === "allow" && e.op === "retire" && e.policy_id === "engram/offboard/erase";
+    expect(view.knownItems([], [promoted, erased], erases).has(state.id)).toBe(false);
+    expect(view.knownItems([], [promoted, erased]).get(state.id)?.state?.status).toBe("retired");
   });
 });

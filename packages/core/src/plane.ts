@@ -304,6 +304,17 @@ export interface PromoteOptions {
    * value that is not a positive integer is refused with InvalidCallError.
    */
   reviewedVersion?: number;
+  /**
+   * A user-sourced actor's reason for releasing the procedure safety scan's
+   * hold (card D5, lint/procedural.ts): under `procedures.safety_scan: hold`
+   * an allowed promotion of a procedural item with a critical finding is a
+   * gate event under engram/promote/safety-scan until it is presented again
+   * with this reason, which the allow event's reason records. A release by
+   * another source is a deny event; an empty reason, or one over 500
+   * characters, is refused with InvalidCallError before the log is touched.
+   * Without a hold it changes nothing.
+   */
+  release?: string;
 }
 
 export interface Plane {

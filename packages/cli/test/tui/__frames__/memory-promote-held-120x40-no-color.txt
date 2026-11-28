@@ -1,0 +1,43 @@
+ engram  Promote an item                                              in process  log ~/engram.db  person:dana (person)
+   Item         [ 01940000-0000-7000-8000-000000000001     ]  an item id (a UUIDv7)
+   To scope     [ person:dana                              ]  the item's own or wider; yours: person:dana, org
+   Approve as reviewer [ ] off  approve as a reviewer: a member of the target who does not own the item; or, as its o...
+   ▸ Advanced: id, the test clock and this command's workspace flags
+
+ ◆ ask   exit 1  deny, ask or an error
+ gate 01940000-0000-7000-8000-000000000513 at 2026-10-25T12:00:00.000Z by person:dana
+ ask: held, not admitted: the procedure safety scan (procedures.safety_scan: hold) found 1 critical and 0 warning:
+   critical shell-injection (fetch-pipe-shell) in body at 11 to 51; item 01940000-0000-7000-8000-000000000001 stays as
+   it is until its owner, acting as user, or a user-sourced member of the scope who neither owns nor wrote it, presents
+   it again with a reason to release it; the gate otherwise allowed it (preset.medium/promotion/procedural): item
+   01940000-0000-7000-8000-000000000001 becomes active in person:dana: the validation record 5 of 5 held-out tasks pass
+   with the procedure (a mean reward of at least 2/3 over the seeds, and no lower than without it; 0 of 5 reach 2/3
+   without it) meets 4 of 5; replay sha256:36d96dacea3e498df56c0352d3488c6b787aa2558b8da0e4655648c3b3058bf6; procedural
+   item from source model passes the person write rule
+ policy engram/promote/safety-scan
+ log engram.db
+
+ A reviewer's approval alone does not land this answer, so no switch is offered here.
+ [ Edit and retry ]
+ Promotions cannot be undone from here.
+
+   [ Promote ]   ctrl+s from any field
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$ engram promote 01940000-0000-7000-8000-000000000001 --to person:dana --owner dana --db engram.db --root mem   exit 1
+ ? help  v plain  J json  ctrl+s promote  tab next  ; commands  esc back
+--- styles
+r0 c0-119 inverse
+r20 c1-18 inverse

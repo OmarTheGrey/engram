@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 import type { Actor } from "../../src/actor.ts";
 import {
+  expiryCapProblem,
   grantChangeProblem,
   grantsChanged,
   grantsWiden,
@@ -16,7 +17,7 @@ import {
   withinValidity,
 } from "../../src/oracle.ts";
 import { parsePolicy } from "../../src/policy/load.ts";
-import type { Grant, MemoryEvent, MemoryItem } from "../../src/schema.ts";
+import type { Grant, MemoryEvent, MemoryItem, Policy } from "../../src/schema.ts";
 
 const TWIN = parsePolicy(
   readFileSync(
@@ -277,5 +278,73 @@ describe("replayEvent and priorVersion", () => {
       priorVersion(state, event({ item_id: id(3), item: item({ id: id(3), lineage: [id(1)] }) })),
     ).toBe(undefined);
     expect(priorVersion(state, event({ item: item() }))?.id).toBe(id(1));
+  });
+});
+
+// Card E2.21: the oracle's own reading of the grant cap and the first-write
+// rule (ADR 0034, decisions 3 and 6), apart from policy/evaluate.ts.
+describe("expiryCapProblem", () => {
+  const AT = "2026-11-19T10:00:00Z";
+  const grant = (expires: string, over: Partial<Grant> = {}): Grant => ({
+    ...toSam,
+    expires,
+    ...over,
+  });
+  const on = TWIN;
+  const off: Policy = { ...TWIN, grants: { expiry_cap: "off" } };
+
+  test("exactly 365 days after the event is within the cap; a second or a nanosecond more is not", () => {
+    const at = (g: Grant) => expiryCapProblem(on, undefined, item({ grants: [g] }), AT);
+    expect(at(grant("2027-11-19T10:00:00Z"))).toBeUndefined();
+    expect(at(grant("2027-11-19T10:00:01Z"))).toMatch(/more than 365 days/);
+    expect(at(grant("2027-11-19T10:00:00.000000001Z"))).toMatch(/more than 365 days/);
+    const fine = "2026-11-19T10:00:00.25Z";
+    const capAt = (e: string) =>
+      expiryCapProblem(on, undefined, item({ grants: [grant(e)] }), fine);
+    expect(capAt("2027-11-19T10:00:00.250Z")).toBeUndefined();
+    expect(capAt("2027-11-19T10:00:00.2500001Z")).toMatch(/more than 365 days/);
+    // A leap year changes nothing: from 1 January 2028 the cap ends on 31
+    // December, 365 days later, not on 1 January 2029.
+    const leap = (e: string) =>
+      expiryCapProblem(on, undefined, item({ grants: [grant(e)] }), "2028-01-01T00:00:00Z");
+    expect(leap("2028-12-31T00:00:00Z")).toBeUndefined();
+    expect(leap("2028-12-31T00:00:01Z")).toMatch(/more than 365 days/);
+  });
+
+  test("a first write's expired grant and grant of another class are refused", () => {
+    expect(
+      expiryCapProblem(on, undefined, item({ grants: [grant("2026-11-01T00:00:00Z")] }), AT),
+    ).toMatch(/expired/);
+    expect(expiryCapProblem(on, undefined, item({ grants: [grant(AT)] }), AT)).toMatch(/expired/);
+    expect(
+      expiryCapProblem(
+        on,
+        undefined,
+        item({ grants: [grant("2026-12-19T00:00:00Z", { class: "episodic" })] }),
+        AT,
+      ),
+    ).toMatch(/another class/);
+  });
+
+  test("a grant kept from the version before is not judged; one added is", () => {
+    const far = grant("2030-01-01T00:00:00Z");
+    const before = item({ grants: [far] });
+    expect(expiryCapProblem(on, before, item({ version: 2, grants: [far] }), AT)).toBeUndefined();
+    expect(
+      expiryCapProblem(
+        on,
+        before,
+        item({ version: 2, grants: [far, { ...far, to: "person:lee" }] }),
+        AT,
+      ),
+    ).toMatch(/more than 365 days/);
+  });
+
+  test("off or absent, nothing is judged", () => {
+    const { grants: _g, ...absent } = TWIN;
+    for (const p of [off, absent as Policy])
+      expect(
+        expiryCapProblem(p, undefined, item({ grants: [grant("9999-12-31T23:59:59Z")] }), AT),
+      ).toBeUndefined();
   });
 });

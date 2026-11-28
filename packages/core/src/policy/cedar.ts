@@ -50,6 +50,18 @@
 //     and expires requests, and the promotion gate is not exported; the read
 //     and write gates are the same with or without it, so a policy that sets
 //     it is exported, with a header line naming its routes as not exported;
+//   - procedures.safety_scan (card D5): exported as if absent, faithfully,
+//     since it acts only on the promotion gate's admission of a procedural
+//     item (lint/procedural.ts), which the export does not model; the read
+//     and write gates it exports are the same with the scan off, report or
+//     hold, so a policy setting it exports the same text as without it;
+//   - grants.expiry_cap (card E2.21): refused when on. The cap and the
+//     first-write rule it turns on judge each grant of a write, grant by
+//     grant, against the event's time, which the export does not model; the
+//     rule lies outside its stated scope (ADR 0041, decision 5: agreement
+//     modulo grants), so it is refused rather than flattened, as content
+//     guards and trust options are. Off is exported, since off is the gate
+//     without it;
 //   - `procedures.drift` (card D4): a lifecycle outside the gate, like
 //     promotion and retention sweeps. Plane.revalidate's events set an
 //     item's status, which the exported status rule judges, so a policy that
@@ -276,6 +288,11 @@ function refuseUntranslatable(policy: Policy): void {
   if (on.length > 0)
     throw new CedarExportError(
       `policy ${policy.id} sets ${on.join(", ")}; the Cedar export does not translate content guards or trust options, and refuses rather than export a gate that disagrees with the evaluator`,
+    );
+  // Card E2.21: grants.expiry_cap is refused when on, not translated.
+  if (policy.grants?.expiry_cap === "on")
+    throw new CedarExportError(
+      `policy ${policy.id} sets grants.expiry_cap on; the Cedar export does not translate it: its cap of 365 days and its first-write rule judge a write's grants grant by grant against the event's time, which the export does not model, outside its stated scope (ADR 0041, decision 5: agreement modulo grants); it is refused rather than flattened, as content guards and trust options are`,
     );
   // Card E2.14: an option nothing builds yet is refused as the loader refuses
   // it; the card that builds one decides whether the export translates it.

@@ -6,7 +6,9 @@
 // only value the loader accepts until each option's card builds it: every
 // value the schema admits is refused, at its key, naming that card. Each
 // consuming card removes its own row of NOT_BUILT below, as it lifts the
-// refusal in policy/load.ts.
+// refusal in policy/load.ts. Card E2.21 (part 2) removed grants.expiry_cap's
+// row: the option loads, runs and stays refused by the Cedar export, which
+// cannot state a rule judged grant by grant (the describe at the end).
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
@@ -112,9 +114,13 @@ describe("absent, every option parses as today", () => {
     for (const key of NEW_KEYS) expect(key in policy, key).toBe(false);
     expect("model" in policy.lints).toBe(false);
   });
-  test.each(PROFILES)("the profile %s sets none of them", (url) => {
+  // Card E2.21 sets grants.expiry_cap on in both profiles, the lead's answer
+  // of 2026-11-25; every other option stays absent there.
+  test.each(PROFILES)("the profile %s sets none of them but grants.expiry_cap", (url) => {
     const policy = parsePolicy(readFileSync(url, "utf8"), url.pathname);
-    for (const key of NEW_KEYS) expect(key in policy, key).toBe(false);
+    for (const key of NEW_KEYS.filter((k) => k !== "grants"))
+      expect(key in policy, key).toBe(false);
+    expect(policy.grants).toEqual({ expiry_cap: "on" });
     expect("model" in policy.lints).toBe(false);
   });
 
@@ -140,12 +146,6 @@ describe("absent, every option parses as today", () => {
 // test is in test/unit/plane/approvals.test.ts.
 const NOT_BUILT: [option: string, card: string, key: string, texts: string[]][] = [
   [
-    "procedures.safety_scan",
-    "D5",
-    "  safety_scan:",
-    ["off", "report", "hold"].map((v) => withBlocks(`procedures:\n  safety_scan: "${v}"\n`)),
-  ],
-  [
     "consent",
     "E9.12",
     "consent:",
@@ -165,12 +165,6 @@ const NOT_BUILT: [option: string, card: string, key: string, texts: string[]][] 
     "E9.13",
     "  mode:",
     ["redact", "shred"].map((v) => withBlocks(`erasure:\n  mode: ${v}\n`)),
-  ],
-  [
-    "grants.expiry_cap",
-    "E2.21",
-    "  expiry_cap:",
-    ["off", "on"].map((v) => withBlocks(`grants:\n  expiry_cap: "${v}"\n`)),
   ],
 ];
 
@@ -249,10 +243,8 @@ describe("readers of an already-parsed policy refuse what the loader refuses", (
   const medium = loadPreset("medium");
   /** One policy per option, each setting it, typed as the schema admits it. */
   const SETTING: [option: string, policy: Policy][] = [
-    ["procedures.safety_scan", { ...medium, procedures: { safety_scan: "hold" } }],
     ["consent", { ...medium, consent: { opt_outs: [] } }],
     ["erasure.mode", { ...medium, erasure: { mode: "redact" } }],
-    ["grants.expiry_cap", { ...medium, grants: { expiry_cap: "off" } }],
   ];
 
   test("the shared table lists exactly the options the loader refuses", () => {
@@ -299,5 +291,57 @@ describe("readers of an already-parsed policy refuse what the loader refuses", (
     const report = await plane.simulate({ id: "w", actors: {}, steps: [] }, loadPreset("strict"));
     expect(report.changed).toEqual([]);
     expect(exportCedar(medium).policies.length).toBeGreaterThan(0);
+  });
+});
+
+// Card E2.21, part 2: grants.expiry_cap is built. The loader takes it, off or
+// on, quoted or not; the plane runs it (test/unit/plane/write-grants.test.ts);
+// Plane.simulate takes it as a candidate; the Cedar export takes it off and
+// refuses it on, with its reason (ADR 0041, decision 5), since the cap and the
+// first-write rule judge every grant of a list, which Cedar cannot quantify.
+describe("grants.expiry_cap, built by card E2.21", () => {
+  const medium = loadPreset("medium");
+
+  test.each([
+    ["off", 'grants:\n  expiry_cap: "off"\n'],
+    ["on", 'grants:\n  expiry_cap: "on"\n'],
+    ["on", "grants:\n  expiry_cap: on\n"],
+  ])("the loader takes expiry_cap: %s", (value, block) => {
+    expect(parsePolicy(withBlocks(block), "policy").grants).toEqual({ expiry_cap: value });
+  });
+
+  test("notBuiltOptions no longer names it, off or on", () => {
+    for (const v of ["off", "on"] as const)
+      expect(notBuiltOptions({ ...medium, grants: { expiry_cap: v } })).toEqual([]);
+    expect(NOT_BUILT_YET.some((r) => r.path.join(".") === "grants.expiry_cap")).toBe(false);
+  });
+
+  test("the twin and knowledge profiles set it on; no registered preset sets it", () => {
+    for (const name of ["twin", "knowledge"]) {
+      const url = new URL(`../../../../pi-package/profiles/${name}.yaml`, import.meta.url);
+      expect(parsePolicy(readFileSync(url, "utf8"), `${name}.yaml`).grants).toEqual({
+        expiry_cap: "on",
+      });
+    }
+    for (const name of [...PRESETS, ...EXTRA_PRESETS])
+      expect(loadPreset(name as PresetName).grants).toBeUndefined();
+  });
+
+  test("the Cedar export takes it off and refuses it on, naming why", () => {
+    expect(exportCedar({ ...medium, grants: { expiry_cap: "off" } })).toEqual(exportCedar(medium));
+    const on: Policy = { ...medium, grants: { expiry_cap: "on" } };
+    expect(() => exportCedar(on)).toThrow(CedarExportError);
+    expect(() => exportCedar(on)).toThrow("grants.expiry_cap");
+    expect(() => exportCedar(on)).toThrow("grant by grant");
+    expect(() => exportCedar(on)).not.toThrow("not built yet");
+  });
+
+  test("Plane.simulate takes it as a candidate", async () => {
+    const { plane } = fresh(medium);
+    const report = await plane.simulate(
+      { id: "w", actors: {}, steps: [] },
+      { ...medium, grants: { expiry_cap: "on" } },
+    );
+    expect(report.changed).toEqual([]);
   });
 });

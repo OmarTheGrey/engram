@@ -9,14 +9,14 @@
 
    ✓ ok    tables
    ✓ ok    links
+   ✓ ok    attestations
    ✓ ok    checkpoints
  log fixture: 2 chain entries, 1 events chained, 0 unchained, 0 erased, 0 manifests, 0 checkpoints
+ chain version 2: 1 attestations chained, 0 not covered
  note: no checkpoint: nothing signs this log's head
 
- The chain proves no event was changed or removed after it was written. A signed checkpoint also proves who vouched for
- it.
-
-
+ The chain proves no event was changed or removed after it was written, and from chain version 2 that no served event's
+ attestation was changed. A signed checkpoint also proves who vouched for it.
 
 
 
@@ -45,3 +45,4 @@ r7 c1-1 bold
 r9 c3-3 bold
 r10 c3-3 bold
 r11 c3-3 bold
+r12 c3-3 bold

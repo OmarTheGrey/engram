@@ -30,8 +30,14 @@ export interface KnownItem {
 const CREATING_OPS = new Set<MemoryEvent["op"]>(["write", "promote"]);
 /** The ops whose allowed event retires the item it names (core's events.ts). */
 const RETIRING_OPS = new Set<MemoryEvent["op"]>(["retire", "evict"]);
-/** The rule of a person-scope erasure, restated from core's events.ts (the package imports no runtime code). */
-const ERASURE_ID = "engram/offboard/erase";
+/**
+ * Whether an event erases the item it names: core's `erases` (events.ts),
+ * injected by the caller, since the package imports no runtime code and
+ * holds no rule id (no-policy.test.ts). Without it, an erased item shows as
+ * retired, its content already redacted in the log by core.
+ */
+export type Erases = (event: MemoryEvent) => boolean;
+const NONE: Erases = () => false;
 
 /**
  * The items the viewer may see something of: every item its read returned,
@@ -44,6 +50,7 @@ const ERASURE_ID = "engram/offboard/erase";
 export function knownItems(
   items: readonly MemoryItem[],
   events: readonly MemoryEvent[],
+  erases: Erases = NONE,
 ): Map<string, KnownItem> {
   const known = new Map<string, KnownItem>();
   for (const e of events) {
@@ -57,8 +64,8 @@ export function knownItems(
       RETIRING_OPS.has(e.op)
     ) {
       // An erasure removes its item, as core's projection does (events.ts
-      // ERASURE_ID): it is absent, not retired.
-      if (e.op === "retire" && e.policy_id === ERASURE_ID) {
+      // erases): it is absent, not retired.
+      if (erases(e)) {
         known.delete(e.item_id);
         continue;
       }
@@ -121,8 +128,9 @@ export function provenanceGraph(
   focusId: string,
   items: readonly MemoryItem[],
   events: readonly MemoryEvent[],
+  erases: Erases = NONE,
 ): ProvenanceGraph | null {
-  const known = knownItems(items, events);
+  const known = knownItems(items, events, erases);
   if (!known.has(focusId)) return null;
   // Every lineage link whose two ends the viewer may see; an item is never its own ancestor.
   const links: [string, string][] = [];
@@ -214,8 +222,9 @@ export function itemVersions(
   focusId: string,
   items: readonly MemoryItem[],
   events: readonly MemoryEvent[],
+  erases: Erases = NONE,
 ): Version[] {
-  const graph = provenanceGraph(focusId, items, events);
+  const graph = provenanceGraph(focusId, items, events, erases);
   if (graph === null) return [];
   // The focus and the item nodes it descends from, through lineage edges.
   const ancestors = new Set([focusId]);
