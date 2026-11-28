@@ -32,7 +32,7 @@
 │   [R] Revoke a key                    engram key revoke <id>         ││                                              │
 │ 6 Machine                                                            ││                                              │
 │   [d] Doctor                          engram doctor                  ││                                              │
-│                                                                      ││                                              │
+│   [D] Harness memory                  engram discover        E9.10   ││                                              │
 └──────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────┘
  · doctor not run this session: d   log engram.db   policy preset.medium v1
  store files mem    owner dana    member of the actor's own scope    workspace not saved    decision export off

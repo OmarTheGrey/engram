@@ -41,7 +41,14 @@ A licence named in a README, on npm or in a research note is a hint. The licence
 ## Recording it
 
 - **`docs/absorbed.md`:** one row per copy or port: source, commit, licence, mode, what was taken, where it landed, the card.
-- **`NOTICE`:** for a copy, the notice the licence requires (for Apache-2.0, the source's own NOTICE content if it has one; for MIT and BSD, the copyright line and the licence's permission notice text, which both licences require in every copy).
+  `make lint-docs` checks every row (`scripts/check-absorbed.ts`, card E0.6), so write it in the form the check reads:
+  - **source** starts with `<owner>/<repo>`, then a comma and the files taken;
+  - **commit** is the full 40-character hash;
+  - **licence** starts with its SPDX id (`MIT`, `Apache-2.0`, `CC0-1.0`, ...) or an SPDX expression of them joined by `AND`, `OR` or `WITH`, every part allowed; `CC0` and `the Unlicense`, as written above, are read as `CC0-1.0` and `Unlicense`; a note may follow in brackets;
+  - **mode** says `copy`, `port` or both (`copy (the golden vectors) and port (the rest)`); data is marked `(data)`, as in `copy (data)`, and only a mode so marked may take CC-BY-4.0;
+  - **where it landed** puts every path in backticks; each must exist;
+  - a pipe inside a cell is written `\|`.
+- **`NOTICE`:** for a copy, the notice the licence requires (for Apache-2.0, the source's own NOTICE content if it has one; for MIT and BSD, the copyright line and the licence's permission notice text, which both licences require in every copy). The check looks for one block of `NOTICE` (between rule lines of dashes) that names the row's `<owner>/<repo>` and one of its landed paths, each whole.
 - **`docs/deps.md`:** for a dependency, one row with the exact version, the reason and the licence. Pin a version that is at least two weeks old. Pi packages stay at exact versions as before.
 - **The log entry** for the card names what was absorbed and from where.
 

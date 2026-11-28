@@ -57,7 +57,7 @@ export interface Io {
 
 /** The doctor checks that open a store and can be replaced through `Io.doctorProbes`. */
 export type DoctorProbe = "adapter mem0" | "adapter letta";
-type Status = "ok" | "fail" | "skip";
+type Status = "ok" | "warn" | "fail" | "skip";
 
 /** The help text, built from the command registry (card E8.15a, ./registry.ts). */
 export const HELP = helpText();

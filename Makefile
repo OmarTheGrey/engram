@@ -35,12 +35,13 @@ lint: ## biome, tsc, ruff, mypy; CI runs the same
 	$(UV) run ruff format --check research packages/bench/scripts
 	$(UV) run mypy
 
-lint-docs: ## log entries, em dashes, CLAUDE.md equals AGENTS.md; PR=<dir> checks a PR instead
+lint-docs: ## log entries, em dashes, CLAUDE.md equals AGENTS.md, the absorbed register against NOTICE; PR=<dir> checks a PR instead
 ifdef PR
 	@node scripts/check-pr.ts $(PR)
 else
 	node scripts/check-prose.ts
 	node scripts/check-log.ts
+	node scripts/check-absorbed.ts
 endif
 
 test-e2e: ui ## layer 6: engram doctor and a CLI smoke on SQLite and embedded Postgres, the MCP handshakes and the hook, the inspector in Chromium on a fixture workspace, and engram tui under a pseudoconsole; no Docker
