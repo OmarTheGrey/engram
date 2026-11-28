@@ -996,6 +996,12 @@
     },
     {
       "file": "research/results/h1-leakage.json",
+      "title": "Leakage across every surface",
+      "meter": {
+        "part": ["totals", "leaks"],
+        "whole": ["totals", "probes"],
+        "label": "probes leaked a canary"
+      },
       "hypothesis": "none",
       "status": "proof of concept",
       "prereg": null,
@@ -1058,6 +1064,12 @@
     },
     {
       "file": "research/results/h1-quint-trace-replay.json",
+      "title": "Trace replay against the Quint model",
+      "meter": {
+        "part": ["totals", "steps_matched"],
+        "whole": ["totals", "steps"],
+        "label": "model steps matched by the code"
+      },
       "hypothesis": "none",
       "status": "proof of concept",
       "prereg": null,
@@ -1092,6 +1104,12 @@
     },
     {
       "file": "research/results/h1-gate-mutation-audit.json",
+      "title": "Mutation audit of the gate",
+      "meter": {
+        "part": ["totals", "killed"],
+        "whole": ["totals", "mutants"],
+        "label": "mutants killed"
+      },
       "hypothesis": "none",
       "status": "proof of concept",
       "prereg": null,

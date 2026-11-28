@@ -1,0 +1,10 @@
+{
+  "title": "Engram results",
+  "register": "research/configs/results-register.json",
+  "intro": [
+    "Every committed result of the Engram thesis on one page: per hypothesis its result or what it still needs, the proofs of concept apart from them, and every row of research/results/MANIFEST.md with its sha256, the command that regenerates it and its cost.",
+    "Each value is read from the committed results file at the key path beside it, and each file hashes to its MANIFEST sha256, or the page is not written. The page holds no dogfood data."
+  ],
+  "proofs_intro": "Each shows the system working on fixtures, scripted models or a model's own traces: a zero-leak count across every surface, the code replaying its formal model's traces, the invariants killing mutants of the gate. None tests a hypothesis, and none may be quoted as a hypothesis result. Later proofs of concept appear here as their rows land.",
+  "other_intro": "Checks and estimates that serve no single hypothesis. A row marked exploratory belongs to an arm proposed in the pre-registration's amendments and not registered; its number is an engineering check, never a result."
+}
