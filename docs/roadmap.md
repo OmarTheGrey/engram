@@ -55,7 +55,7 @@ Also the lead's, before the tag or at the latest before H1's data exist (lead-de
 
 ### What is left
 
-Every card not done, from the original cards, both absorb plans and the gate-work cards, grouped by the phase the week plan places it in, with its week. "Not started" means no pull request for the card has merged. A card whose engineering merged but whose acceptance needs a live run is listed with what is left. The status lines of several merged cards still read "awaiting review"; here the merged pull requests decide (`docs/log/2026-11-28-roadmap-decision-status-from-merged-prs.md`).
+Every card not done, from the original cards, both absorb plans and the gate-work cards, grouped by the phase the week plan places it in, with its week. "Not started" means no pull request for the card has merged. A card whose engineering merged but whose acceptance needs a live run is listed with what is left. The statuses are taken from the merged pull requests (`docs/log/2026-11-28-roadmap-decision-status-from-merged-prs.md`), and the card files under `docs/tasks/` are current with them: the status lines that still read "awaiting review" after their pull request merged now name the PR and its merge date (`docs/log/2026-11-28-roadmap-change-card-statuses.md`).
 
 | Card | What is left | Status | Depends on, or waits for |
 |---|---|---|---|
