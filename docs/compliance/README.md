@@ -70,6 +70,13 @@ On 2026-11-21 the names the script reads for the 44 files it was compared on (th
 
 Wording that would overstate a row (the whole words the script's `FORBIDDEN_WORDS` matches, in any case) is refused in every row's own text, in the config's statement and method, and in this file outside the generated table, apart from the negations the script lists (`NEGATIONS`). Quotations from the acts and test titles are not checked: they are the acts' words and the code's.
 
+## Subject access and the record of processing
+
+Card E9.16 adds two commands whose output a controller can use as evidence. Neither is a certification, and neither answers a request or keeps a record on the controller's behalf.
+
+- `engram export --subject person:<id> --out <file>` gives that person, and only that person, their bundle (the format of `docs/bundle.md`: their person scope and their own items in the other scopes they read, of every status, each with the decisions on it they may see) and prints a report: the bundle's counts by status, class and scope level, the decisions on it by operation, and the items derived from it in other scopes through lineage, named where ADR 0047's by-id rule lets the person ask for them and counted otherwise. It bears on GDPR Articles 15(1), 15(3), 15(4) and 20(1) (claim C52). The closure follows lineage only, and a retire event of the person's own item names its successor's id in its reason even where the closure counts that successor (`docs/log/2026-11-28-e9-16-finding-successor-in-retire-reason.md`).
+- `engram audit ropa [--policy <p>] [--db <log>] [--json]` prints Article 30(1)'s fields as far as a policy states them, per scope level, with counts from the log by class and status when `--db` names one: categories and counts only, never content, an id, a scope, an actor or a reason. Points (a), (b) and (e) are not in a policy and are listed for the controller to state. It bears on Article 30(1) points (c), (d), (f) and (g) (claim C53). `ropa-medium.txt` beside this file is the record of the fixture log in `packages/cli/test/subject-export.test.ts` under the medium preset, which that test keeps byte for byte.
+
 ## Regenerating
 
 ```
