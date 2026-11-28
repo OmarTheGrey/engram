@@ -45,7 +45,7 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | checkpoints where a plain refusal scores as a leak | 41 | `by_preset.medium.all.refusal_leak` |
 | identical across the three presets | true | `identical_across_presets` |
 
-Recorded by [`docs/log/2026-11-02-pr2-r2-measurement-gatemem-reach.md`](../log/2026-11-02-pr2-r2-measurement-gatemem-reach.md).
+Recorded by [`docs/log/2026-11-02-pr2-r2-measurement-gatemem-reach.md`](../log/2026-11-02-pr2-r2-measurement-gatemem-reach.md), [`docs/log/2026-11-28-e2-21-measurement-repro-rows.md`](../log/2026-11-28-e2-21-measurement-repro-rows.md).
 
 ### `research/results/h1-mem-inv-admission.json`
 
@@ -528,7 +528,7 @@ Recorded by [`docs/log/2026-11-28-e1-7-measurement-trace-replay.md`](../log/2026
 - **Question.** Do the invariants' property tests kill hand-written mutants of the write gate, the read filter, retention, promotion, adoption, offboarding, the trust floors and the log's chain, and which mutants survive?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. A proof of concept on the code's own tests (card X16); the file is under `h1-` for the results glob only.
-- **Made by.** `research/scripts/gate_mutation_audit.py` from `research/configs/gate-mutation-audit.json`, MANIFEST commit `b85f4c78`, sha256 `6afe298f947366f440ec967016a8d909482e898bba423e1049d383fc79f73011`.
+- **Made by.** `research/scripts/gate_mutation_audit.py` from `research/configs/gate-mutation-audit.json`, MANIFEST commit `50e3a293`, sha256 `842da60481d3b9b0cd630179e20ef72b3200fd64a4e7580f794c499477b50107`.
 
 | value | reads | key path |
 |---|---|---|
@@ -539,7 +539,7 @@ Recorded by [`docs/log/2026-11-28-e1-7-measurement-trace-replay.md`](../log/2026
 | two-handle offboarding walk, killed | 2 | `per_invariant.I1H.killed` |
 | log chain, killed | 2 | `per_invariant.I9.killed` |
 
-Recorded by [`docs/log/2026-11-28-e1-7-measurement-mutation-audit.md`](../log/2026-11-28-e1-7-measurement-mutation-audit.md), [`docs/log/2026-11-28-e1-9-measurement-gate-mutation-audit.md`](../log/2026-11-28-e1-9-measurement-gate-mutation-audit.md).
+Recorded by [`docs/log/2026-11-28-e1-7-measurement-mutation-audit.md`](../log/2026-11-28-e1-7-measurement-mutation-audit.md), [`docs/log/2026-11-28-e1-9-measurement-gate-mutation-audit.md`](../log/2026-11-28-e1-9-measurement-gate-mutation-audit.md), [`docs/log/2026-11-28-e2-21-measurement-mutation-audit-merged.md`](../log/2026-11-28-e2-21-measurement-mutation-audit-merged.md).
 
 ### `research/results/h2-cedar-properties.json`
 

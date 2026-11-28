@@ -1,0 +1,28 @@
+ engram  Grants on an item                     in process  person:dana (person)
+   Item     [ 01940000-0000-7000-8000-000000000001     ]  Fixture memory 1: t...
+ You own this item: every grant is shown.
+
+ Grants
+   none
+
+ Add a grant
+ > To             [                                          ]  who it is for...
+     Class [ semantic ]   Mode [ read ]   space or left and right choose
+   Expires        [                                          ]  max 365 days ...
+   [ Add to the change ]   [ Apply the change ]   ctrl+s
+   ▸ Advanced: id, the test clock and this command's workspace flags
+
+ ✗ deny   exit 1  deny or an error
+ update 01940000-0000-7000-8000-000000000514 at 2026-10-25T12:00:00.000Z by
+   person:dana
+ deny: add[0]: the grant to person:sam (class semantic, mode read, expires
+   2028-01-01T00:00:00Z) expires after 2027-10-25T12:00:00.000Z, the limit of
+   365 days (31,536,000 seconds) after this change at 2026-10-25T12:00:00.000Z;
+   it is refused, not shortened
+ policy engram/write/grant-expiry-cap
+$ engram grants 01940000-0000-7000-...er dana --db engram.db --root mem   exit 1
+ ctrl+g help  ctrl+s apply  enter on a grant chooses it  u undo  tab next  al...
+--- styles
+r0 c0-79 inverse
+r8 c20-20 inverse
+r14 c1-1 fg #E86A1A
