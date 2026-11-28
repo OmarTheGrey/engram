@@ -582,7 +582,7 @@ Recorded by [`docs/log/2026-11-28-l9-measurement-grounding-after-review.md`](../
 - **Question.** With a person's opt-outs of their own person scope (a topic, a source with a carve-out, an Incognito window with a carve-out), does the write gate refuse exactly the writes they cover, each refusal naming its opt-out and none repeating the refused content, while the same workload under the twin profile without them is allowed as before?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. Card E9.12, by engram simulate on a fixture workload (fixtures/workloads/e9-12-consent.json); consent is absent in every registered preset and in the twin profile. The file is under `h1-` for the results glob only.
-- **Made by.** `research/scripts/consent_gate.py` from `research/configs/consent-gate.json`, MANIFEST commit `8b39c576`, sha256 `e3676e818dae1c0b85b74c121caf22a8de8454b81e3b2d4f484a09184d696bf1`.
+- **Made by.** `research/scripts/consent_gate.py` from `research/configs/consent-gate.json`, MANIFEST commit `5efb38da`, sha256 `3b0a06f43051c2594424e348d503a8764b8ec31d2023e70c6e87b5896d48ec14`.
 
 | value | reads | key path |
 |---|---|---|
@@ -593,4 +593,4 @@ Recorded by [`docs/log/2026-11-28-l9-measurement-grounding-after-review.md`](../
 | refusals naming their opt-out | 7 | `candidate.consent_refusals_naming_their_opt_out` |
 | refusals repeating the content | 0 | `candidate.consent_refusals_repeating_content` |
 
-Recorded by [`docs/log/2026-11-28-e9-12-measurement-consent-gate.md`](../log/2026-11-28-e9-12-measurement-consent-gate.md).
+Recorded by [`docs/log/2026-11-28-e9-12-measurement-consent-gate-limits.md`](../log/2026-11-28-e9-12-measurement-consent-gate-limits.md).
