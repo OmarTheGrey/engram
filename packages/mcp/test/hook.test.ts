@@ -79,6 +79,10 @@ const BLOCKED: [string, Record<string, unknown>, string, string | undefined][] =
   ["Bash", { command: `rm ${LOG}` }, "engram", "path"],
   ["Bash", { command: "rm .engram/engram.db" }, "engram", "path"],
   ["Bash", { command: "cat .claude/settings*.json" }, "engram", "path"],
+  // Card A6 of the second absorb plan: the MCP memory server's delete tools, under any server name.
+  ["mcp__memory__delete_entities", { entityNames: ["engram:x"] }, "mcp-memory", undefined],
+  ["mcp__my-graph__delete_observations", { deletions: [] }, "mcp-memory", undefined],
+  ["mcp__memory__delete_relations", { relations: [] }, "mcp-memory", undefined],
 ];
 if (process.platform === "win32") {
   BLOCKED.push(
@@ -138,6 +142,10 @@ describe("which calls the hook blocks", () => {
     ["Write", { file_path: join(cwd, "src.ts"), content: "see memory/notes.md" }],
     ["Bash", { command: "ls *.ts" }],
     ["mcp__engram__memory_write", { scope: "person:dana", content: "./memory/x" }],
+    // The memory server's other tools: what they add is gated when it is adopted.
+    ["mcp__memory__read_graph", {}],
+    ["mcp__memory__create_entities", { entities: [] }],
+    ["mcp__memory__add_observations", { observations: [] }],
   ])("%s %j goes on", (tool, input) => {
     expect(hookBypass(call(tool, input), SCOPE)).toBeUndefined();
   });

@@ -12,6 +12,7 @@ import { createHashingEmbedder } from "../../src/fake/embedder.ts";
 import { createFakeAdapter } from "../../src/fake/index.ts";
 import { createFilesAdapter } from "../../src/files/index.ts";
 import { createLettaAdapter } from "../../src/letta/index.ts";
+import { createMcpMemoryAdapter } from "../../src/mcp-memory/index.ts";
 import { createMem0Adapter } from "../../src/mem0/index.ts";
 import { createValidityAdapter } from "./validity.ts";
 
@@ -112,6 +113,19 @@ export const ADAPTERS: RegisteredAdapter[] = [
     // into full recall.
     name: "letta",
     factory: async () => createLettaAdapter({ root: await freshLettaRepo() }),
+    lexical: true,
+  },
+  {
+    // The MCP reference memory server's knowledge-graph file (card A6 of the
+    // second absorb plan): each item one entity line in a JSONL file that
+    // does not exist yet; its search is exact term matching, so it opts into
+    // full recall.
+    name: "mcp-memory",
+    factory: () =>
+      createMcpMemoryAdapter({
+        file: join(freshDir("engram-mcp-memory-conformance-"), "memory.jsonl"),
+        owner: "omar",
+      }),
     lexical: true,
   },
 ];

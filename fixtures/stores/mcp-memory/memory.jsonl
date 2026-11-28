@@ -1,0 +1,7 @@
+{"type":"entity","name":"Dana","entityType":"person","observations":["Leads the platform team","Prefers written status updates"]}
+{"type":"entity","name":"Release freeze","entityType":"event","observations":["Starts on the Friday before each release"],"createdAt":"2026-09-30T08:00:00Z"}
+{"type":"relation","from":"Dana","to":"Release freeze","relationType":"announces"}
+{"type":"relation","from":"Dana","to":"Platform","relationType":"works_on","weight":0.8}
+{"type":"note","text":"A record of a type the server does not model, from another client."}
+{"type":"entity","name":"Broken","observations":
+{"type":"entity","name":"Untyped","observations":["has no entityType, so the server does not read it"]}

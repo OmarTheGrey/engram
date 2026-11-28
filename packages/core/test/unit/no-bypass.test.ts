@@ -8,11 +8,37 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   blockedStoreCommand,
+  memoryServerToolBypass,
   STORE_COMMANDS,
   shellBypass,
   toolBypass,
   uncDrivePath,
 } from "../../src/no-bypass.ts";
+
+describe("the MCP memory server's delete tools (card A6 of the second absorb plan)", () => {
+  const check = { cwd: "/", roots: [], rootStore: "files" };
+  it.each([
+    "mcp__memory__delete_entities",
+    "mcp__memory__delete_observations",
+    "mcp__memory__delete_relations",
+    "mcp__my_graph__delete_entities",
+    "mcp__server-memory__DELETE_ENTITIES",
+  ])("blocks %s under any server name, whatever the roots", (tool) => {
+    expect(memoryServerToolBypass(tool)).toEqual({ command: tool, store: "mcp-memory" });
+    expect(toolBypass(tool, { entityNames: ["engram:x"] }, check)?.store).toBe("mcp-memory");
+  });
+
+  it.each([
+    "mcp__engram__delete_entities",
+    "mcp__memory__read_graph",
+    "mcp__memory__create_entities",
+    "mcp__memory__add_observations",
+    "delete_entities",
+    "mcp____delete_entities",
+  ])("leaves %s alone", (tool) => {
+    expect(memoryServerToolBypass(tool)).toBeUndefined();
+  });
+});
 
 describe("the Engram CLI's folder under other spellings (review finding P5-20)", () => {
   it.each([
