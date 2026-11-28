@@ -379,6 +379,47 @@ const grantTermsOnly: fc.Arbitrary<WriteCase> = fc
   });
 
 /**
+ * A write forbidden only by the grant cap or the first-write rule (card E2.21,
+ * ADR 0034, decisions 3 and 6), under a policy that turns grants.expiry_cap
+ * on: a member's first write of a trusted source the rule admits, carrying
+ * one grant the gate's grant rule accepts that expires after 2029 (past the
+ * cap for every write time arbTimestamp draws, which ends in 2027), expired
+ * before 2026 (by every write time), or names another class than the item's.
+ * A gate that dropped the cap or the first-write rule would let it land.
+ */
+const capOnly: fc.Arbitrary<WriteCase> = fc
+  .tuple(
+    arbPolicy,
+    arbGrantedItem,
+    arbWriter,
+    arbGatedGrant,
+    fc.constantFrom("past-cap", "expired", "other-class"),
+    fc.integer({ min: 0, max: 86_400 * 3650 }),
+    fc.constantFrom<MemoryItem["provenance"]["kind"]>("user", "document", "tool", "import"),
+  )
+  .map(([policy, item, writer, grant, how, offset, kind]) => {
+    const year = (y: number) => new Date(Date.UTC(y, 0, 1) + offset * 1000).toISOString();
+    const other = (["episodic", "semantic", "procedural"] as const).find((c) => c !== item.class);
+    const capped: Grant =
+      how === "past-cap"
+        ? { ...grant, class: item.class, expires: year(2030) }
+        : how === "expired"
+          ? { ...grant, class: item.class, expires: year(2010) }
+          : { ...grant, class: other, expires: year(2030) };
+    const written = { ...item, provenance: { ...item.provenance, kind }, grants: [capped] };
+    const actor = {
+      ...writer,
+      source: kind,
+      memberships: [...new Set([...writer.memberships, item.scope])],
+    };
+    const on: Policy = {
+      ...admitting(policy, item.scope, [kind]),
+      grants: { expiry_cap: "on" },
+    };
+    return [on, [[written as MemoryItem], actor], []] as const;
+  });
+
+/**
  * A write forbidden only by source isolation (follow-up I-1): a member's
  * model or compaction content, without grants, into a role, team or org
  * scope whose rule admits that source.
@@ -662,6 +703,7 @@ describe("invariants", () => {
       isolation: 0,
       retired: 0,
       planted: 0,
+      capped: 0,
     };
     await fc.assert(
       fc.asyncProperty(
@@ -678,6 +720,7 @@ describe("invariants", () => {
             weight: 3,
           },
           { arbitrary: grantTermsOnly, weight: 1 },
+          { arbitrary: capOnly, weight: 1 },
           { arbitrary: isolationOnly, weight: 1 },
           { arbitrary: retiredContentOnly, weight: 1 },
           { arbitrary: plantedOnly, weight: 1 },
@@ -708,6 +751,9 @@ describe("invariants", () => {
             });
           }
           const projected = retiredByEvent(db);
+          // The version of the item's id before the write, for the grant cap
+          // (card E2.21): what the write adds is judged, not what it keeps.
+          const before = currentItems(db).find((x) => x.id === item.id);
           const { item: stored } = await plane.write(actor, item, at);
           if (stored) seen.landed++;
           // A restating write after a planted retirement is forbidden by nothing: it lands.
@@ -734,9 +780,17 @@ describe("invariants", () => {
             })),
           };
           const otherwiseLands = admittedByRule(policy, actor, item);
-          const forbidden = writeForbidden(policy, actor, item, projected);
+          const forbidden = writeForbidden(policy, actor, item, projected, { at, before });
+          // Forbidden only by the grant cap or the first-write rule (card E2.21).
+          if (otherwiseLands && forbidden && !writeForbidden(policy, actor, item, projected))
+            if (policy.grants?.expiry_cap === "on") seen.capped++;
           // Forbidden only because it restates retired content.
-          if (otherwiseLands && forbidden && !writeForbidden(policy, actor, item)) seen.retired++;
+          if (
+            otherwiseLands &&
+            writeForbidden(policy, actor, item, projected) &&
+            !writeForbidden(policy, actor, item)
+          )
+            seen.retired++;
           if (otherwiseLands && writeForbidden(policy, actor, item)) {
             if (!writeForbidden(policy, actor, repaired)) {
               if (item.grants.some((g) => g.class === undefined)) seen.noClass++;
@@ -769,8 +823,9 @@ describe("invariants", () => {
         seen.noExpiry > RUNS / 50 &&
         seen.isolation > RUNS / 50 &&
         seen.retired > RUNS / 50 &&
-        seen.planted > RUNS / 50,
-      `invariant 2 needs writes that land, writes it forbids, and writes the policy's rule admits that are forbidden only by a grant without a class, a grant without an expiry, source isolation, or retired content; it saw ${JSON.stringify(seen)}`,
+        seen.planted > RUNS / 50 &&
+        seen.capped > RUNS / 50,
+      `invariant 2 needs writes that land, writes it forbids, and writes the policy's rule admits that are forbidden only by a grant without a class, a grant without an expiry, source isolation, retired content, or the grant cap and first-write rule; it saw ${JSON.stringify(seen)}`,
     ).toBe(true);
     await promotionsLandOnlyWherePermitted(`${I2}, promotions`);
   }, 240_000);
