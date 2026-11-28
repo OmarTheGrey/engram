@@ -21,7 +21,7 @@ Amendments made when implementing card E2.5, 2026-10-29:
 - The promotion mechanism is ADR 0026: what a confirmation is (an allowed write of the same normalised content in the same scope by a distinct actor with a user, document or tool source), who may review (a user-sourced member of the target scope who does not own the item), and the validation record a procedural candidate needs (`{ k, n }` meeting `replay_k` of `replay_n`). `Plane.promote` (packages/core/src/plane/promote.ts) and the pure `evaluatePromotion` (packages/core/src/policy/promotion.ts) implement it. Until card D3 supplies replay records, no procedural candidate becomes active through the plane.
 - Each preset's comment states the one-sided Wilson upper bound on the failure rate its `replay_k` of `replay_n` implies at alpha 0.05 (5 of 5: 0.35, 4 of 5: 0.56, 3 of 5: 0.73), computed in packages/core/test/unit/policy/presets.test.ts. The smoothed success rate on active procedures stays a later schema change (D4).
 
-Partly superseded by ADR 0051 (`docs/decisions/0051-drift-revalidates-on-environment-change.md`, proposed by card D4 of the second absorb plan, 2026-11-28): its sentence "a changed environment hash retires them" only.
+Partly superseded by ADR 0050 (`docs/decisions/0050-drift-revalidates-on-environment-change.md`, proposed by card D4 of the second absorb plan, 2026-11-28): its sentence "a changed environment hash retires them" only.
 
 ## Alternatives considered
 

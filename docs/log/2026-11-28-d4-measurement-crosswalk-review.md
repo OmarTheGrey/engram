@@ -15,7 +15,7 @@ evidence:
 supersedes: docs/log/2026-11-28-d4-measurement-crosswalk.md
 ---
 
-**What.** The unregistered `research/results/h1-crosswalk.json` row moved a second time in card D4's PR, after its review: claim C48 now says a restore needs the floor and the promotion gate, cites ADR 0051, and states its limits.
+**What.** The unregistered `research/results/h1-crosswalk.json` row moved a second time in card D4's PR, after its review: claim C48 now says a restore needs the floor and the promotion gate, cites ADR 0050, and states its limits.
 
 **Why.** Review finding 9: C48 said "passes the admission rule", where the code also requires the floor and now the whole promotion gate, and it had no limits cell for the presented outcomes and the absent surface.
 

@@ -1,7 +1,7 @@
-# ADR 0051: A changed environment hash re-validates an admitted procedure; drift retires on the success floor after min-trials
+# ADR 0050: A changed environment hash re-validates an admitted procedure; drift retires on the success floor after min-trials
 
-Status: proposed, 2026-11-28
-Deciders: drafted by card D4 of the second absorb plan; for the lead's acceptance
+Status: accepted, 2026-11-28, under the lead's delegation of that day (`docs/tasks/lead-decisions.md`, "The lead's answers, 2026-11-28": new ADRs as needed, none contradicting the set); the lead may overturn it
+Deciders: the orchestrating session, under the lead's delegation of 2026-11-28; drafted by card D4 of the second absorb plan
 Supersedes: ADR 0011's sentence "a changed environment hash retires them", and only that sentence. The rest of ADR 0011 stands.
 
 ## Context
