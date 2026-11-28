@@ -1947,11 +1947,11 @@
       "unmapped": null
     },
     {
-      "claim": "A subject access export gives a person, and only that person, the items of their person scope and their own items in the other scopes they read, with the decisions on each, as a bundle that imports again; items derived from them that the person may not ask for by id are counted, never named.",
+      "claim": "A subject access export goes only to the actor named as the subject, at the person level, and gives the items of their person scope and their own items in the other scopes they read, with the decisions on each, as a bundle that imports again; its report lists the scopes read and accounts, by ADR 0047's by-id rule, for items derived from the bundle, the subject's own items in scopes not read and items granted to them elsewhere, named where the subject may ask for them by id and counted otherwise, and counts the subject's own events the bundle does not carry.",
       "gap": null,
       "id": "C52",
       "invariant": null,
-      "limits": "The closure follows lineage only; an item that restates the person's content without naming it in its lineage is not found. A retire event of the person's own item, which the bundle carries, names its successor's id in its reason even where the closure only counts that successor (finding E9.16). The report names no purposes, recipients or source beyond what the log holds.",
+      "limits": "The identity is the --as the CLI asserts on this machine, not authenticated, and the scopes read are the memberships the caller names. Own items in scopes not read and items granted elsewhere are listed or counted, not exported; the subject's own events on items outside the bundle are counted only; items others wrote about the subject in scopes the subject does not own are not found, since the plane does not know whom an item is about. The closure follows lineage only. A retire event of the person's own item, which the bundle carries, names its successor's id in its reason even where the report only counts that successor (finding E9.16).",
       "obligations": [
         {
           "id": "GDPR-15-1",
@@ -1997,6 +1997,13 @@
           ],
           "file": "packages/core/test/unit/subject-access.test.ts",
           "it": "names a derived item the subject may see and counts the rest, transitively"
+        },
+        {
+          "describe": [
+            "subjectAccessReport"
+          ],
+          "file": "packages/core/test/unit/subject-access.test.ts",
+          "it": "accounts for own items in scopes not read, grants elsewhere and own events, by the by-id rule"
         }
       ],
       "unmapped": null
@@ -2575,6 +2582,6 @@
     "obligations": 34,
     "obligations_without_claim": [],
     "test_files": 37,
-    "tests": 117
+    "tests": 118
   }
 }
