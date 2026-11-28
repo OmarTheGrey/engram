@@ -166,7 +166,10 @@ describe("the frame's keys", () => {
     const wide = await usable({ columns: 120, rows: 40 });
     const text = await wide.text();
     expect(text).not.toContain("more below");
-    for (const s of offered()) expect(text).toContain(s.title);
+    // Every Home row; the Codex hook and the installer are on the hook setup screen (card E8.17).
+    for (const s of offered().filter((x) => x.home !== false)) expect(text).toContain(s.title);
+    for (const s of offered().filter((x) => x.home === false))
+      expect(["hook codex", "hook install"]).toContain(s.name);
     await wide.quit();
   });
 

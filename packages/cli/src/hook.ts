@@ -31,11 +31,10 @@
 // protected files are the log, the project's `.codex/config.toml` (the MCP
 // server's launch identity) and `.codex/hooks.json` (this hook), and the
 // Codex home's `config.toml` and `hooks.json` (`$CODEX_HOME`, else
-// `~/.codex`, by core's location table: codexHomeOf), with any folder holding
+// `~/.codex`, by core's location table: codexHomeOf, in ./harness-settings.ts), with any folder holding
 // one strictly inside the project or the home. Its default actor is
 // `agent:codex`. `engram hook install` is ./hook-install.ts.
 import { join, resolve } from "node:path";
-import { codexHomeOf } from "@engram/core";
 import {
   type HookHarness,
   harnessBypass,
@@ -46,27 +45,10 @@ import {
 } from "@engram/mcp";
 import { parse } from "./commands.ts";
 import { connect } from "./connect.ts";
+import { codexHome, HARNESSES, HOOK_AGENT } from "./harness-settings.ts";
 import { OPTIONS } from "./registry.ts";
 import type { Io } from "./run.ts";
 import { buildActor, dbTarget, MEMORY_DB, UsageError } from "./setup.ts";
-
-/** The harnesses a hook exists for. */
-export const HARNESSES = ["claude-code", "codex"] as const satisfies readonly HookHarness[];
-
-/** The actor each harness's block events are recorded as when no --as is given. */
-export const HOOK_AGENT: Readonly<Record<HookHarness, string>> = {
-  "claude-code": "agent:claude-code",
-  codex: "agent:codex",
-};
-
-/** The Codex home: $CODEX_HOME against the cwd, else <home>/.codex (core's codexHomeOf). */
-export const codexHome = (io: Pick<Io, "cwd" | "home" | "env">): string =>
-  resolve(
-    codexHomeOf(
-      io.home,
-      io.env.CODEX_HOME ? { codexHome: resolve(io.cwd, io.env.CODEX_HOME) } : {},
-    ),
-  );
 
 /** The project a harness's hook runs for: Claude Code's CLAUDE_PROJECT_DIR, Codex's session folder. */
 export const hookProject = (

@@ -23,7 +23,7 @@ const PROTECT = [
 const SCOPE = { roots: [root], protect: PROTECT, cwd, below: [cwd] };
 
 /** A call as Codex sends it: every field its input schema requires. */
-const call = (tool_name: string, tool_input: unknown) => ({
+const call = (tool_name: string, tool_input: Record<string, unknown>) => ({
   session_id: "s",
   turn_id: "t",
   transcript_path: null,
@@ -147,7 +147,7 @@ describe("codexHook", () => {
 
   it("reads a null tool_input, which Codex's schema allows, as no arguments", async () => {
     const ws = await testWorkspace();
-    const input = call("mcp__other__ping", null);
+    const input = { ...call("mcp__other__ping", {}), tool_input: null };
     expect(inputErrors(input)).toEqual([]);
     expect(await codexHook(input, { ...SCOPE, client: ws.client, actor: CODEX })).toBeNull();
   });

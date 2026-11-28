@@ -34,12 +34,18 @@ import { lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { HookHarness } from "@engram/mcp";
 import { parse } from "./commands.ts";
-import { userSettingsPath } from "./harness-settings.ts";
-import { codexHome, HARNESSES } from "./hook.ts";
+import { codexHome, HARNESSES, userSettingsPath } from "./harness-settings.ts";
 import { OPTIONS } from "./registry.ts";
 import type { Io } from "./run.ts";
 import { UsageError } from "./setup.ts";
-import { absolutePaths, type Launch, resolveLaunch, thisHost } from "./tui/snippets.ts";
+import {
+  absolutePaths,
+  codexHookCommand,
+  hookCommand,
+  type Launch,
+  resolveLaunch,
+  thisHost,
+} from "./tui/snippets.ts";
 
 /** Where the entry goes: the settings file the harness reads, project or user. */
 export function installTarget(
@@ -56,36 +62,16 @@ export function installTarget(
     : join(where.project, ".claude", "settings.json");
 }
 
-/** A word as `sh` reads it: bare when it is plainly safe, else single-quoted. */
-const posixWord = (w: string) =>
-  /^[A-Za-z0-9_@%+=:,./-]+$/.test(w) ? w : `'${w.replaceAll("'", `'\\''`)}'`;
-/** A word as `cmd.exe /c` reads it: bare when it is plainly safe, else double-quoted. */
-const cmdWord = (w: string) => {
-  if (/^[A-Za-z0-9_@+=:,./\\-]+$/.test(w)) return w;
-  if (/["%!^&|<>\r\n]/.test(w))
-    throw new UsageError(`${JSON.stringify(w)} cannot be written safely into a cmd.exe line`);
-  return `"${w}"`;
-};
-
 /** One hook handler of a settings file, as far as the installer reads it. */
 type Handler = Record<string, unknown>;
 type Group = { matcher?: unknown; hooks?: unknown } & Record<string, unknown>;
 
-/** The handler the installer writes for a harness. */
-export function hookEntry(harness: HookHarness, launch: Launch, argv: readonly string[]): Handler {
-  const words = [...launch.prefix, ...argv];
-  if (harness === "claude-code")
-    return { type: "command", command: launch.command, args: words, onFailure: "block" };
-  const all = [launch.command, ...words];
-  const command = all.map(posixWord).join(" ");
-  const windows = all.map(cmdWord).join(" ");
-  return {
-    type: "command",
-    command,
-    ...(windows === command ? {} : { commandWindows: windows }),
-    onFailure: "block",
-  };
-}
+/** The handler the installer writes for a harness: the TUI's setup screens show the same. */
+export const hookEntry = (
+  harness: HookHarness,
+  launch: Launch,
+  argv: readonly string[],
+): Handler => (harness === "codex" ? codexHookCommand(launch, argv) : hookCommand(launch, argv));
 
 /**
  * Whether a handler is one an installer of this harness wrote, by its

@@ -50,6 +50,9 @@ export const LETTERS: Readonly<Record<string, string>> = {
   serve: "h",
   mcp: "m",
   "hook claude-code": "b",
+  // Card E8.17: on the hook setup screen, not rows of their own (CommandSpec.home).
+  "hook codex": "X",
+  "hook install": "I",
   "key create": "a",
   "key list": "A",
   "key revoke": "R",
@@ -95,7 +98,7 @@ export class HomeScreen implements Screen {
     this.entries = [];
     GROUPS.forEach((group, i) => {
       this.entries.push({ kind: "group", group, n: i + 1 });
-      for (const spec of offered().filter((s) => s.group === group))
+      for (const spec of offered().filter((s) => s.group === group && s.home !== false))
         this.entries.push({ kind: "command", spec });
     });
     this.selected = this.entries.findIndex((r) => r.kind === "command");

@@ -83,6 +83,13 @@ export interface CommandSpec {
   summary: string;
   /** False when HELP's commands list shows this command on another entry's line. */
   listed: boolean;
+  /**
+   * False when Home reaches this command from another entry's screen, not a
+   * row of its own (Home fits 120x40, docs/design/tui.md 8.1): the Codex hook
+   * and the installer are on the hook setup screen (card E8.17). The palette
+   * and a typed command line still name it.
+   */
+  home?: false;
   group: Group;
   positionals: PositionalSpec[];
   /** The flags a form for this command offers, each as the handler parses it (see OptionSpec). */
@@ -659,7 +666,7 @@ export const OPTIONS = {
     as: {
       ...AS,
       help: "who the block events are recorded as",
-      defaultText: "the harness's agent: agent:claude-code or agent:codex",
+      defaultText: "agent:claude-code, or agent:codex",
     },
     ...EXPORT_OPTIONS,
     ...CLIENT_OPTIONS,
@@ -686,7 +693,7 @@ export const OPTIONS = {
     as: {
       ...AS,
       help: "who the hook records its block events as",
-      defaultText: "the harness's agent: agent:claude-code or agent:codex",
+      defaultText: "agent:claude-code, or agent:codex",
       card: "E8.17",
     },
     user: flag({
@@ -1542,6 +1549,7 @@ export const REGISTRY: readonly CommandSpec[] = [
     usage: "hook codex",
     summary: "a Codex PreToolUse hook that blocks store bypasses",
     listed: true,
+    home: false,
     group: "surfaces",
     positionals: [],
     options: OPTIONS.hook,
@@ -1569,6 +1577,7 @@ export const REGISTRY: readonly CommandSpec[] = [
     usage: "hook install <harness>",
     summary: "merge the hook into claude-code's or codex's settings, idempotently, with a backup",
     listed: true,
+    home: false,
     group: "surfaces",
     positionals: [{ name: "harness", label: "Harness (claude-code or codex)", required: true }],
     options: OPTIONS["hook install"],
