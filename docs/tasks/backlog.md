@@ -221,7 +221,7 @@ From `docs/tasks/absorb-plan.md` and the PR that merged it into the roadmap.
 
 | item | what is left | where it is recorded |
 |---|---|---|
-| The register's check | planned in `docs/tasks/absorb-plan-2.md` as card E0.6; `make lint-docs` does not yet fail when `docs/absorbed.md` names a missing file (ADR 0037, decision 8); the first card that adds a row builds it | `docs/decisions/0037-absorbing-open-source.md` |
+| The register's check | planned in `docs/tasks/absorb-plan-2.md` as card E0.6; `make lint-docs` does not yet fail when `docs/absorbed.md` names a missing file (ADR 0037, decision 8); the first card that adds a row builds it. Closed 2026-11-28 by card E0.6: `make lint-docs` runs `scripts/check-absorbed.ts` over every row (`docs/log/2026-11-28-e0-6-register-check.md`) | `docs/decisions/0037-absorbing-open-source.md` |
 | The 136 plans not selected | thirty more selected on 2026-11-25 (`docs/tasks/absorb-plan-2.md`, crypto-shredded erasure among them), the rest still candidates as that plan's section 7 says; candidates, not commitments: crypto-shredded erasure and the encrypted person scope first, then derived-from edges, the approval workflow, dense retrieval as a registered proposal, ingestion after Gate D | `docs/research/absorb/long-list.md`; `docs/tasks/absorb-plan.md`, section 7 |
 | Stale status lines | several merged cards still say "awaiting review" in their `Status:` line (for example L2, L3, L4, E9.4, E9.5); one housekeeping PR sets each to its merge | `docs/tasks/` |
 | The answers card before R2 | done by the answers card on branch `answers-2026-11-21` (its PR); card R2 may start | `docs/tasks/lead-decisions.md`; `docs/tasks/R2.md`; `docs/log/2026-11-21-answers-change-prereg.md` |
