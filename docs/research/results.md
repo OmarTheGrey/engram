@@ -15,10 +15,10 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | reach measurement | 5 | what the plane lets a reader reach on a benchmark's own data, with no model called |
 | cost estimate | 4 | dollars and calls estimated from token counts and prices; no model called |
 | power computation | 2 | a simulation of the registered test that sets or checks a sample size |
-| engineering check | 4 | a check of a component's behaviour or speed that decides no hypothesis |
-| proof of concept | 9 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
+| engineering check | 5 | a check of a component's behaviour or speed that decides no hypothesis |
+| proof of concept | 10 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
 
-33 results in all, one per MANIFEST row.
+35 results in all, one per MANIFEST row.
 
 ## What each hypothesis still needs
 
@@ -335,7 +335,7 @@ Recorded by [`docs/log/2026-11-22-l7-measurement-h3-lint-nli-revised.md`](../log
 | log edits `engram log verify` detects (no re-chain) | 1.0 | `by_place.log.verify_detection.rate` |
 | unedited control logs that fail verification | 0 | `control.verify_failed` |
 
-Recorded by [`docs/log/2026-11-28-x18-measurement-fault-injection-review.md`](../log/2026-11-28-x18-measurement-fault-injection-review.md).
+Recorded by [`docs/log/2026-11-28-e2-19-measurement-guard-reruns.md`](../log/2026-11-28-e2-19-measurement-guard-reruns.md), [`docs/log/2026-11-28-x18-measurement-fault-injection-review.md`](../log/2026-11-28-x18-measurement-fault-injection-review.md).
 
 ## H4. The plane is store-, model- and harness-agnostic
 
@@ -485,25 +485,25 @@ Recorded by [`docs/log/2026-11-28-rr-measurement-perf-budget.md`](../log/2026-11
 - **Question.** Do canaries written through every write path reach a non-member, an expired grantee, a former member or a partial grantee on any surface (the HTTP API, MCP, the CLI, the TUI, the pi extension)?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. Card E8.16's suites on a fixture workspace; the file is under `h1-` for the results glob only. Answers that tell existence by their shape, not by a canary, are counted apart as characterised oracles.
-- **Made by.** `research/scripts/leakage.py` from `research/configs/leakage.json`, MANIFEST commit `3018f629`, sha256 `bc5c43f6e2ba848c2c0ba371d35b30ab0f7bf37ac93c0937018f578d7f1798fa`.
+- **Made by.** `research/scripts/leakage.py` from `research/configs/leakage.json`, MANIFEST commit `f0bcad2b`, sha256 `a23b1a8478d7904e6e694f8986089b1e54501dd7036221e6ce816a0ff16de119`.
 
 | value | reads | key path |
 |---|---|---|
 | canaries written | 13 | `canaries.written` |
-| probes, all surfaces | 2,188 | `totals.probes` |
+| probes, all surfaces | 2,636 | `totals.probes` |
 | leaks, all surfaces | 0 | `totals.leaks` |
-| probes over the HTTP API | 696 | `surfaces.http.probes` |
-| probes over MCP | 288 | `surfaces.mcp.probes` |
-| probes through the CLI | 576 | `surfaces.cli.probes` |
-| probes through the TUI | 580 | `surfaces.tui.probes` |
+| probes over the HTTP API | 808 | `surfaces.http.probes` |
+| probes over MCP | 400 | `surfaces.mcp.probes` |
+| probes through the CLI | 688 | `surfaces.cli.probes` |
+| probes through the TUI | 692 | `surfaces.tui.probes` |
 | probes through the pi extension | 48 | `surfaces.pi.probes` |
-| denied and missing ids compared over the HTTP API | 377 | `denied_and_missing.http.compared` |
-| of them answering alike | 275 | `denied_and_missing.http.alike` |
+| denied and missing ids compared over the HTTP API | 428 | `denied_and_missing.http.compared` |
+| of them answering alike | 326 | `denied_and_missing.http.alike` |
 | of them pinned as telling existence: writes under a held id | 47 | `denied_and_missing.http.characterised.write` |
 | a model's operations through the HTTP API agreeing with MCP | 5 | `parity.http (model).same` |
 | the suite passed | true | `suite_passed` |
 
-Recorded by [`docs/log/2026-11-28-e8-16-measurement-leak-count-revised.md`](../log/2026-11-28-e8-16-measurement-leak-count-revised.md).
+Recorded by [`docs/log/2026-11-28-e2-17-measurement-leakage-row.md`](../log/2026-11-28-e2-17-measurement-leakage-row.md), [`docs/log/2026-11-28-e8-16-measurement-leak-count-revised.md`](../log/2026-11-28-e8-16-measurement-leak-count-revised.md).
 
 ### `research/results/h1-quint-trace-replay.json`
 
@@ -539,7 +539,7 @@ Recorded by [`docs/log/2026-11-28-e1-7-measurement-trace-replay.md`](../log/2026
 | two-handle offboarding walk, killed | 2 | `per_invariant.I1H.killed` |
 | log chain, killed | 2 | `per_invariant.I9.killed` |
 
-Recorded by [`docs/log/2026-11-28-e1-7-measurement-mutation-audit.md`](../log/2026-11-28-e1-7-measurement-mutation-audit.md), [`docs/log/2026-11-28-e1-9-measurement-gate-mutation-audit.md`](../log/2026-11-28-e1-9-measurement-gate-mutation-audit.md), [`docs/log/2026-11-28-e2-21-measurement-mutation-audit-merged.md`](../log/2026-11-28-e2-21-measurement-mutation-audit-merged.md).
+Recorded by [`docs/log/2026-11-28-e1-7-measurement-mutation-audit.md`](../log/2026-11-28-e1-7-measurement-mutation-audit.md), [`docs/log/2026-11-28-e1-9-measurement-gate-mutation-audit.md`](../log/2026-11-28-e1-9-measurement-gate-mutation-audit.md), [`docs/log/2026-11-28-e2-19-measurement-guard-reruns.md`](../log/2026-11-28-e2-19-measurement-guard-reruns.md), [`docs/log/2026-11-28-e2-21-measurement-mutation-audit-merged.md`](../log/2026-11-28-e2-21-measurement-mutation-audit-merged.md).
 
 ### `research/results/h2-cedar-properties.json`
 
@@ -556,7 +556,7 @@ Recorded by [`docs/log/2026-11-28-e1-7-measurement-mutation-audit.md`](../log/20
 | refutations the evaluator reproduces | 20 | `summary.reproduced` |
 | every check as the config expects | true | `summary.all_as_expected` |
 
-Recorded by [`docs/log/2026-11-28-e2-18-measurement-cedar-properties.md`](../log/2026-11-28-e2-18-measurement-cedar-properties.md).
+Recorded by [`docs/log/2026-11-28-e2-18-measurement-cedar-properties.md`](../log/2026-11-28-e2-18-measurement-cedar-properties.md), [`docs/log/2026-11-28-e2-19-measurement-guard-reruns.md`](../log/2026-11-28-e2-19-measurement-guard-reruns.md).
 
 ### `research/results/h3-l9-grounding.json`
 
@@ -632,3 +632,45 @@ Recorded by [`docs/log/2026-11-28-d5-measurement-procedure-scan-limits.md`](../l
 | envelope bytes | 3,351 | `envelope.bytes` |
 
 Recorded by [`docs/log/2026-11-28-e9-15-measurement-audit-report-chain-v2.md`](../log/2026-11-28-e9-15-measurement-audit-report-chain-v2.md).
+
+### `research/results/h1-consent-gate.json`
+
+- **Question.** With a person's opt-outs of their own person scope (a topic, a source with a carve-out, an Incognito window with a carve-out), does the write gate refuse exactly the writes they cover, each refusal naming its opt-out and none repeating the refused content, while the same workload under the twin profile without them is allowed as before?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. Card E9.12, by engram simulate on a fixture workload (fixtures/workloads/e9-12-consent.json); consent is absent in every registered preset and in the twin profile. The file is under `h1-` for the results glob only.
+- **Made by.** `research/scripts/consent_gate.py` from `research/configs/consent-gate.json`, MANIFEST commit `3120749a`, sha256 `3b0a06f43051c2594424e348d503a8764b8ec31d2023e70c6e87b5896d48ec14`.
+
+| value | reads | key path |
+|---|---|---|
+| writes | 15 | `candidate.writes` |
+| allowed without opt-outs | 15 | `baseline.writes_allowed` |
+| allowed with opt-outs | 8 | `candidate.writes_allowed` |
+| consent refusals | 7 | `candidate.consent_refusals` |
+| refusals naming their opt-out | 7 | `candidate.consent_refusals_naming_their_opt_out` |
+| refusals repeating the content | 0 | `candidate.consent_refusals_repeating_content` |
+
+Recorded by [`docs/log/2026-11-28-e9-12-measurement-consent-gate-limits.md`](../log/2026-11-28-e9-12-measurement-consent-gate-limits.md).
+
+### `research/results/h3-erasure-residue.json`
+
+- **Question.** After 20 person scopes are offboarded under twin, how many of their 200 canary facts are still found, outside what the plane keeps by decision, in the projection, the explanations, the log's events, the store's records, the database's file and write-ahead log, and the store's files and history, on SQLite and embedded Postgres and on each of the four stores?
+- **Status.** engineering check: a check of a component's behaviour or speed that decides no hypothesis.
+- **Serves.** no hypothesis; pre-registration section "U7. The erasure-residue check (not scheduled)". Card X19's engineering check of proposal U7, which is proposed and not yet registered: the lead registers it as a descriptive arm by amendment once this check merges. It decides nothing. The live tiers (rows and records the plane reads) hold only the two records card E1.7 names (a store that refuses the delete, a record that moved). The bytes the engines do not zero (SQLite's and Postgres's pages and WAL, Mem0's SQLite files) and Letta's git history hold most of the rest. In a byte tier the 40 canaries kept by decision are indeterminate, and the rate is over the 160 countable ones. Postgres runs with autovacuum off, so its heap counts are an upper bound on what a vacuumed server keeps. The search is verbatim and by hash.
+- **Made by.** `research/scripts/h3_erasure_residue.py` from `research/configs/h3-erasure-residue.json`, MANIFEST commit `b140eda9`, sha256 `45b037c2082088cf049e3d05bc7c2d0d44daa30a9c971d94c2ae56a514af8426`.
+
+| value | reads | key path |
+|---|---|---|
+| SQLite and files: exposed canaries found as residue in a live tier, of 200 | 2 | `runs.sqlite/files.live_tiers.residue.successes` |
+| SQLite and files: database file residue, of the countable canaries | 142 | `runs.sqlite/files.tiers.db-file.residue.successes` |
+| countable canaries in a byte tier | 160 | `runs.sqlite/files.tiers.db-file.countable` |
+| SQLite and files: database file residue in unreclaimed bytes | 140 | `runs.sqlite/files.tiers.db-file.residue_unreclaimed` |
+| Postgres and files: heap residue, of the countable (an upper bound: autovacuum off) | 157 | `runs.postgres/files.tiers.db-file.residue.successes` |
+| Postgres and files: WAL residue, of the countable | 160 | `runs.postgres/files.tiers.db-wal.residue.successes` |
+| SQLite and Mem0: residue in Mem0's own files, of the countable | 139 | `runs.sqlite/mem0.tiers.store-files.residue.successes` |
+| SQLite and Letta: residue in the repository's git objects, of the countable | 160 | `runs.sqlite/letta.tiers.store-history.residue.successes` |
+| SQLite and files: kept canaries indeterminate in the database file | 40 | `runs.sqlite/files.tiers.db-file.indeterminate` |
+| SQLite and files: retained by decision in the projection, promoted | 20 | `runs.sqlite/files.tiers.projection.retained_by_decision.promoted` |
+| SQLite and files: never-exposed canaries found anywhere | 0 | `runs.sqlite/files.any_tier.never_exposed_found.successes` |
+| decides a hypothesis | false | `decides` |
+
+Recorded by [`docs/log/2026-11-28-x19-measurement-erasure-residue-review.md`](../log/2026-11-28-x19-measurement-erasure-residue-review.md).

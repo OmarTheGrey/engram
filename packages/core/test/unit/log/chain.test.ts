@@ -221,14 +221,14 @@ forEachBackend((backend) => {
     expect(() => writeCheckpoint(db, "yesterday")).toThrow(/not a UTC timestamp/);
   });
 
-  test("migration 5 applies after card E8.12's 6 already applied, and before it on a fresh log", () => {
+  test("migration 5 applies after card E8.12's 6 (and E9.11's 7) already applied, and before it on a fresh log", () => {
     const later = backend.open();
     expect(
       migrate(
         later,
         MIGRATIONS.filter((m) => m.id !== 5),
       ),
-    ).toEqual([1, 2, 3, 4, 6]);
+    ).toEqual([1, 2, 3, 4, 6, 7]);
     const first = appendEvent(later, event());
     const attest = (seq: number, id: string) =>
       later

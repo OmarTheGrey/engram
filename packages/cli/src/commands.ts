@@ -18,6 +18,7 @@ import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
+  type AbsenceExplanation,
   type Actor,
   type BundleRow,
   type Grant,
@@ -41,6 +42,7 @@ import {
 } from "@engram/core";
 import { type Connection, connect, result, serverOf } from "./connect.ts";
 import {
+  absenceLines,
   decisionLines,
   eventsLines,
   explanationLines,
@@ -778,31 +780,99 @@ export const GRANTS = plane({
   }),
 });
 
+/**
+ * `engram explain <readId>`: the explanations a read recorded. Or `engram
+ * explain --absent <id> [query]` (card E2.17): why the item is not in the
+ * read the query would make now, the first stage that kept it out; one
+ * call, no sweep and no event. Exit 0 when answered, 1 when refused.
+ */
 export const EXPLAIN = plane({
   options: OPTIONS.explain,
   allowPositionals: true,
   prepare(values, positionals, io) {
+    const absent = values.absent;
+    // A read's --at is the time its validity windows are judged at, so only the absent form takes it.
+    const validAt = checkTime("--at", values.at);
+    if (absent === undefined && validAt !== undefined)
+      throw new UsageError(
+        "--at is the time a read judges validity windows at: engram explain takes it only with --absent",
+      );
+    if (absent === undefined && (values.root ?? values.store ?? values["import-valid-from"]))
+      throw new UsageError(
+        "--store, --root and --import-valid-from name the store a read searches: engram explain takes them only with --absent",
+      );
+    if (absent !== undefined && !Id.safeParse(absent).success)
+      throw new UsageError(`--absent ${absent} is not an item id (a UUIDv7)`);
     const [readId, ...rest] = positionals;
-    if (readId === undefined || rest.length > 0)
+    if (absent === undefined && (readId === undefined || rest.length > 0))
       throw new UsageError("give exactly one read id: engram explain <readId>");
     // Only the actor who made the read may explain it (decision D5). The
     // workspace needs no store: --owner here names the actor only.
     const actor = buildActor(values, values.owner);
     return {
       io,
-      flags: { db: values.db, policy: values.policy, server: values.server },
+      // With --absent, the store flags too: the store's own search does the match, as for the
+      // read with the same flags, opened read-only and neither swept nor adopted.
+      flags: {
+        db: values.db,
+        policy: values.policy,
+        server: values.server,
+        ...(absent === undefined
+          ? {}
+          : {
+              store: values.store,
+              root: values.root,
+              owner: values.owner,
+              "import-valid-from": values["import-valid-from"],
+            }),
+      },
       session: { requireStore: false, mustExist: true, readOnlyStore: true },
       actor: () => actor,
       json: values.json === true,
-      readId,
+      readId: readId ?? "",
+      absent,
+      text: absent === undefined ? undefined : positionals.join(" ") || undefined,
+      validAt,
     };
   },
-  request: (p, actor) => ({ readId: p.readId, body: { actor: must(actor) } }),
-  call: async (conn, { readId, body }) =>
-    result(
-      await conn.client.POST("/api/v1/explain/{readId}", { params: { path: { readId } }, body }),
-    ).explanations as unknown as Parameters<typeof explanationLines>[0][],
-  print(p, _actor, explanations) {
+  request: (p, actor) =>
+    p.absent === undefined
+      ? { route: "read" as const, readId: p.readId, body: { actor: must(actor) } }
+      : {
+          route: "absent" as const,
+          body: {
+            actor: must(actor),
+            item_id: p.absent,
+            ...(p.text === undefined ? {} : { text: p.text }),
+            ...(p.validAt === undefined ? {} : { at: p.validAt }),
+          },
+        },
+  call: async (conn, request) =>
+    request.route === "absent"
+      ? {
+          kind: "absent" as const,
+          absence: result(
+            await conn.client.POST("/api/v1/explain-absent", { body: request.body }),
+          ) as unknown as AbsenceExplanation,
+        }
+      : {
+          kind: "read" as const,
+          explanations: result(
+            await conn.client.POST("/api/v1/explain/{readId}", {
+              params: { path: { readId: request.readId } },
+              body: request.body,
+            }),
+          ).explanations as unknown as Parameters<typeof explanationLines>[0][],
+        },
+  print(p, actor, answer, conn) {
+    if (answer.kind === "absent") {
+      const a = answer.absence;
+      return {
+        code: a.answered ? 0 : 1,
+        out: p.json ? json(a) : text([...absenceLines(a, must(actor), p.text), logHint(conn)]),
+      };
+    }
+    const { explanations } = answer;
     if (p.json) return { code: 0, out: json(explanations) };
     const lines = [`read ${p.readId}: ${plural(explanations.length, "explanation")}`];
     for (const e of explanations)

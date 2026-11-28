@@ -80,7 +80,7 @@ function termShare(items: MemoryItem[], terms: string[]): Map<string, number> {
  * over the projection, as on a store without search, so items the reader
  * cannot reach never compete with it for a capped hit list (finding N1).
  */
-async function matching(
+export async function matching(
   { adapter }: PlaneDeps,
   reach: MemoryItem[],
   scopes: string[],

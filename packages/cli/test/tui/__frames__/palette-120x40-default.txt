@@ -19,20 +19,20 @@
 │ 3 Audit           │   Export a bundle             engram export                                  │d                  │
 │   [e] Events      │   MCP server                  engram mcp                                     │                   │
 │   [f] Verify the l│   Explain a read              engram explain <readId>                        │                   │
-│   [F] Checkpoint t│   Subject access export       engram export --subject <person>               │                   │
-│ 4 Data            │   Lint a scope                engram lint                                    │                   │
-│   [x] Export a bun│   Supersede                   engram supersede <itemId>                      │                   │
-│   [i] Import a bun│   Install a hook              engram hook install <harness>                  │                   │
-│ 5 Surfaces        │   Serve the API and inspector engram serve                                   │                   │
-│   [h] Serve the AP│   Import a bundle             engram import <bundle>                         │                   │
-│   [m] MCP server  │   Record of processing        engram audit ropa                              │                   │
-│   [b] Claude Code │   Scopes you can see          engram scopes                                  │                   │
-│   [a] Create a key│   Events                      engram events                                  │                   │
-│   [A] List keys   │   Verify an audit report      engram audit verify                            │                   │
-│   [R] Revoke a key│   Simulate a policy           engram simulate                                │                   │
-│ 6 Machine         │                                                                              │                   │
-│   [d] Doctor      │ enter open   tab fill   esc close                                            │                   │
-│   [D] Harness memo└──────────────────────────────────────────────────────────────────────────────┘                   │
+│   [F] Checkpoint t│   Lint a scope                engram lint                                    │                   │
+│ 4 Data            │   Supersede                   engram supersede <itemId>                      │                   │
+│   [x] Export a bun│   Install a hook              engram hook install <harness>                  │                   │
+│   [i] Import a bun│   Serve the API and inspector engram serve                                   │                   │
+│ 5 Surfaces        │   Import a bundle             engram import <bundle>                         │                   │
+│   [h] Serve the AP│   Scopes you can see          engram scopes                                  │                   │
+│   [m] MCP server  │   Events                      engram events                                  │                   │
+│   [b] Claude Code │   Verify an audit report      engram audit verify                            │                   │
+│   [a] Create a key│   Why not this item           engram explain --absent <id> [query]           │                   │
+│   [A] List keys   │   Simulate a policy           engram simulate                                │                   │
+│   [R] Revoke a key│                                                                              │                   │
+│ 6 Machine         │ enter open   tab fill   esc close                                            │                   │
+│   [d] Doctor      └──────────────────────────────────────────────────────────────────────────────┘                   │
+│   [D] Harness memory                  engram discover        E9.10   ││                                              │
 └──────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────┘
  · doctor not run this session: d   log engram.db   policy preset.medium v1
  store files mem    owner dana    member of the actor's own scope    workspace not saved    decision export off

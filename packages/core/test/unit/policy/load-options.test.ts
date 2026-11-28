@@ -142,40 +142,15 @@ describe("absent, every option parses as today", () => {
 // option's schema admits is listed, so "off" is refused too: absent is the
 // only value accepted (the card's step 2).
 // Card L9 built lints.model.evidence: its loader test is in
-// test/unit/lint/evidence.test.ts.
+// test/unit/lint/evidence.test.ts. Card E2.19 built approval: its loader
+// test is in test/unit/plane/approvals.test.ts.
 const NOT_BUILT: [option: string, card: string, key: string, texts: string[]][] = [
-  [
-    "consent",
-    "E9.12",
-    "consent:",
-    [
-      withBlocks("consent:\n  opt_outs: []\n"),
-      withBlocks("consent:\n  opt_outs:\n    - { scope: person:omar, topic: health }\n"),
-      withBlocks(
-        "consent:\n  opt_outs:\n    - { scope: person:omar, source: tool, except_topics: [calendar] }\n",
-      ),
-      withBlocks(
-        'consent:\n  opt_outs:\n    - { scope: person:omar, since: "2026-12-01T00:00:00Z", until: "2026-12-02T00:00:00Z" }\n',
-      ),
-    ],
-  ],
+  // consent: built by card E9.12; its loader tests are in test/unit/policy/consent.test.ts.
   [
     "erasure.mode",
     "E9.13",
     "  mode:",
     ["redact", "shred"].map((v) => withBlocks(`erasure:\n  mode: ${v}\n`)),
-  ],
-  [
-    "approval",
-    "E2.19",
-    "approval:",
-    [
-      withBlocks("approval:\n  routes: []\n"),
-      withBlocks("approval:\n  routes:\n    - { scope: person, approvers: [owner] }\n"),
-      withBlocks(
-        "approval:\n  routes:\n    - { scope: team:platform, approvers: [role:lead, person:ada], expires_after: 604800 }\n",
-      ),
-    ],
   ],
 ];
 
@@ -254,9 +229,7 @@ describe("readers of an already-parsed policy refuse what the loader refuses", (
   const medium = loadPreset("medium");
   /** One policy per option, each setting it, typed as the schema admits it. */
   const SETTING: [option: string, policy: Policy][] = [
-    ["consent", { ...medium, consent: { opt_outs: [] } }],
     ["erasure.mode", { ...medium, erasure: { mode: "redact" } }],
-    ["approval", { ...medium, approval: { routes: [] } }],
   ];
 
   test("the shared table lists exactly the options the loader refuses", () => {

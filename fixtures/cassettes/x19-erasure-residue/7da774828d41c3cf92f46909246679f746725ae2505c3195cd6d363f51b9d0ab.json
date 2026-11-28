@@ -1,0 +1,30 @@
+{
+  "key": "7da774828d41c3cf92f46909246679f746725ae2505c3195cd6d363f51b9d0ab",
+  "context": {
+    "item": "x19/person:p17",
+    "condition": "summary",
+    "preset": "twin",
+    "store": "none"
+  },
+  "request": {
+    "model": "scripted/x19-summary",
+    "system": "You summarise a person's notes in one sentence for their own memory.",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Notes of person:p17:\n- person:p17 wrote down canary-frosty-dingo-8418 as a note.\n- person:p17 wrote down canary-tidal-falcon-4416 as a note.\n- person:p17 wrote down canary-umber-zebu-4710 as a note.\n- person:p17 wrote down canary-xeric-koala-4323 as a note.\n- person:p17 wrote down canary-placid-badger-6544 as a note.\n- person:p17 wrote down canary-fable-puffin-9262 as a note.\n- person:p17 wrote down canary-jaunty-urchin-2038 as a note.\n- person:p17 wrote down canary-russet-walrus-4021 as a note.\n- person:p17 wrote down canary-eager-heron-5876 as a note.\n- person:p17 wrote down canary-silken-egret-1020 as a note."
+      }
+    ],
+    "seed": 20261128,
+    "temperature": 0,
+    "maxTokens": 256
+  },
+  "response": {
+    "text": "person:p17 keeps canary-frosty-dingo-8418 and canary-tidal-falcon-4416 among their notes.",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_usd": 0
+    }
+  }
+}

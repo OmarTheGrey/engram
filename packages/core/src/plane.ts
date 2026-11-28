@@ -11,7 +11,8 @@
 // E8.9, plane/simulate.ts) over all of them, and grant changes (card E9.4,
 // plane/grants.ts) through policy/grants.ts, and the by-id read and the
 // scope list (card E8.14, plane/read.ts and plane/scopes.ts) through the read
-// filter. Methods whose cards have
+// filter, and why an item is not in a read (card E2.17,
+// plane/explain-absent.ts) from the read's own predicates. Methods whose cards have
 // not landed reject with NotImplementedYet, naming the card that implements them.
 import type { Actor } from "./actor.ts";
 import type { Adapter } from "./adapter.ts";
@@ -30,7 +31,15 @@ export {
   adoptStoreItems,
 } from "./plane/adopt.ts";
 
+import {
+  type ExpiryReport,
+  expireRequests,
+  type QueuedRequest,
+  approvals as queuedRequests,
+  refuse,
+} from "./plane/approvals.ts";
 import { recordBypass } from "./plane/bypass.ts";
+import { type AbsenceExplanation, explainAbsent } from "./plane/explain-absent.ts";
 import { type ExportResult, exportBundle } from "./plane/export.ts";
 import { changeGrants } from "./plane/grants.ts";
 import { type LintOptions, type LintReport, lint } from "./plane/lint.ts";
@@ -58,6 +67,20 @@ export {
   UnknownReadError,
 } from "./actor.ts";
 export {
+  APPROVAL_EXPIRED_ID,
+  APPROVAL_MEMBERSHIP_ID,
+  APPROVAL_NO_REQUEST_ID,
+  APPROVAL_OFF_ID,
+  APPROVAL_REFUSED_ID,
+  APPROVAL_ROUTE_ID,
+  APPROVAL_STALE_ID,
+  type ApprovalRequest,
+  approvalQueue,
+  type ExpiryReport,
+  type QueuedRequest,
+  type RequestState,
+} from "./plane/approvals.ts";
+export {
   type BeforeRead,
   type BeforeReadReport,
   type ReadStore,
@@ -83,6 +106,16 @@ export {
   staleness,
   touchedSince,
 } from "./plane/commit.ts";
+export {
+  ABSENCE_STAGES,
+  ABSENT_MATCH_ID,
+  ABSENT_RANK_CUT_ID,
+  AbsenceExplanation,
+  absenceRefusal,
+  type ReadOutcome,
+  type ReadStage,
+  readOutcomes,
+} from "./plane/explain-absent.ts";
 export {
   LINT_MEMBERSHIP_ID,
   type LintOptions,
@@ -277,6 +310,13 @@ export interface PromoteOptions {
    */
   replay?: ReplayEvidence;
   /**
+   * The version of the item the approver reviewed (card E2.19): when given,
+   * a promotion of any other version is refused (`engram/approval/stale`),
+   * so an approval never lands on content changed since it was reviewed. A
+   * value that is not a positive integer is refused with InvalidCallError.
+   */
+  reviewedVersion?: number;
+  /**
    * A user-sourced actor's reason for releasing the procedure safety scan's
    * hold (card D5, lint/procedural.ts): under `procedures.safety_scan: hold`
    * an allowed promotion of a procedural item with a critical finding is a
@@ -348,6 +388,42 @@ export interface Plane {
    * InvalidCallError before the log is touched.
    */
   changeGrants(actor: Actor, itemId: string, change: GrantChange, at: string): Promise<GrantResult>;
+  /**
+   * The approval queue at `at` as `actor` may see it (card E2.19,
+   * plane/approvals.ts): every request (a held write, or a promotion asked
+   * for that waits for a reviewer) on an item whose scope the actor may read
+   * as a member, keyed by item id and version, with its route, expiry and
+   * state, and whether the actor may decide it now. Approving is
+   * `promote(..., { review: true })` by an approver the policy's route
+   * names. Decides nothing and appends no event. An invalid actor or time is
+   * refused with InvalidCallError.
+   */
+  approvals(actor: Actor, at: string): Promise<QueuedRequest[]>;
+  /**
+   * An approver refuses a pending request on an item's current version,
+   * with a reason (card E2.19): the one into `options.target`, else into the
+   * item's own scope, else its only one. A held candidate refused in its own
+   * scope is retired under `engram/approval/refused`; a widening or a drift
+   * restore is refused and the item left as it is. Under a policy with no
+   * approval block it is one deny under `engram/approval/off`; so is
+   * expireRequests. Every outcome is one event. Runs in the write queue. An invalid
+   * actor, time, id or an empty reason is refused with InvalidCallError.
+   */
+  refuse(
+    actor: Actor,
+    itemId: string,
+    reason: string,
+    at: string,
+    options?: { reviewedVersion?: number; target?: string },
+  ): Promise<GateResult>;
+  /**
+   * Records each request on an item of `scope` past its route's
+   * `expires_after` at `at` as expired, one `promote` deny event each under
+   * `engram/approval/expired` (card E2.19). The actor must be a member of
+   * the scope, else one deny event (`engram/approval/membership`). Runs in
+   * the write queue; nothing runs on a timer.
+   */
+  expireRequests(actor: Actor, scope: string, at: string): Promise<ExpiryReport>;
   /**
    * Re-validates an admitted procedure on drift (card D4, ADR 0011 and
    * ADR 0050, proposed): the replay is presented, as for promote (ADR 0046),
@@ -425,6 +501,18 @@ export interface Plane {
    * another actor is refused with ExplainDeniedError (decision D5).
    */
   explain(actor: Actor, readId: ReadId): Promise<Explanation[]>;
+  /**
+   * Why not this item (card E2.17): the first stage that keeps the item
+   * under `itemId` out of the read `actor` would make now with `query`
+   * (match, status, ttl, validity, the rank cut), from the read's own
+   * predicates in its order, or that the read returns it. Answered only to
+   * an actor who may ask for the item by id (ADR 0047, visible.ts); anyone
+   * else gets, word for word but for the id, the refusal an unknown id
+   * gets. A new response type, never stored; appends no event; Plane.read
+   * is unchanged. An invalid actor, time or id is refused with
+   * InvalidCallError before the log is touched.
+   */
+  explainAbsent(actor: Actor, itemId: string, query: ReadQuery): Promise<AbsenceExplanation>;
   /**
    * The actor's memory bundle (card E9.8, docs/bundle.md): the rows core's
    * bundleRows picks, and one read event by the actor, naming no item and no
@@ -522,6 +610,7 @@ export function createPlane(deps: PlaneDeps): Plane {
     readById: (actor, itemId, query) => readOne(deps, actor, itemId, query),
     listScopes: (actor, at) => listScopes(deps, actor, at),
     explain: async (actor, readId) => storedExplanations(deps, actor, readId),
+    explainAbsent: (actor, itemId, query) => explainAbsent(deps, actor, itemId, query),
     recordBypass: async (actor, bypass, at) => recordBypass(deps, actor, bypass, at),
     retain: async (actor, scope, at) => retain(deps, actor, scope, at),
     promote: async (actor, itemId, toScope, at, options) =>
@@ -529,6 +618,10 @@ export function createPlane(deps: PlaneDeps): Plane {
     lint: async (actor, at, scope, options) => lint(deps, actor, at, scope, options),
     changeGrants: async (actor, itemId, change, at) =>
       changeGrants(deps, actor, itemId, change, at),
+    approvals: (actor, at) => queuedRequests(deps, actor, at),
+    refuse: async (actor, itemId, reason, at, options) =>
+      refuse(deps, actor, itemId, reason, at, options),
+    expireRequests: async (actor, scope, at) => expireRequests(deps, actor, scope, at),
     revalidate: async (actor, itemId, at, options) => revalidate(deps, actor, itemId, at, options),
     simulate: (workload, policy) => simulate(deps, workload, policy),
     distill: async () => {

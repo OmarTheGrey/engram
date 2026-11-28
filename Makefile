@@ -17,8 +17,8 @@ test: ## layers 1 to 5 and 7 (vitest) and research tests (pytest)
 	$(PNPM) exec vitest run
 	$(UV) run pytest research || [ $$? -eq 5 ]
 
-test-invariants: ## the nine invariants against the real Plane, with counterexample and seed (issue #1), card E1.4's stateful model of the Plane, and the ninth, card E1.6's chain invariant, on SQLite and embedded Postgres
-	ENGRAM_INVARIANTS=1 $(PNPM) --filter core exec vitest run test/property/invariants.test.ts test/property/stateful.test.ts test/property/chain.test.ts
+test-invariants: ## the ten invariants against the real Plane, with counterexample and seed (issue #1), card E1.4's stateful model of the Plane, the ninth, card E1.6's chain invariant, on SQLite and embedded Postgres, and the tenth, card E2.19's approval queue
+	ENGRAM_INVARIANTS=1 $(PNPM) --filter core exec vitest run test/property/invariants.test.ts test/property/stateful.test.ts test/property/chain.test.ts test/property/approvals.test.ts
 
 test-scale: ## card RV1: H1's GateMem results at full size (26,616 rows, about 540 million characters) written and read back a line at a time; slow, writes about half a gigabyte to the temp folder
 	ENGRAM_SCALE=1 $(PNPM) --filter runner exec vitest run test/scale.test.ts
@@ -187,6 +187,7 @@ fixtures: ## regenerate golden files and scripted cassettes; refuses without MSG
 	node packages/bench/scripts/fault-set.ts --data fixtures/bench/longmemeval/questions.jsonl --config research/configs/h3-fault-set.json --out fixtures/fault-sets/longmemeval
 	node packages/runner/scripts/fault-set-script.ts --config research/configs/h3-lint-model-fixture.json --out fixtures/lint/h3-lint-model-script.json
 	ENGRAM_UPDATE_FIXTURES=1 env -u ENGRAM_OFFLINE node packages/bench/scripts/run-merit.ts --config research/configs/b7-merit-fixture.json --out .engram/bench/merit-record --record
+	rm -rf fixtures/cassettes/x19-erasure-residue && mkdir -p .engram && node packages/bench/scripts/erasure-residue.ts --backend sqlite --store mcp-memory --seed 20261128 --cassettes fixtures/cassettes/x19-erasure-residue --out .engram/x19-erasure-residue-record.json --record
 	for name in $(RUNNER_FIXTURES); do \
 	  rm -rf "fixtures/cassettes/$$name"; \
 	  env -u ENGRAM_OFFLINE node packages/runner/scripts/run.ts --config "research/configs/$$name.json" --out ".engram/runs/$$name" --record; \

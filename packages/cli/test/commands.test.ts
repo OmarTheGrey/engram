@@ -16,6 +16,7 @@ commands:
   supersede <itemId>  propose end dates for the versions an item supersedes; apply accepted ones
   grants <itemId>   add or remove grants on an item, as its owner
   explain <readId>  the explanations a read recorded
+  explain --absent <id> [query]  why an item is not in the read a query would make now: the first stage that kept it out
   events            the events the actor may see, each with its decision, rule and reason
   retain            sweep one scope's retention: expired items retired, budgets enforced
   lint              run the policy's deterministic lints over a scope, each finding with its reason
@@ -123,6 +124,19 @@ events options:
   with --db, --policy and --as or --owner: the events naming a scope the actor may read
   as a member, and those it made that name no scope; an item is shown only as a read
   would return it. The log must exist; nothing is appended
+
+explain --absent options:
+  --absent <id> [query]       why the item is not in a read with the query (and --at, the time
+                              validity windows are judged at): the first stage that kept it
+                              out (match, status, ttl, validity, the rank cut), or that the read
+                              returns it. Answered only to an actor who may read the item by id;
+                              anyone else is refused as for an unknown id. It explains the log
+                              as it stands, before the sweep and adoption engram read runs with a
+                              store: a past-ttl item says ttl where read, after its sweep, counts
+                              it not active, and a store record not yet adopted is unknown. With
+                              the store flags read takes, the store's own search does the match.
+                              No sweep, no event; exit 1 when refused. engram mcp --why-not
+                              lists the same answer as the memory_why_not tool
 
 retain options:
   --scope <scope>             the scope to sweep, as a user-sourced member of it; exit 1 if refused

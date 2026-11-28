@@ -1,0 +1,57 @@
+{
+  "baseline": {
+    "active_at_end": {
+      "person:dana": 12
+    },
+    "consent_refusals": 0,
+    "consent_refusals_by_opt_out": {},
+    "consent_refusals_naming_their_opt_out": 0,
+    "consent_refusals_repeating_content": 0,
+    "denials_by_rule": {},
+    "items_returned_by_reads": 12,
+    "policy_id": "profile.twin",
+    "writes": 15,
+    "writes_allowed": 15,
+    "writes_denied": 0
+  },
+  "baseline_policy": "packages/pi-package/profiles/twin.yaml",
+  "candidate": {
+    "active_at_end": {
+      "person:dana": 5
+    },
+    "consent_refusals": 7,
+    "consent_refusals_by_opt_out": {
+      "opt_outs[0]": 3,
+      "opt_outs[1]": 3,
+      "opt_outs[2]": 1
+    },
+    "consent_refusals_naming_their_opt_out": 7,
+    "consent_refusals_repeating_content": 0,
+    "denials_by_rule": {
+      "engram/write/consent": 7
+    },
+    "items_returned_by_reads": 5,
+    "policy_id": "fixture.twin-consent",
+    "writes": 15,
+    "writes_allowed": 8,
+    "writes_denied": 7
+  },
+  "candidate_policy": "fixtures/workloads/e9-12-consent-twin.yaml",
+  "card": "E9.12",
+  "filed_under": "research/results/h1-* only because research/tests/test_prereg.py maps every MANIFEST file to one hypothesis's results glob; the result decides no hypothesis",
+  "hypothesis": "none",
+  "limits": [
+    "One hand-written workload of sixteen steps (fifteen writes, one of them to a team scope, and one read) at one clock; the opt-outs are three, chosen to exercise a topic, a source with a carve-out and a window with a carve-out.",
+    "A topic matches whole words of the content (policy/consent.ts); a paraphrase that names no word of the topic is not refused, and a write naming the topic in passing is. The workload shows both on purpose. Known evasions, not closed: plurals and inflections, an accent inside a word, joined compounds and camelCase, a digit glued to a word, letters split by spaces or dots, homoglyphs NFKC does not fold, a topic split across two writes, and case folding beyond lower case. Consent is a control a cooperative writer meets, not a filter an adversarial writer cannot evade.",
+    "An echo is counted when a string of the refused content longer than twelve characters appears in the refusal's reason; the reason is also checked by the property test packages/core/test/property/consent.test.ts with a nonce in every content.",
+    "A window is judged at the time a write reaches the plane: what is produced during an Incognito window and written after it (a store record adopted later, a session distilled or consolidated later) is judged then, and the pi session tree is not under the gate."
+  ],
+  "model_calls": 0,
+  "name": "consent-gate",
+  "status": "proof of concept",
+  "steps": 16,
+  "steps_changed": 8,
+  "wording": "a recorded workload of fifteen writes by a person, her tools and her agent (and one read) replayed by engram simulate under the twin profile and under the twin profile with three opt-outs of her person scope: the writes each policy allowed and denied, the consent refusals by opt-out, how many name their opt-out and how many repeat the refused content. A proof of concept on a fixture workload with no model in the loop, never a hypothesis result",
+  "workload": "fixtures/workloads/e9-12-consent.json",
+  "workload_id": "e9-12-consent"
+}

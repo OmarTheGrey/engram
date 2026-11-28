@@ -1405,6 +1405,113 @@
           "path": ["envelope", "bytes"]
         }
       ]
+    },
+    {
+      "file": "research/results/h1-consent-gate.json",
+      "title": "Consent at the write gate",
+      "meter": {
+        "part": ["candidate", "consent_refusals_repeating_content"],
+        "whole": ["candidate", "consent_refusals"],
+        "label": "refusals repeated no content",
+        "complement": "repeated content"
+      },
+      "hypothesis": "none",
+      "status": "proof of concept",
+      "prereg": null,
+      "question": "With a person's opt-outs of their own person scope (a topic, a source with a carve-out, an Incognito window with a carve-out), does the write gate refuse exactly the writes they cover, each refusal naming its opt-out and none repeating the refused content, while the same workload under the twin profile without them is allowed as before?",
+      "note": "Card E9.12, by engram simulate on a fixture workload (fixtures/workloads/e9-12-consent.json); consent is absent in every registered preset and in the twin profile. The file is under `h1-` for the results glob only.",
+      "headline": [
+        {
+          "label": "writes",
+          "path": ["candidate", "writes"]
+        },
+        {
+          "label": "allowed without opt-outs",
+          "path": ["baseline", "writes_allowed"]
+        },
+        {
+          "label": "allowed with opt-outs",
+          "path": ["candidate", "writes_allowed"]
+        },
+        {
+          "label": "consent refusals",
+          "path": ["candidate", "consent_refusals"]
+        },
+        {
+          "label": "refusals naming their opt-out",
+          "path": ["candidate", "consent_refusals_naming_their_opt_out"]
+        },
+        {
+          "label": "refusals repeating the content",
+          "path": ["candidate", "consent_refusals_repeating_content"]
+        }
+      ]
+    },
+    {
+      "file": "research/results/h3-erasure-residue.json",
+      "hypothesis": "none",
+      "status": "engineering check",
+      "prereg": "#### U7. The erasure-residue check (not scheduled)",
+      "title": "Erasure residue after offboarding",
+      "question": "After 20 person scopes are offboarded under twin, how many of their 200 canary facts are still found, outside what the plane keeps by decision, in the projection, the explanations, the log's events, the store's records, the database's file and write-ahead log, and the store's files and history, on SQLite and embedded Postgres and on each of the four stores?",
+      "note": "Card X19's engineering check of proposal U7, which is proposed and not yet registered: the lead registers it as a descriptive arm by amendment once this check merges. It decides nothing. The live tiers (rows and records the plane reads) hold only the two records card E1.7 names (a store that refuses the delete, a record that moved). The bytes the engines do not zero (SQLite's and Postgres's pages and WAL, Mem0's SQLite files) and Letta's git history hold most of the rest. In a byte tier the 40 canaries kept by decision are indeterminate, and the rate is over the 160 countable ones. Postgres runs with autovacuum off, so its heap counts are an upper bound on what a vacuumed server keeps. The search is verbatim and by hash.",
+      "headline": [
+        {
+          "label": "SQLite and files: exposed canaries found as residue in a live tier, of 200",
+          "path": ["runs", "sqlite/files", "live_tiers", "residue", "successes"]
+        },
+        {
+          "label": "SQLite and files: database file residue, of the countable canaries",
+          "path": ["runs", "sqlite/files", "tiers", "db-file", "residue", "successes"]
+        },
+        {
+          "label": "countable canaries in a byte tier",
+          "path": ["runs", "sqlite/files", "tiers", "db-file", "countable"]
+        },
+        {
+          "label": "SQLite and files: database file residue in unreclaimed bytes",
+          "path": ["runs", "sqlite/files", "tiers", "db-file", "residue_unreclaimed"]
+        },
+        {
+          "label": "Postgres and files: heap residue, of the countable (an upper bound: autovacuum off)",
+          "path": ["runs", "postgres/files", "tiers", "db-file", "residue", "successes"]
+        },
+        {
+          "label": "Postgres and files: WAL residue, of the countable",
+          "path": ["runs", "postgres/files", "tiers", "db-wal", "residue", "successes"]
+        },
+        {
+          "label": "SQLite and Mem0: residue in Mem0's own files, of the countable",
+          "path": ["runs", "sqlite/mem0", "tiers", "store-files", "residue", "successes"]
+        },
+        {
+          "label": "SQLite and Letta: residue in the repository's git objects, of the countable",
+          "path": ["runs", "sqlite/letta", "tiers", "store-history", "residue", "successes"]
+        },
+        {
+          "label": "SQLite and files: kept canaries indeterminate in the database file",
+          "path": ["runs", "sqlite/files", "tiers", "db-file", "indeterminate"]
+        },
+        {
+          "label": "SQLite and files: retained by decision in the projection, promoted",
+          "path": [
+            "runs",
+            "sqlite/files",
+            "tiers",
+            "projection",
+            "retained_by_decision",
+            "promoted"
+          ]
+        },
+        {
+          "label": "SQLite and files: never-exposed canaries found anywhere",
+          "path": ["runs", "sqlite/files", "any_tier", "never_exposed_found", "successes"]
+        },
+        {
+          "label": "decides a hypothesis",
+          "path": ["decides"]
+        }
+      ]
     }
   ]
 }

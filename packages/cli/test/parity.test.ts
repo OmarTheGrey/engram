@@ -40,6 +40,7 @@ import {
   MODEL_PARITY,
   NOW,
   noncesIn,
+  type OracleRecord,
   opRecord,
   type ParityRecord,
   PROBE_ACTORS,
@@ -247,6 +248,14 @@ const USER_OPS = (readId: string): UserOp[] => [
     http: { path: `/explain/${readId}`, body: { actor: DANA } },
   },
   {
+    name: "explain --absent, as the owner",
+    argv: ["explain", "--absent", byLabel("dana-person").id, "canary", ...as(DANA)],
+    http: {
+      path: "/explain-absent",
+      body: { actor: DANA, item_id: byLabel("dana-person").id, text: "canary" },
+    },
+  },
+  {
     name: "promote, refused without a review",
     argv: ["promote", byLabel("dana-person").id, "--to", "team:x", ...as(DANA)],
     http: {
@@ -356,6 +365,7 @@ async function through(surface: string, op: UserOp): Promise<Run> {
 
 const parity: ParityRecord[] = [];
 const records: ProbeRecord[] = [];
+const oracles: OracleRecord[] = [];
 const controls: { surface: string; found: string[] }[] = [];
 
 describe("E8.16: one operation, the same decision on every surface", () => {
@@ -519,6 +529,12 @@ const PROBES: Record<string, (a: Actor) => string[][]> = {
       `${a.id},class=semantic,mode=read,expires=2026-12-01T00:00:00Z`,
     ]),
   explain: () => [seededReadId(), MISSING_READ].map((id) => ["explain", id]),
+  // Card E2.17: why an item is not in a read, with the read's text and without.
+  "explain --absent": () =>
+    ids.flatMap((id) => [
+      ["explain", "--absent", id],
+      ["explain", "--absent", id, "canary"],
+    ]),
   events: () => [["events"]],
   retain: () => [...SCOPES, "team:nobody"].map((s) => ["retain", "--scope", s]),
   lint: () => [...SCOPES, "team:nobody"].map((s) => ["lint", "--scope", s]),
@@ -767,8 +783,46 @@ describe("E8.16: no command leaks a canary, through the CLI or the TUI", () => {
     }
   });
 
+  // Card E2.17 (review finding 4): a hidden id and a never-held one answer alike through
+  // explain --absent, plain and --json, on the CLI and the TUI's runner.
+  it("explain --absent: a denied id and a never-held id answer alike, through the CLI and the TUI", async () => {
+    const differs: string[] = [];
+    for (const probe of PROBE_ACTORS)
+      for (const surface of ["cli", "tui"] as const) {
+        const dir = await fresh();
+        const ask = async (id: string, json: boolean) => {
+          const argv = withWorkspace([
+            ...["explain", "--absent", id, "canary"],
+            ...as(probe.actor),
+            ...(json ? ["--json"] : []),
+          ]);
+          const { io: plain, out } = io(dir, { n: 0 });
+          const r =
+            surface === "tui"
+              ? await runCommand(argv, plain)
+              : { code: await run(argv, plain), ...out };
+          return `${r.code}
+${r.out}
+${r.err}`.replaceAll(id, "<asked>");
+        };
+        for (const json of [false, true]) {
+          const missing = await ask(MISSING_ID, json);
+          expect(missing, `${surface} ${probe.name}`).toContain(
+            json ? '"answered": false' : ": refused",
+          );
+          for (const c of CANARIES.filter((x) => !probe.allowed.includes(x.label))) {
+            const denied = await ask(c.id, json);
+            const key = `explain --absent${json ? " --json" : ""} ${probe.name} ${c.label}`;
+            oracles.push({ surface, probe: key, alike: denied === missing });
+            if (denied !== missing) differs.push(`${surface} ${key}: ${denied} | ${missing}`);
+          }
+        }
+      }
+    expect(differs).toEqual([]);
+  });
+
   it("writes its probe records when ENGRAM_LEAKAGE_OUT names a folder", () => {
-    recordProbes({ suite: "cli", probes: records, oracles: [], parity, controls });
+    recordProbes({ suite: "cli", probes: records, oracles, parity, controls });
     expect(records.length).toBeGreaterThan(0);
   });
 });

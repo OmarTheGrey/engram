@@ -83,6 +83,8 @@ const ADDED = [
   // Card E9.16.
   "export --subject",
   "audit ropa",
+  // Card E2.17.
+  "explain --absent",
 ];
 
 describe("HELP from the registry", () => {
@@ -218,6 +220,7 @@ describe("the registry's entries", () => {
       ["supersede", { accept: ["x"] }, {}, "state"],
       ["grants", {}, {}, "state"],
       ["explain", ROOT, SERVER, "none"],
+      ["explain --absent", ROOT, SERVER, "none"],
       ["events", ROOT, SERVER, "none"],
       ["retain", {}, {}, "retire"],
       ["lint", {}, {}, "audit"],

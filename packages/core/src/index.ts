@@ -4,6 +4,7 @@ export * from "./audit/dsse.ts";
 export * from "./audit/report.ts";
 export * from "./audit/ropa.ts";
 export * from "./content-hash.ts";
+export * from "./crypto/keys.ts";
 export * from "./db/db.ts";
 export { MIGRATIONS, type Migration, migrate, migrationText } from "./db/migrate.ts";
 export {
@@ -65,6 +66,7 @@ export * from "./policy/promotion.ts";
 export * from "./policy/retention.ts";
 export * from "./portable.ts";
 export * from "./replay.ts";
+export * from "./residue.ts";
 export * from "./schema.ts";
 export * from "./simulate.ts";
 export * from "./supersede.ts";

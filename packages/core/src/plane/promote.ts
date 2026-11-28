@@ -21,6 +21,12 @@
 // tasks other than its distill ref's, or a replayed induction task) is a deny
 // event under engram/promote/replay-item or replay-split (D3-3).
 //
+// With the policy's approval block (card E2.19, plane/approvals.ts) a
+// review is approved only by an approver the target's route names, and a
+// request that expired unanswered or that an approver refused closes its
+// version: the evaluator refuses it under engram/approval/expired (that deny
+// event records the expiry when no sweep has) or engram/approval/refused.
+//
 // On allow, a status-only change rewrites the item in place (same id,
 // version plus one); a class or scope change writes a new version under a
 // fresh id to the store through the adapter, appends its `promote` event and
@@ -57,14 +63,18 @@ import { applySafetyScan, releaseProblem } from "../lint/procedural.ts";
 import type { GateResult, PlaneDeps, PromoteOptions } from "../plane.ts";
 import { readableScope, STORE_FAILURE_ID } from "../policy/evaluate.ts";
 import {
+  APPROVAL_EXPIRED_ID,
+  APPROVAL_REFUSED_ID,
   type Confirmation,
   evaluatePromotion,
   PROMOTE_MEMBERSHIP_ID,
   PROMOTE_REPLAY_SPLIT_ID,
+  type PromotionDecision,
   promotionRuleId,
 } from "../policy/promotion.ts";
 import { Id, type MemoryEvent, type MemoryItem, Scope } from "../schema.ts";
 import { disclosedEvent, disclosedItem } from "../visible.ts";
+import { closedRequestOf } from "./approvals.ts";
 import {
   basisNow,
   ERASING_ID,
@@ -182,6 +192,11 @@ export function promote(
     const problem = replayProblem(options.replay);
     if (problem) throw new InvalidCallError(`Plane.promote: ${problem}`);
   }
+  const pinned = options.reviewedVersion;
+  if (pinned !== undefined && !(Number.isInteger(pinned) && pinned > 0))
+    throw new InvalidCallError(
+      `Plane.promote: invalid reviewedVersion ${JSON.stringify(pinned)}; expected a positive integer`,
+    );
   const release = releaseProblem(options.release);
   if (release) throw new InvalidCallError(`Plane.promote: ${release}`);
   return inWriteQueue(deps.db, () => decideAndCommit(deps, actor, itemId, toScope, at, options));
@@ -195,7 +210,9 @@ export function promote(
  * add to promotion). Its own retirement is left out of the retired content it
  * is judged against. On allow it is the in-place promotion (same id, version
  * plus one, active) under `restore.policy_id`; every reason starts with
- * `restore.prefix`. An in-slot primitive: call it only inside the write
+ * `restore.prefix`. With `review`, the presenter approves it as a reviewer,
+ * so in a scope that requires review an approver the approval route names
+ * restores it (card E2.19, review finding F4). An in-slot primitive: call it only inside the write
  * queue, as Plane.revalidate does.
  */
 export function restoreRetired(
@@ -205,14 +222,73 @@ export function restoreRetired(
   at: string,
   replay: ReplayEvidence,
   restore: Restore,
+  review = false,
 ): Promise<GateResult> {
-  return decideAndCommit(deps, actor, item.id, item.scope, at, { replay }, restore);
+  return decideAndCommit(deps, actor, item.id, item.scope, at, { replay, review }, restore);
 }
 
 /** How a restore is recorded: its rule on allow, and the clause every reason starts with. */
 export interface Restore {
   policy_id: string;
   prefix: string;
+}
+
+/**
+ * The promotion gate's decision for `item` into `toScope`, with the
+ * evidence the plane gathers from the log, and card D5's safety scan applied;
+ * nothing is committed. decideAndCommit commits it; Plane.approvals asks it
+ * whether an actor may approve a request now (card E2.19, verification
+ * note N1), so the queue offers a decision only where promote would allow it.
+ */
+export function promotionDecision(
+  deps: PlaneDeps,
+  actor: Actor,
+  item: MemoryItem,
+  toScope: string,
+  at: string,
+  options: PromoteOptions,
+  restore?: Restore,
+): PromotionDecision {
+  const { db, policy } = deps;
+  return applySafetyScan(
+    policy,
+    actor,
+    item,
+    evaluatePromotion(
+      policy,
+      actor,
+      item,
+      { scope: toScope, at },
+      {
+        confirmations: confirmationsOf(deps, item),
+        authors: authorsOf(deps, item),
+        duplicate: duplicateOf(
+          deps,
+          item,
+          toScope,
+          item.class === "episodic" ? "semantic" : item.class,
+        ),
+        review: options.review === true,
+        // The record is derived here from the replay's outcomes, never taken
+        // from the caller (card D3, ADR 0046 proposed), and the replay is
+        // checked against the item: its id, content and distill ref (D3-3).
+        ...(options.replay === undefined ? {} : replayEvidence(deps, item, options.replay)),
+        // An approval request that expired or was refused closes this version
+        // and target (card E2.19); only gathered when the policy has an
+        // approval block. A drift restore is a fresh presentation: its
+        // requests never close the version (review finding F4).
+        ...(restore === undefined ? closedRequestOf(deps, item, toScope, at) : {}),
+        ...(options.reviewedVersion === undefined
+          ? {}
+          : { reviewedVersion: options.reviewedVersion }),
+      },
+      // A restore is judged without its own retirement (card D4).
+      restore === undefined
+        ? retiredContent(db, toScope)
+        : new Map([...retiredContent(db, toScope)].filter(([, id]) => id !== item.id)),
+    ),
+    { release: options.release, target: toScope, authors: () => authorsOf(deps, item) },
+  );
 }
 
 async function decideAndCommit(
@@ -257,37 +333,7 @@ async function decideAndCommit(
   // an allowed admission as a gate event until a release ADRs 0026 and 0049 allow.
   // A drift restore (card D4) goes through here too, so it meets the scan as
   // any admission does; it carries no release, so a held restore stays retired.
-  const d = applySafetyScan(
-    policy,
-    actor,
-    item,
-    evaluatePromotion(
-      policy,
-      actor,
-      item,
-      { scope: toScope, at },
-      {
-        confirmations: confirmationsOf(deps, item),
-        authors: authorsOf(deps, item),
-        duplicate: duplicateOf(
-          deps,
-          item,
-          toScope,
-          item.class === "episodic" ? "semantic" : item.class,
-        ),
-        review: options.review === true,
-        // The record is derived here from the replay's outcomes, never taken
-        // from the caller (card D3, ADR 0046 proposed), and the replay is
-        // checked against the item: its id, content and distill ref (D3-3).
-        ...(options.replay === undefined ? {} : replayEvidence(deps, item, options.replay)),
-      },
-      // A restore is judged without its own retirement (card D4).
-      restore === undefined
-        ? retiredContent(db, toScope)
-        : new Map([...retiredContent(db, toScope)].filter(([, id]) => id !== item.id)),
-    ),
-    { release: options.release, target: toScope, authors: () => authorsOf(deps, item) },
-  );
+  const d = promotionDecision(deps, actor, item, toScope, at, options, restore);
   const visible = d.policy_id !== PROMOTE_MEMBERSHIP_ID;
   const common = {
     ...base,
@@ -369,6 +415,17 @@ async function decideAndCommit(
     outcome = db.transaction(() => {
       const stale = staleness(db, decided, ownBytes(deps, written));
       if (stale) return { stale };
+      // A refusal or a recorded expiry another handle appended since the
+      // decision is a gate deny, which staleness does not count (P50-4): the
+      // request is asked again under the lock (card E2.19, finding F1).
+      const closedNow = restore === undefined ? closedRequestOf(deps, item, toScope, at) : {};
+      if ("closedRequest" in closedNow) {
+        const c = closedNow.closedRequest;
+        return {
+          stale: `the request for this version into ${toScope} was ${c.state === "expired" ? "recorded expired" : "refused"} by event ${c.by}`,
+          policy_id: c.state === "expired" ? APPROVAL_EXPIRED_ID : APPROVAL_REFUSED_ID,
+        };
+      }
       // A new version whose lineage names an id an offboarding took out after
       // the decision (verification pass 4 of PR #50, V4-1): its source is
       // checked above; the ancestors it carries over are checked here.

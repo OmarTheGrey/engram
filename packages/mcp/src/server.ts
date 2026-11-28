@@ -33,6 +33,14 @@
 // carries the agent's choice of a proposed close; core proposes, and
 // nothing is retired.
 //
+// memory_why_not (card E2.17) is off by default too, for the same reason:
+// a server launched with `whyNot` lists it after the others. It asks the
+// plane why one item is not in the read the query would make now (the
+// explain-absent route): the first stage that kept it out, or that the read
+// returns it, answered only for an item the launch actor may read by id and
+// refused, as for an unknown id, otherwise. It appends no event, so
+// memory_simulate records nothing for it.
+//
 // The low-level Server is used, not McpServer, because the tools' input
 // schemas are the shared TypeBox (JSON Schema) definitions, which McpServer
 // would want restated in Zod.
@@ -76,6 +84,8 @@ export interface McpOptions {
   maxSteps?: number;
   /** List memory_supersede (card L6); off by default, so the four tools are C7's. */
   supersede?: boolean;
+  /** List memory_why_not (card E2.17); off by default, so the four tools are C7's. */
+  whyNot?: boolean;
 }
 
 /** The default bound on one session's recorded calls. */
@@ -97,8 +107,29 @@ export const MEMORY_SUPERSEDE = {
   }),
 } as const;
 
-const toolsOf = (supersede: boolean) =>
-  supersede ? ([...TOOLS, MEMORY_SUPERSEDE] as const) : TOOLS;
+/** Card E2.17's tool, listed only when the server is launched with `whyNot`. */
+export const MEMORY_WHY_NOT = {
+  name: "memory_why_not",
+  label: "Memory why not",
+  description:
+    "Why one item is not in the read a query would make now: the first stage that kept it out (match, status, ttl, validity, or the rank cut) and its rule, or that the read returns it. Answered only for an item you may read by id; for any other id the answer is the refusal an unknown id gets. Nothing is written.",
+  parameters: Type.Object({
+    item_id: Type.String(),
+    query: Type.Optional(Type.String()),
+  }),
+} as const;
+
+/** The optional tools a server lists: `true` for every one of them (the leak and parity suites). */
+export type OptionalTools = boolean | { supersede?: boolean; whyNot?: boolean };
+
+const toolsOf = (optional: OptionalTools) => {
+  const on = typeof optional === "boolean" ? { supersede: optional, whyNot: optional } : optional;
+  return [
+    ...TOOLS,
+    ...(on.supersede === true ? [MEMORY_SUPERSEDE] : []),
+    ...(on.whyNot === true ? [MEMORY_WHY_NOT] : []),
+  ];
+};
 
 const sha256 = (s: string) => `sha256:${createHash("sha256").update(s).digest("hex")}`;
 const text = (t: string, isError = false): CallToolResult => ({
@@ -121,8 +152,8 @@ function failure(answer: { error?: unknown; response: Response }): {
 }
 
 /** The tool list as MCP sends it: name, description, input schema (JSON Schema). */
-export function toolList(supersede = false) {
-  return toolsOf(supersede).map((t) => ({
+export function toolList(optional: OptionalTools = false) {
+  return toolsOf(optional).map((t) => ({
     name: t.name,
     title: t.label,
     description: t.description,
@@ -138,7 +169,8 @@ export function createMcpServer(options: McpOptions): Server {
   /** The Plane calls this server made, in order: memory_simulate's workload (card E8.9). */
   const steps: WorkloadStep[] = [];
   const maxSteps = options.maxSteps ?? MAX_SESSION_STEPS;
-  const tools = toolsOf(options.supersede === true);
+  const optional = { supersede: options.supersede === true, whyNot: options.whyNot === true };
+  const tools = toolsOf(optional);
   let overflowed = false;
   const record = (step: WorkloadStep) => {
     if (steps.length < maxSteps) steps.push(step);
@@ -147,7 +179,7 @@ export function createMcpServer(options: McpOptions): Server {
 
   const server = new Server(SERVER_INFO, { capabilities: { tools: {} } });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: toolList(options.supersede === true),
+    tools: toolList(optional),
   }));
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const { name } = request.params;
@@ -247,6 +279,17 @@ export function createMcpServer(options: McpOptions): Server {
         });
         if (answer.data === undefined) return text(failure(answer).message, true);
         return text(JSON.stringify(answer.data, null, 2));
+      }
+      case "memory_why_not": {
+        const answer = await client.POST("/api/v1/explain-absent", {
+          body: {
+            actor: agent,
+            item_id: String(args.item_id),
+            ...(args.query === undefined ? {} : { text: String(args.query) }),
+          },
+        });
+        if (answer.data === undefined) return text(failure(answer).message, true);
+        return text(JSON.stringify(answer.data, null, 2), !answer.data.answered);
       }
       case "memory_supersede": {
         const accept = (args.accept as string[] | undefined) ?? [];

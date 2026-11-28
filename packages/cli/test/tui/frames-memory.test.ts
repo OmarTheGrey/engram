@@ -21,6 +21,7 @@ import { GrantsScreen } from "../../src/tui/screens/grants.ts";
 import { ItemScreen } from "../../src/tui/screens/item.ts";
 import { ExplainScreen, ReadScreen } from "../../src/tui/screens/read.ts";
 import { SupersedeScreen, WhoScreen } from "../../src/tui/screens/who.ts";
+import { WhyNotScreen } from "../../src/tui/screens/why-not.ts";
 import { PromoteScreen, WriteScreen } from "../../src/tui/screens/write.ts";
 import { tempDir } from "../helpers.ts";
 import { type Cell, type Harness, startHarness } from "./harness.ts";
@@ -403,6 +404,24 @@ const EXPLAIN_RUN = ran(
   },
   `read ${READ_ID}: 2 explanations\n`,
 );
+/** Why not this item (card E2.17): the plane's answer for an item a read leaves out. */
+const WHY_NOT_RUN = ran(
+  ["explain", "--absent", id(3), "deploy", "--owner", "dana", "--db", "engram.db"],
+  "/api/v1/explain-absent",
+  {
+    answered: true,
+    item_id: id(3),
+    at: AT,
+    valid_at: AT,
+    absent: true,
+    stage: "status",
+    policy_id: "engram/read/status",
+    reason:
+      "absent at the status stage: the read filter admits only active items, and it is not active",
+  },
+  `why not ${id(3)} in a read at ${AT} with query "deploy" as person:dana: absent at status
+`,
+);
 /** The item page: v2 of an item whose v1 the viewer saw written, and the events naming it. */
 const V2 = item(1, {
   version: 2,
@@ -582,6 +601,11 @@ const SCREENS: Record<string, Build> = {
     (s as unknown as { chosen: Set<string> }).chosen.add(id(1));
     return s;
   },
+  "why-not": (h) =>
+    set(new WhyNotScreen(spec("explain --absent"), h.app, {}, [id(3), "deploy"]), {
+      result: WHY_NOT_RUN,
+      focus: 4,
+    }),
   item: (h) => {
     h.app.results.push(PAGE_READ);
     return set(new ItemScreen(spec("read --item"), h.app, {}, [id(1)]), {
