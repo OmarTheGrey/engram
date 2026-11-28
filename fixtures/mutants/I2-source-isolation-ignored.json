@@ -1,0 +1,9 @@
+{
+  "id": "I2-source-isolation-ignored",
+  "invariant": "I2",
+  "area": "write gate",
+  "file": "packages/core/src/policy/evaluate.ts",
+  "find": "if (UNTRUSTED_SOURCES.has(kind) && level !== \"person\")",
+  "replace": "if (false)",
+  "what": "model, compaction and external content may leave person scope"
+}

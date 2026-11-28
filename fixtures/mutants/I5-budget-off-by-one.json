@@ -1,0 +1,9 @@
+{
+  "id": "I5-budget-off-by-one",
+  "invariant": "I5",
+  "area": "retention",
+  "file": "packages/core/src/policy/retention.ts",
+  "find": "active.length <= rule.budget) continue;",
+  "replace": "active.length <= rule.budget + 1) continue;",
+  "what": "a scope may hold one active item over its budget"
+}

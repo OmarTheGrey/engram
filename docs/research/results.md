@@ -16,9 +16,9 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | cost estimate | 4 | dollars and calls estimated from token counts and prices; no model called |
 | power computation | 2 | a simulation of the registered test that sets or checks a sample size |
 | engineering check | 4 | a check of a component's behaviour or speed that decides no hypothesis |
-| proof of concept | 2 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
+| proof of concept | 3 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
 
-26 results in all, one per MANIFEST row.
+27 results in all, one per MANIFEST row.
 
 ## What each hypothesis still needs
 
@@ -499,3 +499,21 @@ Recorded by [`docs/log/2026-11-28-e8-16-measurement-leak-count-revised.md`](../l
 | diverged, unexplained | 0 | `totals.diverged_by_finding.unexplained` |
 
 Recorded by [`docs/log/2026-11-28-e1-8-measurement-trace-replay-status.md`](../log/2026-11-28-e1-8-measurement-trace-replay-status.md).
+
+### `research/results/h1-gate-mutation-audit.json`
+
+- **Question.** Do the invariants' property tests kill hand-written mutants of the write gate, the read filter, retention, promotion, adoption, offboarding, the trust floors and the log's chain, and which mutants survive?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. A proof of concept on the code's own tests (card X16); the file is under `h1-` for the results glob only.
+- **Made by.** `research/scripts/gate_mutation_audit.py` from `research/configs/gate-mutation-audit.json`, MANIFEST commit `0772cd3b`, sha256 `8e61f235b5dc2d7af647b27ecbe92b13b5db4769448438452f662ec20b873e05`.
+
+| value | reads | key path |
+|---|---|---|
+| mutants | 34 | `totals.mutants` |
+| killed | 32 | `totals.killed` |
+| survived | 2 | `totals.survived` |
+| kill rate | 0.941176 | `totals.kill_rate` |
+| two-handle offboarding walk, killed | 2 | `per_invariant.I1H.killed` |
+| log chain, killed | 2 | `per_invariant.I9.killed` |
+
+Recorded by [`docs/log/2026-11-28-x16-measurement-audit-after-review.md`](../log/2026-11-28-x16-measurement-audit-after-review.md).

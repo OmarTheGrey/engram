@@ -24,6 +24,12 @@
 // only while it still holds its own token. Tests replace the clock and add
 // pause points through `seams` (test seams only; the defaults are the wall
 // clock and no-ops).
+//
+// The mcp-memory adapter shares its lock with the MCP memory server, which
+// writes `{pid, hostname, token}` and no start time (card A6 of the second
+// absorb plan): such a record is read as a holder, stale when its pid is dead
+// on this machine or the file is older than the stale bound (the server
+// refreshes it every 15 s), and Engram's own record carries `hostname` too.
 import { randomUUID } from "node:crypto";
 import { lstat, open, readFile, rm } from "node:fs/promises";
 import { hostname } from "node:os";
@@ -76,13 +82,33 @@ export interface StoreLockOptions {
   seams?: LockSeams;
 }
 
-/** What a lock file says about its holder. */
+/**
+ * What a lock file says about its holder. `hostname` repeats `host` under the
+ * name the MCP memory server reads (card A6 of the second absorb plan), so a
+ * server sharing an mcp-memory file's lock breaks a lock whose Engram holder
+ * died on this machine at once, as it breaks its own.
+ */
 interface LockHolder {
   pid: number;
   host: string;
+  hostname?: string;
   token: string;
   started: string;
 }
+
+/**
+ * The record the MCP memory server writes into the lock it shares with the
+ * mcp-memory adapter: its pid, host name and a token, no start time. The
+ * server refreshes the file's time every 15 s while it holds it, so its age
+ * is the file's age.
+ */
+interface ServerHolder {
+  pid: number;
+  hostname: string;
+}
+
+const isServerHolder = (v: unknown): v is ServerHolder =>
+  isRecord(v) && Number.isInteger(v.pid) && typeof v.hostname === "string" && !("started" in v);
 
 const isLockHolder = (v: unknown): v is LockHolder =>
   isRecord(v) &&
@@ -142,9 +168,16 @@ export function createStoreLock(options: StoreLockOptions): StoreLock {
         holder: `pid ${parsed.pid} on ${parsed.host} since ${parsed.started}`,
       };
     }
+    // The MCP memory server's record: a dead pid on this machine, or the file's age.
+    const server = isServerHolder(parsed) ? parsed : undefined;
     // No readable holder: a writer between creating and filling the lock, or one that stopped there.
     try {
       const age = now() - (await lstat(lockPath)).mtimeMs;
+      if (server !== undefined) {
+        const holder = `the MCP memory server, pid ${server.pid} on ${server.hostname}`;
+        const dead = server.hostname === host && !isAlive(server.pid);
+        return { stale: dead || age > staleMs, holder };
+      }
       return { stale: age > staleMs, holder: "a writer that has not recorded itself" };
     } catch (e) {
       if (isMissing(e)) return { stale: false, holder: "nobody" };
@@ -189,6 +222,7 @@ export function createStoreLock(options: StoreLockOptions): StoreLock {
     const holder: LockHolder = {
       pid: process.pid,
       host,
+      hostname: host,
       token,
       started: new Date(now()).toISOString(),
     };

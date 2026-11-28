@@ -1,0 +1,9 @@
+{
+  "id": "I1-scope-membership-ignored",
+  "invariant": "I1",
+  "area": "read filter",
+  "file": "packages/core/src/policy/evaluate.ts",
+  "find": "return actor.memberships.includes(scope) && mayRead.includes(scopeLevel(scope));",
+  "replace": "return mayRead.includes(scopeLevel(scope));",
+  "what": "the read matrix admits a reader to a scope it is not a member of"
+}

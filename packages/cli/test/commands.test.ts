@@ -43,9 +43,10 @@ over the workspace its flags name, or to a running server:
                               $ENGRAM_TOKEN, when set, is sent as the bearer credential
 
 store options (read, write, promote, supersede, retain, lint, import, who-can-read, serve, mcp):
-  --store <name>              the store adapter: files or letta (default files)
+  --store <name>              the store adapter: files, letta or mcp-memory (default files)
   --root <folder>             the store folder: a Claude Code memory folder (files),
-                              or a MemFS repository or an empty folder (letta)
+                              a MemFS repository or an empty folder (letta),
+                              or the MCP memory server's memory.jsonl file (mcp-memory)
   --owner <id>                the person whose folder it is; its memories are adopted as person:<id>
   --import-valid-from <iso>   valid_from for imported memories (default each file's mtime)
   --policy <preset|path>      strict, medium, permissive or a policy YAML file (default medium)
