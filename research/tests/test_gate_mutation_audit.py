@@ -31,7 +31,7 @@ def err(name: str, message: str) -> dict[str, str]:
 
 
 def report(*tests: tuple[str, str, list[list[dict[str, str]]]], **extra: Any) -> dict[str, Any]:
-    """A report as the copy's reporter writes it: one module, its tests, each error a cause chain."""
+    """A report as the copy's reporter writes it: one module, each error a cause chain."""
     body = [{"name": name, "state": state, "errors": errors} for name, state, errors in tests]
     module = {"errors": extra.get("module_errors", []), "tests": body}
     return {"unhandled": extra.get("unhandled", []), "modules": [module]}
@@ -49,14 +49,21 @@ def test_a_failed_assertion_is_a_kill_also_as_a_property_s_cause() -> None:
     assert g.classify(report((INV.name, "failed", direct)), INV).status == "assertion"
     caused = [[err("Error", "Property failed after 3 tests"), err("AssertionError", "x")]]
     assert g.classify(report((INV.name, "failed", caused)), INV).status == "assertion"
-    false = [[err("Error", "Property failed after 2 tests"), err("Error", "Property failed by returning false")]]
+    false = [
+        [
+            err("Error", "Property failed after 2 tests"),
+            err("Error", "Property failed by returning false"),
+        ]
+    ]
     assert g.classify(report((INV.name, "failed", false)), INV).status == "assertion"
 
 
 def test_a_crash_is_could_not_tell_not_a_kill() -> None:
     chain = [[err("Error", "Property failed after 1 tests"), err("TypeError", "x is undefined")]]
     out = g.classify(report((INV.name, "failed", chain)), INV)
-    assert out == g.Outcome("could-not-tell", "red, but not from an assertion: TypeError: x is undefined")
+    assert out == g.Outcome(
+        "could-not-tell", "red, but not from an assertion: TypeError: x is undefined"
+    )
     assert g.classify(report((INV.name, "failed", [])), INV).status == "could-not-tell"
 
 

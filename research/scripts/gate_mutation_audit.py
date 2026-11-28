@@ -120,7 +120,7 @@ def load_mutants(folder: Path) -> list[Mutant]:
     for path in sorted(folder.glob("*.json")):
         raw = json.loads(path.read_text(encoding="utf-8"))
         keys = set(raw)
-        if not MUTANT_KEYS <= keys or not keys <= MUTANT_KEYS | OPTIONAL_KEYS:
+        if not (MUTANT_KEYS <= keys <= MUTANT_KEYS | OPTIONAL_KEYS):
             raise AuditError(
                 f"{path.name}: a mutant has exactly the fields {sorted(MUTANT_KEYS)}"
                 f" (and optionally {sorted(OPTIONAL_KEYS)}); it has {sorted(keys)}"
@@ -228,7 +228,7 @@ JS_SPECIAL = re.compile(r"[.*+?^${}()|\[\]\\/]")
 
 
 def js_pattern(name: str) -> str:
-    """A JavaScript regular expression matching `name` literally at the end of the full test name."""
+    """A JavaScript regular expression matching `name` literally at the end of a full test name."""
     return JS_SPECIAL.sub(lambda m: "\\" + m.group(0), name) + "$"
 
 
@@ -318,7 +318,7 @@ def _unlink(link: Path) -> None:
 
 
 class Scratch:
-    """A copy of the tracked files outside the repository, with links to the installed dependencies."""
+    """The tracked files copied outside the repository, linked to the installed dependencies."""
 
     def __init__(self, exclude: Sequence[str]) -> None:
         self.root = Path(tempfile.mkdtemp(prefix="engram-mutants-"))
@@ -332,11 +332,15 @@ class Scratch:
                 dst = self.root / rel
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(src, dst)
-            packages = ["."] + sorted(
-                str(Path(f).parent).replace("\\", "/")
-                for f in files
-                if f.endswith("/package.json") and (REPO / Path(f).parent / "node_modules").is_dir()
-            )
+            packages = [
+                ".",
+                *sorted(
+                    str(Path(f).parent).replace("\\", "/")
+                    for f in files
+                    if f.endswith("/package.json")
+                    and (REPO / Path(f).parent / "node_modules").is_dir()
+                ),
+            ]
             for pkg in packages:
                 self._mirror(pkg)
         except BaseException:
@@ -487,12 +491,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     config = load_config(args.config)
     if config.get("hypothesis") != "none" or config.get("status") != "proof of concept":
-        raise AuditError('the config must say "hypothesis": "none" and "status": "proof of concept"')
+        raise AuditError(
+            'the config must say "hypothesis": "none" and "status": "proof of concept"'
+        )
     invariants = load_invariants(config)
     mutants = load_mutants(REPO / config["mutants"])
     dirty = _git(["status", "--porcelain=v1", "--untracked-files=no", "--", *config["audited"]])
     if dirty.strip():
-        raise AuditError(f"tracked files under {config['audited']} have uncommitted changes:\n{dirty}")
+        raise AuditError(
+            f"tracked files under {config['audited']} have uncommitted changes:\n{dirty}"
+        )
     scratch = Scratch(config["copy_exclude"])
     try:
         run = vitest_runner(scratch.root, config["env"], int(config["run_timeout_s"]))
