@@ -485,9 +485,36 @@ const SCREENS: Record<
             "engram log verify: UNSIGNED",
             "  ok    tables",
             "  ok    links",
+            "  ok    attestations",
             "  ok    checkpoints",
             "log fixture: 2 chain entries, 1 events chained, 0 unchained, 0 erased, 0 manifests, 0 checkpoints",
+            "chain version 2: 1 attestations chained, 0 not covered",
             "note: no checkpoint: nothing signs this log's head",
+            "",
+          ].join("\n"),
+        ),
+      ),
+  },
+  // Card E1.9: an attestation edited after its event was chained.
+  "log-verify-attestation": {
+    name: "log verify",
+    given: USABLE,
+    set: (s: SurfaceScreen) =>
+      s.show(
+        result(
+          ["log", "verify", "--db", "engram.db"],
+          1,
+          [
+            "engram log verify: FAILED",
+            "  ok    tables",
+            "  ok    genesis",
+            "  ok    links",
+            "  ok    anchor",
+            "  ok    commitments",
+            "  fail  attestations: event 0's attestation row does not match the digest chained with it: edited",
+            "first broken link: attestations, chain position 1, event seq 0",
+            "log fixture: 2 chain entries, 1 events chained, 0 unchained, 0 erased, 0 manifests, 0 checkpoints",
+            "chain version 2: 1 attestations chained, 0 not covered",
             "",
           ].join("\n"),
         ),

@@ -39,6 +39,12 @@ Supersedes: nothing. It amends ADR 0003 (the event log is the source of truth) w
   - Decision 3's manifest also lists its erase events, and must: a manifest naming a redacted event names an erase event, and every item event it names is about an item one of its erase events erased.
   - The chain is kept by the shared opener (`openWorkspace().open()` in packages/server), so every surface chains its events; the card was widened to packages/server for this.
   - Card E8.12's `event_attestations` rows are outside the chain; an edited attestation verifies clean until a later card adds their digest to each event's chain record.
+- **2026-11-28, card E1.9 (second absorb plan; for the lead's acceptance).** Builds on ADR 0042 decision 8 (the attestation side table) and changes nothing it decided.
+  - Chain version 2. Each event's attestation row, written by the attesting handle in the statement call that appends the event, is digested (SHA-256 under the tag `engram.attestation.v1` over the row in canonical form) into that event's chain entry, beside its commitments, under the key `attestation`, in the same transaction. An event with no row carries no such key, and its record is version 1's.
+  - A new chain's genesis says version 2. A chain begun under version 1 still verifies as it is: the first event a keeping handle appends to it is preceded by one `version` entry (`{"kind":"version","version":2}`), and attestations are chained from there on. Rows of events chained under version 1, or before the chain began, are counted as uncovered and named in a note; nothing vouches for them.
+  - The verifier reads both versions: a version entry must raise the version by exactly one, to one it knows; a digest under version 1 fails the links. A new check, `attestations`, after `commitments`, fails on a row edited, deleted, added after its event was chained, or naming no event in the log.
+  - The pi extension keeps the chain of a log that already has one on the handle it is given (E1.6's finding on unkept writers); a log with no chain, as a research run's, begins none.
+  - What it cannot detect is unchanged: rewriting the genesis to version 1 and recomputing every link is a whole-chain rewrite, caught only by a checkpoint held outside the database.
 
 ## Alternatives considered
 
