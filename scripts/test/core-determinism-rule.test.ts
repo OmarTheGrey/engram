@@ -26,9 +26,10 @@ const EXEMPT: Readonly<Record<string, readonly string[]>> = {
 };
 
 /** The objects whose members read the clock or draw randomness. */
-const SOURCES = String.raw`(?:Date|Math|performance|process|crypto|Intl|Temporal|globalThis)`;
+const SOURCES = "(?:Date|Math|performance|process|crypto|Intl|Temporal|globalThis)";
 /** Their members that do. */
-const MEMBERS = String.raw`(?:now|random|hrtime|randomUUID|randomBytes|randomInt|randomFill|randomFillSync|getRandomValues|pseudoRandomBytes)`;
+const MEMBERS =
+  "(?:now|random|hrtime|randomUUID|randomBytes|randomInt|randomFill|randomFillSync|getRandomValues|pseudoRandomBytes)";
 /** `globalThis.` before a name, or nothing. */
 const G = String.raw`(?:globalThis\s*\??\.\s*)?`;
 

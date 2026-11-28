@@ -5,14 +5,26 @@
 // offline-guard.setup.ts as a setup file of every project, so the guard is in
 // place before any test file is loaded.
 //
-// What it refuses: `fetch`, every TCP or TLS connection (http, https, undici
-// and most clients go through net.Socket's connect) and DNS lookups, as the
-// adapters' conformance guard does (packages/adapters/test/conformance/
-// network-guard.ts, whose shape this follows). Unlike that guard it lets the
-// loopback through: the embedded Postgres, the HTTP server and the MCP server
-// are tested over 127.0.0.1, and a loopback connection leaves the machine for
-// nowhere. A Unix socket or named pipe (a `path`) is local too. A child
-// process is outside it: what a spawned `git` or `uv` does is not patched.
+// What it refuses: `fetch`, every TCP or TLS connection (http, https, undici,
+// WebSocket and most clients go through net.Socket's connect), a connection
+// given its own `lookup` function, and every DNS query (the node:dns and
+// node:dns/promises functions and their Resolver classes), as the adapters'
+// conformance guard does (packages/adapters/test/conformance/network-guard.ts,
+// whose shape this follows). Unlike that guard it lets the loopback through:
+// the embedded Postgres, the HTTP server and the MCP server are tested over
+// 127.0.0.1, and a loopback connection leaves the machine for nowhere. The
+// loopback is the name `localhost` itself (a name under `.localhost` may be
+// sent to a resolver), 127.0.0.0/8 and ::1. A lookup of an IP literal makes
+// no query and passes, so a server may bind 0.0.0.0; the connect check still
+// guards the address. A Unix socket or local named pipe (a `path`) is local;
+// a Windows UNC path to a host (`\\host\pipe\x`) is not.
+//
+// A refusal is a synchronous throw where the call is synchronous, and a
+// rejected promise from fetch and dns/promises. A client that connects inside
+// its own machinery (a WebSocket, a fetch redirect) sees the throw as an
+// asynchronous error event. Outside it: a child process (a spawned `git` or
+// `uv`), a worker thread (it loads its own copy of node:net and node:dns, and
+// no setup file), dgram, and pytest.
 //
 // Ideas from Compartment's offline_guard.py (Apache-2.0,
 // MaxFreedomPollard/Compartment at 98d4917181c0) and Scuttie's hidden-call
@@ -38,7 +50,7 @@ export interface OfflineGuard {
 export function isLoopback(host: string | undefined | null): boolean {
   if (host === undefined || host === null || host === "") return true; // net's default host is localhost
   const h = host.toLowerCase().replace(/^\[(.*)\]$/, "$1");
-  if (h === "localhost" || h.endsWith(".localhost")) return true;
+  if (h === "localhost") return true;
   if (/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h)) return true;
   if (/^::ffff:127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h)) return true;
   return h === "::1" || h === "0:0:0:0:0:0:0:1";
@@ -64,8 +76,21 @@ function fetchHost(input: unknown): { host: string; url: string } | undefined {
   return { host: url.hostname, url: url.href };
 }
 
-/** The target of a net.Socket#connect call: a host and port, or a local path. */
-function connectTarget(args: unknown[]): { host?: string; path?: string; port?: unknown } {
+/**
+ * A Windows UNC path naming a host (two slashes, then anything but the local
+ * device prefixes `.` and `?`), which reaches that host over SMB.
+ */
+export function isRemotePipe(path: string, platform: string = process.platform): boolean {
+  return platform === "win32" && /^[\\/]{2}(?![.?][\\/])/.test(path);
+}
+
+/** The target of a net.Socket#connect call: a host and port, or a local path, and its own lookup. */
+function connectTarget(args: unknown[]): {
+  host?: string;
+  path?: string;
+  port?: unknown;
+  lookup?: boolean;
+} {
   // net.connect normalises its arguments into an array it passes as the first one.
   const first = Array.isArray(args[0]) ? args[0][0] : args[0];
   if (typeof first === "string" && Number.isNaN(Number(first))) return { path: first };
@@ -74,9 +99,13 @@ function connectTarget(args: unknown[]): { host?: string; path?: string; port?: 
     return { port: first, host: typeof second === "string" ? second : undefined };
   }
   if (first !== null && typeof first === "object") {
-    const o = first as { host?: unknown; path?: unknown; port?: unknown };
+    const o = first as { host?: unknown; path?: unknown; port?: unknown; lookup?: unknown };
     if (typeof o.path === "string") return { path: o.path };
-    return { host: typeof o.host === "string" ? o.host : undefined, port: o.port };
+    return {
+      host: typeof o.host === "string" ? o.host : undefined,
+      port: o.port,
+      lookup: typeof o.lookup === "function",
+    };
   }
   return {};
 }
@@ -121,24 +150,36 @@ export function createOfflineGuard(): OfflineGuard {
 
   net.Socket.prototype.connect = function connect(this: net.Socket, ...args: unknown[]) {
     const to = connectTarget(args);
-    if (to.path === undefined && !isLoopback(to.host))
-      refuse(`socket connect ${to.host}:${String(to.port)}`);
+    if (to.path !== undefined) {
+      if (isRemotePipe(to.path)) refuse(`socket connect ${to.path}`);
+    } else if (to.lookup) {
+      // Its own lookup decides where the socket goes, whatever host it names.
+      refuse(`socket connect ${to.host ?? "localhost"}:${String(to.port)} with its own lookup`);
+    } else if (!isLoopback(to.host)) refuse(`socket connect ${to.host}:${String(to.port)}`);
     return (realConnect as (...a: unknown[]) => net.Socket).apply(this, args);
   } as typeof net.Socket.prototype.connect;
 
-  // Every resolver function of node:dns and node:dns/promises takes the host name first.
-  const resolvers = (mod: object) =>
-    Object.keys(mod).filter(
+  // Every resolver function of node:dns and node:dns/promises, and of their
+  // Resolver classes, takes the host name (or, for reverse and lookupService, the address) first.
+  const resolvers = (target: object) =>
+    Object.getOwnPropertyNames(target).filter(
       (k) =>
         (k === "lookup" || k === "lookupService" || k.startsWith("resolve") || k === "reverse") &&
-        typeof (mod as Record<string, unknown>)[k] === "function",
+        typeof Object.getOwnPropertyDescriptor(target, k)?.value === "function",
     );
-  for (const mod of [dns, dns.promises] as object[]) {
-    for (const key of resolvers(mod)) {
-      const real = (mod as Record<string, Lookup>)[key] as Lookup;
-      const isPromise = mod === dns.promises;
-      replace(mod, key, function guarded(this: unknown, host: string, ...rest: unknown[]) {
-        if (!isLoopback(host)) {
+  const targets: Array<[object, boolean]> = [
+    [dns, false],
+    [dns.promises, true],
+    [dns.Resolver.prototype, false],
+    [dns.promises.Resolver.prototype, true],
+  ];
+  for (const [target, isPromise] of targets) {
+    for (const key of resolvers(target)) {
+      const real = (target as Record<string, Lookup>)[key] as Lookup;
+      replace(target, key, function guarded(this: unknown, host: string, ...rest: unknown[]) {
+        // getaddrinfo on an IP literal returns it without a query.
+        const literal = key === "lookup" && typeof host === "string" && net.isIP(host) !== 0;
+        if (!literal && !isLoopback(host)) {
           if (isPromise) return Promise.reject(refuseError(`dns ${key} ${host}`));
           refuse(`dns ${key} ${host}`);
         }

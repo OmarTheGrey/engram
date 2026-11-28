@@ -96,6 +96,75 @@ describe("the guard, installed", () => {
     expect(guard.attempts).toEqual([]);
   });
 
+  test("a Resolver instance's queries are refused, callback and promise forms", async () => {
+    expect(() => new dns.Resolver().resolve4(OFF, () => {})).toThrow(REFUSED);
+    expect(() => new dns.Resolver().reverse("192.0.2.1", () => {})).toThrow(REFUSED);
+    await expect(new dns.promises.Resolver().resolve4(OFF)).rejects.toThrow(REFUSED);
+    await expect(new dns.promises.Resolver().resolveTxt(OFF)).rejects.toThrow(REFUSED);
+    expect(guard.attempts).toEqual([
+      `dns resolve4 ${OFF}`,
+      "dns reverse 192.0.2.1",
+      `dns resolve4 ${OFF}`,
+      `dns resolveTxt ${OFF}`,
+    ]);
+  });
+
+  test("a name under .localhost is refused: only localhost itself is this machine", async () => {
+    expect(() => net.connect({ host: "db.localhost", port: 80 })).toThrow(REFUSED);
+    await expect(dns.promises.lookup("db.localhost")).rejects.toThrow(REFUSED);
+  });
+
+  test("a connection with its own lookup function is refused, whatever host it names", () => {
+    const lookup = (_h: string, _o: unknown, cb: (e: null, a: string, f: number) => void) =>
+      cb(null, "192.0.2.1", 4);
+    expect(() =>
+      net.connect({ host: "localhost", port: 80, lookup } as net.NetConnectOpts),
+    ).toThrow(REFUSED);
+    expect(guard.attempts).toEqual(["socket connect localhost:80 with its own lookup"]);
+  });
+
+  // Windows reads a path that starts with two slashes as UNC, which reaches the named host over SMB.
+  test.runIf(process.platform === "win32")("a UNC path to a host is remote", () => {
+    expect(() => net.connect({ path: String.raw`\\fileserver\pipe\engram` })).toThrow(REFUSED);
+    expect(() => net.connect("//fileserver/pipe/engram")).toThrow(REFUSED);
+    expect(guard.attempts).toEqual([
+      String.raw`socket connect \\fileserver\pipe\engram`,
+      "socket connect //fileserver/pipe/engram",
+    ]);
+  });
+
+  test("a local pipe or a Unix socket path is left alone", () => {
+    const paths =
+      process.platform === "win32"
+        ? [String.raw`\\.\pipe\engram-guard-none`, String.raw`\\?\pipe\engram-guard-none`]
+        : ["/tmp/engram-guard-none.sock"];
+    for (const path of paths) {
+      const socket = net.connect({ path });
+      socket.on("error", () => {});
+      socket.destroy();
+    }
+    expect(guard.attempts).toEqual([]);
+  });
+
+  test("a lookup of an IP literal makes no query and passes, so a server can bind a wildcard", async () => {
+    expect((await dns.promises.lookup("192.0.2.1")).address).toBe("192.0.2.1");
+    await new Promise<void>((done, fail) =>
+      dns.lookup("10.0.0.1", (e, address) => {
+        if (e) fail(e);
+        else {
+          expect(address).toBe("10.0.0.1");
+          done();
+        }
+      }),
+    );
+    const server = net.createServer();
+    await new Promise<void>((done) => server.listen(0, "0.0.0.0", done));
+    await new Promise((done) => server.close(done));
+    expect(guard.attempts).toEqual([]);
+    // The connect check still guards the address itself.
+    expect(() => net.connect({ host: "192.0.2.1", port: 80 })).toThrow(REFUSED);
+  });
+
   test("a fetch that reaches no network (a data: URL) is left alone", async () => {
     expect(await (await fetch("data:text/plain,engram")).text()).toBe("engram");
     expect(guard.attempts).toEqual([]);
@@ -125,7 +194,6 @@ test("the loopback, and only the loopback, is this machine", () => {
   for (const host of [
     "localhost",
     "LOCALHOST",
-    "db.localhost",
     "127.0.0.1",
     "127.8.9.10",
     "::1",
@@ -142,6 +210,7 @@ test("the loopback, and only the loopback, is this machine", () => {
     "0.0.0.0",
     "128.0.0.1",
     "localhost.example.com",
+    "db.localhost",
     "::2",
     OFF,
   ])
