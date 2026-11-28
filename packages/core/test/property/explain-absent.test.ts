@@ -66,8 +66,10 @@ interface Seen {
   stages: Counted;
   answered: Counted;
   refused: number;
+  /** Items checked one by one against a by-id read. */
+  byId: number;
 }
-const seenOf = (): Seen => ({ stages: zero(), answered: zero(), refused: 0 });
+const seenOf = (): Seen => ({ stages: zero(), answered: zero(), refused: 0, byId: 0 });
 
 /**
  * The two properties for one read by `actor` with `text` at `at` on `plane`:
@@ -120,6 +122,33 @@ async function checkRead(
   if (counts.cut === undefined) expect(n["rank-cut"]).toBe(0);
   const returned = [...outcomes].filter(([, o]) => o.stage === "returned").map(([id]) => id);
   expect(returned.sort()).toEqual(r.items.map((i) => i.id).sort());
+  // Item by item (review finding E2.17-3), against the plane's own read of that one item:
+  // for every item in a scope the reader may read, a by-id read at the same times (the
+  // same filter, no query) records the one filter category the stage names, or returns
+  // it when the stage is past the filter. Swapped stages between two items fail here.
+  const byIdCategory = {
+    status: "not_active",
+    ttl: "expired",
+    validity: "outside_validity",
+  } as const;
+  const times = { at: query.at, ...(query.valid_at ? { valid_at: query.valid_at } : {}) };
+  for (const [id, o] of outcomes) {
+    const item = projected.get(id) as MemoryItem;
+    if (!readableScope(deps.policy, actor, item.scope)) continue;
+    const one = await plane.readById(actor, id, times);
+    const c = readCounts(one.event);
+    if (o.stage === "status" || o.stage === "ttl" || o.stage === "validity") {
+      expect(c?.[byIdCategory[o.stage]], `${id} at ${o.stage}`).toBe(1);
+      expect(one.items).toEqual([]);
+      seen.byId++;
+    } else if (o.stage === "returned" || o.stage === "rank-cut") {
+      expect(
+        one.items.map((i) => i.id),
+        `${id} at ${o.stage}`,
+      ).toEqual([id]);
+      seen.byId++;
+    } else expect(o.stage, `${id}: a readable scope is never out of reach`).toBe("match");
+  }
 
   // Property 2: answered exactly as ADR 0047's by-id rule allows, else as the unknown id.
   for (const [id, answer] of answers) {
@@ -201,8 +230,12 @@ describe("why not this item, on the simulator's fixtures", () => {
             for (const step of workload.steps) {
               const as = workload.actors[step.as] as Actor;
               if (step.op === "write") await plane.write(as, step.item as MemoryItem, step.at);
-              else if (step.op === "retain") await plane.retain(as, step.scope, step.at);
-              else if (step.op === "promote")
+              else if (step.op === "retain") {
+                // Just before the sweep, past-ttl items answer ttl; after it, status (finding E2.17-1).
+                for (const actor of [as, ...actors])
+                  await checkRead(deps, plane, actor, { at: step.at }, seen);
+                await plane.retain(as, step.scope, step.at);
+              } else if (step.op === "promote")
                 await plane.promote(as, step.item_id, step.to_scope, step.at);
               else if (step.op === "read")
                 // Every actor of the workload, and one outside it, asks before the read is made.
@@ -225,12 +258,13 @@ describe("why not this item, on the simulator's fixtures", () => {
             db.close();
           }
         });
-  test("the fixtures reach the match, status, ttl and returned stages, answered, and refusals", () => {
-    for (const stage of ["match", "returned", "reach"] as const)
+  test("the fixtures reach the match, status, ttl, validity, rank-cut and returned stages, answered, and refusals", () => {
+    for (const stage of ["match", "status", "ttl", "validity", "returned", "reach"] as const)
       expect(seen.stages[stage], stage).toBeGreaterThan(0);
-    for (const stage of ["match", "validity", "returned", "rank-cut"] as const)
+    for (const stage of ["match", "status", "ttl", "validity", "returned", "rank-cut"] as const)
       expect(seen.answered[stage], `answered ${stage}`).toBeGreaterThan(0);
     expect(seen.refused).toBeGreaterThan(0);
+    expect(seen.byId).toBeGreaterThan(0);
   });
 });
 
@@ -346,6 +380,7 @@ describe("why not this item, on generated reads", () => {
     for (const s of ["match", "status", "ttl", "validity", "returned"] as const)
       expect(seen.answered[s], `answered ${s}`).toBeGreaterThan(0);
     expect(seen.refused).toBeGreaterThan(0);
+    expect(seen.byId).toBeGreaterThan(0);
   });
 
   test("an invalid actor, time or id is refused before the log is touched", async () => {
