@@ -202,14 +202,18 @@ export class ItemScreen extends RichScreen {
           this.itemId(),
         );
         return true;
+      // Card E2.17: why this item is not in a read, from its page (an id a read by id did not return, say).
+      case "why-not":
+        if (this.itemId() !== "") openOnItem(ctx, "explain --absent", this.itemId());
+        return true;
     }
     return false;
   }
 
   protected ownHints(): string {
     return this.events === undefined
-      ? "enter open"
-      : "p promote  g grants  w who  S supersede  enter event  tab pane";
+      ? "enter open  n why not"
+      : "p promote  g grants  w who  S supersede  n why not  enter event  tab pane";
   }
 
   /** The provenance tree: the focus, its decisions, then its ancestors and descendants, indented. */

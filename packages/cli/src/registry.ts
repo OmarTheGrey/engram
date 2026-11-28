@@ -478,7 +478,7 @@ export const OPTIONS = {
       control: "text",
       card: "E2.17",
     }),
-    at: { ...AT, label: "Judge validity windows at" },
+    at: { ...AT, label: "Validity at" },
   },
   events: {
     db: DB,

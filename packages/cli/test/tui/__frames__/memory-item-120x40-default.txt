@@ -37,7 +37,7 @@
 │                                                                                                                      │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 $ engram events --owner dana --db engram.db   exit 0
- ? help  p promote  g grants  w who  S supersede  enter event  tab pane  ; commands  esc back
+ ? help  p promote  g grants  w who  S supersede  n why not  enter event  tab pane  ; commands  esc back
 --- styles
 r0 c0-119 inverse
 r18 c17-17 fg #00A67A
