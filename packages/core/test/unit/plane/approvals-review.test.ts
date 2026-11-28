@@ -553,3 +553,48 @@ describe("D5's safety-scan hold is released only through the approval route", ()
     expect(bySam.decision).toBe("allow");
   });
 });
+
+// Verification note N1: Plane.approvals offers a decision only where promote
+// would allow it, since E8.8's surfaces offer approval on `may_decide`.
+describe("N1: may_decide is what promote would allow", () => {
+  test("the owner of a guard-held candidate with a live grant may not decide it; a second member may", async () => {
+    const base = routed([{ scope: "person", approvers: ["owner", "person:lee"] }]);
+    const policy: Policy = { ...base, content_guards: { pii: "review" } };
+    const { plane } = fresh(policy);
+    const dana = user("dana", []);
+    const lee: Actor = { ...user("lee", []), memberships: ["person:lee", "person:dana"] };
+    const toSam = {
+      to: "person:sam",
+      class: "semantic" as const,
+      mode: "read" as const,
+      expires: "2027-01-01T00:00:00Z",
+    };
+    const w = await plane.write(
+      dana,
+      item(1, {
+        scope: dana.id,
+        owner: dana.id,
+        content: "Reach me at dana@example.com",
+        grants: [toSam],
+      }),
+      AT,
+    );
+    expect(w.item?.status).toBe("candidate");
+    const offered = async (who: Actor) => (await plane.approvals(who, AT))[0]?.may_decide;
+    expect(await offered(dana)).toBe(false);
+    expect(await offered(lee)).toBe(true);
+    expect((await plane.promote(dana, id(1), dana.id, AT, { review: true })).decision).toBe("deny");
+    expect((await plane.promote(lee, id(1), dana.id, AT, { review: true })).decision).toBe("allow");
+  });
+
+  test("across actors, an offered decision is one promote allows, and a withheld one it refuses", async () => {
+    for (const who of [omar, ada, bob, user("carl", ["role:lead"])]) {
+      const { plane } = fresh(routed(LEADS));
+      await plane.write(omar, item(1), AT);
+      const [r] = await plane.approvals(who, AT);
+      const landed = await plane.promote(who, id(1), "team:platform", AT, { review: true });
+      if (r) expect(landed.decision === "allow", `${who.id}`).toBe(r.may_decide);
+      else expect(landed.decision).toBe("deny");
+    }
+  });
+});

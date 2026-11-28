@@ -69,6 +69,7 @@ import {
   evaluatePromotion,
   PROMOTE_MEMBERSHIP_ID,
   PROMOTE_REPLAY_SPLIT_ID,
+  type PromotionDecision,
   promotionRuleId,
 } from "../policy/promotion.ts";
 import { Id, type MemoryEvent, type MemoryItem, Scope } from "../schema.ts";
@@ -232,6 +233,64 @@ export interface Restore {
   prefix: string;
 }
 
+/**
+ * The promotion gate's decision for `item` into `toScope`, with the
+ * evidence the plane gathers from the log, and card D5's safety scan applied;
+ * nothing is committed. decideAndCommit commits it; Plane.approvals asks it
+ * whether an actor may approve a request now (card E2.19, verification
+ * note N1), so the queue offers a decision only where promote would allow it.
+ */
+export function promotionDecision(
+  deps: PlaneDeps,
+  actor: Actor,
+  item: MemoryItem,
+  toScope: string,
+  at: string,
+  options: PromoteOptions,
+  restore?: Restore,
+): PromotionDecision {
+  const { db, policy } = deps;
+  return applySafetyScan(
+    policy,
+    actor,
+    item,
+    evaluatePromotion(
+      policy,
+      actor,
+      item,
+      { scope: toScope, at },
+      {
+        confirmations: confirmationsOf(deps, item),
+        authors: authorsOf(deps, item),
+        duplicate: duplicateOf(
+          deps,
+          item,
+          toScope,
+          item.class === "episodic" ? "semantic" : item.class,
+        ),
+        review: options.review === true,
+        // The record is derived here from the replay's outcomes, never taken
+        // from the caller (card D3, ADR 0046 proposed), and the replay is
+        // checked against the item: its id, content and distill ref (D3-3).
+        ...(options.replay === undefined ? {} : replayEvidence(deps, item, options.replay)),
+        // An approval request that expired or was refused closes this version
+        // and target (card E2.19); only gathered when the policy has an
+        // approval block. A drift restore is a fresh presentation: its
+        // requests never close the version (review finding F4).
+        ...(restore === undefined ? closedRequestOf(deps, item, toScope, at) : {}),
+        ...(options.reviewedVersion === undefined
+          ? {}
+          : { reviewedVersion: options.reviewedVersion }),
+      },
+      // A restore is judged without its own retirement (card D4).
+      restore === undefined
+        ? retiredContent(db, toScope)
+        : new Map([...retiredContent(db, toScope)].filter(([, id]) => id !== item.id)),
+    ),
+    { release: options.release, target: toScope, authors: () => authorsOf(deps, item) },
+  );
+}
+
 async function decideAndCommit(
   deps: PlaneDeps,
   actor: Actor,
@@ -274,45 +333,7 @@ async function decideAndCommit(
   // an allowed admission as a gate event until a release ADRs 0026 and 0049 allow.
   // A drift restore (card D4) goes through here too, so it meets the scan as
   // any admission does; it carries no release, so a held restore stays retired.
-  const d = applySafetyScan(
-    policy,
-    actor,
-    item,
-    evaluatePromotion(
-      policy,
-      actor,
-      item,
-      { scope: toScope, at },
-      {
-        confirmations: confirmationsOf(deps, item),
-        authors: authorsOf(deps, item),
-        duplicate: duplicateOf(
-          deps,
-          item,
-          toScope,
-          item.class === "episodic" ? "semantic" : item.class,
-        ),
-        review: options.review === true,
-        // The record is derived here from the replay's outcomes, never taken
-        // from the caller (card D3, ADR 0046 proposed), and the replay is
-        // checked against the item: its id, content and distill ref (D3-3).
-        ...(options.replay === undefined ? {} : replayEvidence(deps, item, options.replay)),
-        // An approval request that expired or was refused closes this version
-        // and target (card E2.19); only gathered when the policy has an
-        // approval block. A drift restore is a fresh presentation: its
-        // requests never close the version (review finding F4).
-        ...(restore === undefined ? closedRequestOf(deps, item, toScope, at) : {}),
-        ...(options.reviewedVersion === undefined
-          ? {}
-          : { reviewedVersion: options.reviewedVersion }),
-      },
-      // A restore is judged without its own retirement (card D4).
-      restore === undefined
-        ? retiredContent(db, toScope)
-        : new Map([...retiredContent(db, toScope)].filter(([, id]) => id !== item.id)),
-    ),
-    { release: options.release, target: toScope, authors: () => authorsOf(deps, item) },
-  );
+  const d = promotionDecision(deps, actor, item, toScope, at, options, restore);
   const visible = d.policy_id !== PROMOTE_MEMBERSHIP_ID;
   const common = {
     ...base,

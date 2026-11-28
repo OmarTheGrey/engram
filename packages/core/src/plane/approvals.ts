@@ -72,7 +72,7 @@ import {
 } from "../policy/promotion.ts";
 import { Id, type MemoryEvent, type MemoryItem, type Policy, Scope } from "../schema.ts";
 import { addSeconds, compareTimestamps } from "../time.ts";
-import { authorsOf } from "./promote.ts";
+import { authorsOf, promotionDecision } from "./promote.ts";
 import { inWriteQueue } from "./queue.ts";
 
 export { APPROVAL_EXPIRED_ID, APPROVAL_REFUSED_ID, APPROVAL_ROUTE_ID, APPROVAL_STALE_ID };
@@ -323,7 +323,11 @@ export function deciderProblem(
 
 /** A request as Plane.approvals shows it to one actor. */
 export interface QueuedRequest extends ApprovalRequest {
-  /** The actor may approve or refuse it now: pending, not due, and the actor an approver. */
+  /**
+   * The actor may approve it now: pending, not due, the actor an approver the
+   * route names, and the promotion gate would allow their review (for a
+   * procedure, whose admission needs its replay, the approver rules only).
+   */
   may_decide: boolean;
 }
 
@@ -346,10 +350,19 @@ export async function approvals(
     const now = itemById(deps.db, r.item_id);
     const live = r.state === "pending" && !r.due && now?.version === r.version;
     const item = now && r.restore ? ({ ...now, status: "candidate" } as MemoryItem) : now;
-    out.push({
-      ...r,
-      may_decide: live && deciderProblem(deps, actor, item as MemoryItem, r.target) === null,
-    });
+    // The gate itself answers (verification note N1): a confirmer, or the
+    // owner of a guard-held candidate with a live grant, is not offered a
+    // decision promote would refuse. A procedure's admission needs its replay,
+    // which the queue does not hold, so for one the decider rules answer.
+    const decider = live && deciderProblem(deps, actor, item as MemoryItem, r.target) === null;
+    const allowed =
+      decider &&
+      (item?.class === "procedural" ||
+        promotionDecision(deps, actor, item as MemoryItem, r.target, at, {
+          review: true,
+          reviewedVersion: r.version,
+        }).decision === "allow");
+    out.push({ ...r, may_decide: allowed });
   }
   return out;
 }
