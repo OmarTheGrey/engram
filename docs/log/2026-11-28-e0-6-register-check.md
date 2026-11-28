@@ -20,6 +20,6 @@ supersedes: none
 
 **Why.** Rule 16 and ADR 0037's decision 8 were checked only by review, and every card of the second absorb plan adds rows.
 
-**Result.** A row fails with other than seven cells, a commit that is not a 40-character hash, a licence outside ADR 0037's copy-or-port list (CC-BY-4.0 only with a data mode), a mode neither copy nor port, no backticked landed path, a landed path that does not exist, or, for a copy, no NOTICE block naming its source and a landed path. The red fixture `fixtures/ci/absorbed-red/` breaks each once: nine problems, exit 1. Main's register passes after one fix. Six tests pass; mutants dropping the existence check and the landed-path half of the NOTICE rule each failed two.
+**Result.** A row fails on a cell count other than seven, a short commit, a licence expression with a part outside ADR 0037's list (CC-BY-4.0 only on a `(data)` mode), a mode neither copy nor port, no backticked landed path, a missing landed path, or a copy with no NOTICE block naming its repository and a landed path whole. A table row after a blank line is reported. The red fixture `fixtures/ci/absorbed-red/` gives 13 problems and passes its eight clean rows; main's register passes after two row fixes. 16 tests pass; 17 mutants were each killed.
 
 **Consequence.** A register row review would have caught now fails `make lint-docs`.

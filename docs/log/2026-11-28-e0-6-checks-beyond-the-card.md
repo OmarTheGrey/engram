@@ -12,10 +12,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** Beyond the card's three checks, the script also requires seven cells, a 40-character commit, a mode of copy or port, at least one backticked landed path, and CC-BY-4.0 only on a mode marked `(data)`.
+**What.** Beyond the card's three checks, the script requires seven cells, a separator row, a 40-character commit, a mode of copy or port, a backticked landed path, CC-BY-4.0 only on a `(data)` mode, every part of an `AND`, `OR` or `WITH` expression allowed, and no table row left outside the table.
 
-**Why.** Each is a rule of ADR 0037 or the absorption convention that review checks today, and the first and fourth are needed for the card's checks to read a row at all: a split row misplaces its paths, and a row with no backticked path would pass the existence check vacuously.
+**Why.** Each is a rule of ADR 0037 or the absorption convention that review checks today, and several are needed for the card's checks to read a row at all. `OR` could be accepted on one allowed part; requiring every part is simpler and no row needs otherwise.
 
-**Result.** All hold on main's 24 rows after the pipe fix. Landed paths are the backticked spans holding a slash, so a span like `resolveSupersessionHead` is not one.
+**Result.** All hold on main's 24 rows. Accepted limit: the convention records a commit hash and permits no other identifier, so a data source outside git (an archive with a DOI) cannot be registered until the convention says how.
 
-**Consequence.** A future row puts its paths in backticks and its commit in full.
+**Consequence.** The form is written in the convention's "Recording it" section.

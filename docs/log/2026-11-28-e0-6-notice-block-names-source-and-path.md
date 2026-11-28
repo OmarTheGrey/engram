@@ -12,10 +12,10 @@ evidence:
 supersedes: none
 ---
 
-**What.** A copy's NOTICE entry counts only when one block of `NOTICE` (text between rule lines of dashes) names both the row's source repository (`owner/repo`, case folded) and one of its landed paths.
+**What.** A copy's NOTICE entry counts only when one block of `NOTICE` (between rule lines of dashes) names the row's `owner/repo` and one of its landed paths, each whole, case folded.
 
-**Why.** The card asks for an entry naming the source. The source alone would pass a second copy from a project already in NOTICE for another file (Remnic and Claude-Mem each appear twice), so the notice for the new file could be missing unnoticed. Every current NOTICE block already names its files.
+**Why.** The source alone would pass a second copy from a project already in NOTICE for another file (Remnic and Claude-Mem each appear twice). A substring would let `o/r-fork` stand for `o/r` and `a/b.ts.bak` for `a/b.ts`, so names match on boundaries: a repository may follow a slash (`github.com/`), a path may not, and either may be followed by a slash or closing punctuation.
 
-**Result.** All twelve copy rows of main's register pass; the red row whose source is named only beside another file fails.
+**Result.** All thirteen copy rows of main's register pass. Accepted limit: every backticked path in the landed cell counts, so a block naming only the test file or a folder that reads the data satisfies it.
 
-**Consequence.** A card copying from a project already in NOTICE names its own file in that block or adds one. A NOTICE reorganised without file names would fail, by design.
+**Consequence.** A card copying from a project already in NOTICE names its own file in that block.
