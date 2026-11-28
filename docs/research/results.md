@@ -16,9 +16,9 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | cost estimate | 4 | dollars and calls estimated from token counts and prices; no model called |
 | power computation | 2 | a simulation of the registered test that sets or checks a sample size |
 | engineering check | 4 | a check of a component's behaviour or speed that decides no hypothesis |
-| proof of concept | 4 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
+| proof of concept | 5 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
 
-28 results in all, one per MANIFEST row.
+29 results in all, one per MANIFEST row.
 
 ## What each hypothesis still needs
 
@@ -534,3 +534,22 @@ Recorded by [`docs/log/2026-11-28-x16-measurement-audit-after-review.md`](../log
 | every check as the config expects | true | `summary.all_as_expected` |
 
 Recorded by [`docs/log/2026-11-28-e2-18-measurement-cedar-properties.md`](../log/2026-11-28-e2-18-measurement-cedar-properties.md).
+
+### `research/results/h3-l9-grounding.json`
+
+- **Question.** With `lints.model.evidence` on, does the quote check keep a model flag whose quotes are in its items and downgrade one whose quote is invented, paraphrased or too short, on card L3's model fault fixtures, while the option absent leaves card L3's run as it was?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. Card L9. A scripted model gives card L3's verdicts with four planted quotes, so the counts show the check working, not how often a real model quotes. Whether quote grounding enters H3's model tier is question 2 of `docs/tasks/absorb-plan-2.md`, the lead's, by an amendment before H3's live run. Filed under `h3-` for the results glob only.
+- **Made by.** `research/scripts/l9_grounding.py` from `research/configs/l9-grounding.json`, MANIFEST commit `2174a87b`, sha256 `da311b423427c22b4416eb62a468aa64bdd766d01f11d1a9c9d0365f9fa100f5`.
+
+| value | reads | key path |
+|---|---|---|
+| findings with the option absent (card L3's run) | 14 | `totals.plain_findings` |
+| of them against a pass label | 1 | `totals.plain_false_findings` |
+| findings with quote grounding on | 11 | `totals.grounded_findings` |
+| of them against a pass label | 0 | `totals.grounded_false_findings` |
+| flags downgraded to ungrounded | 3 | `totals.ungrounded` |
+| of them labelled flag (planted: a paraphrase, a short quote) | 2 | `totals.ungrounded_true_flags` |
+| new model calls on replay, grounded run | 0 | `calls.grounded.new` |
+
+Recorded by [`docs/log/2026-11-28-l9-measurement-grounding.md`](../log/2026-11-28-l9-measurement-grounding.md).
