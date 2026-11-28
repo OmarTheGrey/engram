@@ -272,6 +272,7 @@ const procedure = () =>
   }) as MemoryItem;
 
 async function active(policy: Policy = DRIFT, proc: MemoryItem = procedure()) {
+  const writer = proc.provenance.kind;
   const db = openSqlite(":memory:");
   migrate(db);
   let n = 0;
@@ -283,9 +284,9 @@ async function active(policy: Policy = DRIFT, proc: MemoryItem = procedure()) {
     distillTasks: SESSIONS,
   };
   const plane = createPlane(deps);
-  await plane.write({ ...omar, source: "model" }, proc, AT);
+  await plane.write({ ...omar, source: writer }, proc, AT);
   const p = await plane.promote(omar, id(1), proc.scope, AT, { replay: replay(15) });
-  expect(p.decision).toBe("allow");
+  expect(p.decision, p.event.reason).toBe("allow");
   return { db, plane, deps };
 }
 
@@ -378,7 +379,13 @@ describe("Plane.revalidate", () => {
         { scope: "team", class: "procedural", ttl: null, budget: 1, eviction: "recency" },
       ],
     };
-    const team = { ...procedure(), scope: "team:platform" } as MemoryItem;
+    // A team procedure from a document source: less trusted than a user's.
+    const doc = procedure();
+    const team = {
+      ...doc,
+      scope: "team:platform",
+      provenance: { ...doc.provenance, kind: "document" },
+    } as MemoryItem;
     const { db, plane } = await active(policy, team);
     await plane.revalidate(omar, id(1), AT, { replay: replay(3), environment: changed });
     // Another member's user-written procedure takes the one slot.
@@ -394,7 +401,8 @@ describe("Plane.revalidate", () => {
       content: { body: "Run the tests before pushing.", tools: ["bash"] },
       provenance: { ...item(5).provenance, actor: "person:ana" },
     } as MemoryItem;
-    expect((await plane.write(ana, theirs, AT)).event.decision).toBe("allow");
+    const w = await plane.write(ana, theirs, AT);
+    expect(w.event.decision, w.event.reason).toBe("allow");
     const r = await plane.revalidate(omar, id(1), AT, { replay: replay(15) });
     expect(r).toMatchObject({
       outcome: "refused",
