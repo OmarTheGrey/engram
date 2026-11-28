@@ -462,15 +462,15 @@ Recorded by [`docs/log/2026-11-28-rr-measurement-perf-budget.md`](../log/2026-11
 - **Question.** Do the invariants' property tests kill hand-written mutants of the write gate, the read filter, retention, promotion, adoption, offboarding, the trust floors and the log's chain, and which mutants survive?
 - **Status.** proof of concept: a reproducible demonstration that the system works as built, on fixtures, the code's own tests or scripted models, never a hypothesis result.
 - **Serves.** no hypothesis; no pre-registration section. A proof of concept on the code's own tests (card X16); the file is under `h1-` for the results glob only.
-- **Made by.** `research/scripts/gate_mutation_audit.py` from `research/configs/gate-mutation-audit.json`, MANIFEST commit `5e7422d0`, sha256 `ecce907cc14c31b10829daf1891a6eb6a238eefa0bd4089b39e16fb7699bb1a5`.
+- **Made by.** `research/scripts/gate_mutation_audit.py` from `research/configs/gate-mutation-audit.json`, MANIFEST commit `608dd523`, sha256 `8e61f235b5dc2d7af647b27ecbe92b13b5db4769448438452f662ec20b873e05`.
 
 | value | reads | key path |
 |---|---|---|
 | mutants | 34 | `totals.mutants` |
-| killed | 29 | `totals.killed` |
-| survived | 5 | `totals.survived` |
-| kill rate | 0.852941 | `totals.kill_rate` |
-| two-handle offboarding walk, killed | 1 | `per_invariant.I1H.killed` |
-| log chain, killed | 1 | `per_invariant.I9.killed` |
+| killed | 32 | `totals.killed` |
+| survived | 2 | `totals.survived` |
+| kill rate | 0.941176 | `totals.kill_rate` |
+| two-handle offboarding walk, killed | 2 | `per_invariant.I1H.killed` |
+| log chain, killed | 2 | `per_invariant.I9.killed` |
 
-Recorded by [`docs/log/2026-11-28-x16-measurement-gate-mutation-audit.md`](../log/2026-11-28-x16-measurement-gate-mutation-audit.md).
+Recorded by [`docs/log/2026-11-28-x16-measurement-audit-after-review.md`](../log/2026-11-28-x16-measurement-audit-after-review.md).

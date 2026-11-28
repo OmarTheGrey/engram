@@ -321,4 +321,6 @@ def test_the_committed_result_covers_the_frozen_set() -> None:
     mutants = g.load_mutants(REPO / config["mutants"])
     assert [r["id"] for r in body["mutants"]] == [m.id for m in mutants]
     assert all(r["verdict"] in g.VERDICTS for r in body["mutants"])
+    # Every kill names its assertion; no survivor does.
+    assert all(("killed_by" in r) == (r["verdict"] == "killed") for r in body["mutants"])
     assert g.every_invariant_bites(body) == []
