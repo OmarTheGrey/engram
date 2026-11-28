@@ -32,4 +32,4 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h1-quint-trace-replay.json | research/configs/quint-trace-replay.json | research/scripts/quint_trace_replay.py | 5d53e86f | c80cce59149fc69f048e04c14ae36c0815f56cc98008fbc675670ae4bcee4353 | none |
 | research/results/h1-gate-mutation-audit.json | research/configs/gate-mutation-audit.json | research/scripts/gate_mutation_audit.py | 0772cd3b | 8e61f235b5dc2d7af647b27ecbe92b13b5db4769448438452f662ec20b873e05 | none |
 | research/results/h2-cedar-properties.json | research/configs/h2-cedar-properties.json | research/scripts/h2_cedar_properties.py | 4dd709e1 | 9e6d4084b0e19a6e00c7c1605e73ba808dd552fdd44dd5e67663bffff11f5d86 | none |
-| research/results/h3-l9-grounding.json | research/configs/l9-grounding.json | research/scripts/l9_grounding.py | 2174a87b | da311b423427c22b4416eb62a468aa64bdd766d01f11d1a9c9d0365f9fa100f5 | none |
+| research/results/h3-l9-grounding.json | research/configs/l9-grounding.json | research/scripts/l9_grounding.py | 260a0f06 | c895152f6f361ce8c9962fb25a6b02487d7bc2b4d5eaa8fc724104bc493e9ced | none |

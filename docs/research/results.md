@@ -563,7 +563,7 @@ Recorded by [`docs/log/2026-11-28-e2-18-measurement-cedar-properties.md`](../log
 - **Question.** With `lints.model.evidence` on, does the quote check keep a model flag whose quotes are in its items and downgrade one whose quote is invented, paraphrased or too short, on card L3's model fault fixtures, while the option absent leaves card L3's run as it was?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. Card L9. A scripted model gives card L3's verdicts with four planted quotes, so the counts show the check working, not how often a real model quotes. Whether quote grounding enters H3's model tier is question 2 of `docs/tasks/absorb-plan-2.md`, the lead's, by an amendment before H3's live run. Filed under `h3-` for the results glob only.
-- **Made by.** `research/scripts/l9_grounding.py` from `research/configs/l9-grounding.json`, MANIFEST commit `2174a87b`, sha256 `da311b423427c22b4416eb62a468aa64bdd766d01f11d1a9c9d0365f9fa100f5`.
+- **Made by.** `research/scripts/l9_grounding.py` from `research/configs/l9-grounding.json`, MANIFEST commit `260a0f06`, sha256 `c895152f6f361ce8c9962fb25a6b02487d7bc2b4d5eaa8fc724104bc493e9ced`.
 
 | value | reads | key path |
 |---|---|---|
@@ -575,4 +575,4 @@ Recorded by [`docs/log/2026-11-28-e2-18-measurement-cedar-properties.md`](../log
 | of them labelled flag (planted: a paraphrase, a short quote) | 2 | `totals.ungrounded_true_flags` |
 | new model calls on replay, grounded run | 0 | `calls.grounded.new` |
 
-Recorded by [`docs/log/2026-11-28-l9-measurement-grounding.md`](../log/2026-11-28-l9-measurement-grounding.md).
+Recorded by [`docs/log/2026-11-28-l9-measurement-grounding-after-review.md`](../log/2026-11-28-l9-measurement-grounding-after-review.md).
