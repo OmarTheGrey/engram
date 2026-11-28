@@ -15,32 +15,37 @@ export const HARNESSES = ["claude-code", "codex", "cursor"] as const;
 export type Harness = (typeof HARNESSES)[number];
 
 /**
- * The date the table was written from the vendors' documentation. Vendors
- * move these paths: a row is data with its link and this date, and a later
- * check that finds a row wrong changes the row and the date.
+ * The date every row was last checked against the vendor's page it links
+ * (the review of card E9.10 fetched each on this date and quoted it).
+ * Vendors move these paths: a row is data with its link and this date, and
+ * a later check that finds a row wrong changes the row and the date.
  */
 export const LOCATIONS_AS_OF = "2026-11-28";
 
 export interface HarnessLocation {
   /** `<harness>/<kind>`. */
   id: string;
+  /** The harness the location belongs to. */
   harness: Harness;
   kind: string;
-  /** Home: under the user's home folder; project: in any folder a harness opens. */
-  where: "home" | "project";
+  /** Every harness whose documentation says it reads files here, the owner first. */
+  readers: readonly Harness[];
+  /** Home: under the user's home; project: in any folder a harness opens; system: a fixed machine path. */
+  where: "home" | "project" | "system";
   /** The location in words, as a path pattern. */
   pattern: string;
   /** The vendor's documentation of the location. */
   doc: string;
   as_of: string;
-  /** Documented: the link describes this path; unverified: inferred, not found in the documentation. */
+  /** Documented: the linked page names this path; unverified: it does not, and `note` says why the row stays. */
   status: "documented" | "unverified";
+  note?: string;
 }
 
 const CLAUDE_MEMORY_DOC = "https://code.claude.com/docs/en/memory";
-const CODEX_AGENTS_DOC = "https://developers.openai.com/codex/guides/agents-md";
-const CODEX_CONFIG_DOC = "https://github.com/openai/codex/blob/main/docs/config.md";
-const CURSOR_RULES_DOC = "https://docs.cursor.com/context/rules";
+const CODEX_AGENTS_DOC = "https://learn.chatgpt.com/docs/agent-configuration/agents-md";
+const CODEX_MEMORIES_DOC = "https://learn.chatgpt.com/docs/customization/memories";
+const CURSOR_RULES_DOC = "https://cursor.com/docs/context/rules";
 
 const row = (
   harness: Harness,
@@ -48,17 +53,29 @@ const row = (
   where: HarnessLocation["where"],
   pattern: string,
   doc: string,
-  status: HarnessLocation["status"] = "documented",
+  more: Partial<Pick<HarnessLocation, "readers" | "status" | "note">> = {},
 ): HarnessLocation => ({
   id: `${harness}/${kind}`,
   harness,
   kind,
+  readers: more.readers ?? [harness],
   where,
   pattern,
   doc,
   as_of: LOCATIONS_AS_OF,
-  status,
+  status: more.status ?? "documented",
+  ...(more.note === undefined ? {} : { note: more.note }),
 });
+
+/**
+ * Claude Code's managed policy CLAUDE.md, one fixed path per platform, as
+ * its memory page lists them (Linux and WSL, macOS, Windows).
+ */
+export const MANAGED_CLAUDE_MD = [
+  "/etc/claude-code/CLAUDE.md",
+  "/Library/Application Support/ClaudeCode/CLAUDE.md",
+  "C:\\Program Files\\ClaudeCode\\CLAUDE.md",
+] as const;
 
 /** Every known location, in report order. */
 export const HARNESS_LOCATIONS: readonly HarnessLocation[] = [
@@ -66,7 +83,14 @@ export const HARNESS_LOCATIONS: readonly HarnessLocation[] = [
     "claude-code",
     "auto-memory",
     "home",
-    "~/.claude/projects/<project>/memory/**/*.md",
+    "~/.claude/projects/<project>/memory/**/*.md, or the autoMemoryDirectory setting's folder",
+    CLAUDE_MEMORY_DOC,
+  ),
+  row(
+    "claude-code",
+    "managed-claude-md",
+    "system",
+    MANAGED_CLAUDE_MD.join(", "),
     CLAUDE_MEMORY_DOC,
   ),
   row("claude-code", "user-claude-md", "home", "~/.claude/CLAUDE.md", CLAUDE_MEMORY_DOC),
@@ -96,25 +120,33 @@ export const HARNESS_LOCATIONS: readonly HarnessLocation[] = [
     "codex",
     "user-agents-md",
     "home",
-    "~/.codex/AGENTS.md, ~/.codex/AGENTS.override.md",
+    "$CODEX_HOME/AGENTS.md, $CODEX_HOME/AGENTS.override.md ($CODEX_HOME defaults to ~/.codex)",
     CODEX_AGENTS_DOC,
   ),
-  row("codex", "memories", "home", "~/.codex/memories/**", CODEX_CONFIG_DOC, "unverified"),
+  row(
+    "codex",
+    "memories",
+    "home",
+    "$CODEX_HOME/memories_v2/** (a fresh home), $CODEX_HOME/memories/** (an existing one)",
+    CODEX_MEMORIES_DOC,
+  ),
   row(
     "codex",
     "project-agents-md",
     "project",
     "<project>/**/AGENTS.md, <project>/**/AGENTS.override.md",
     CODEX_AGENTS_DOC,
+    {
+      // Claude Code: "Claude can also read a repository's AGENTS.md files in place of CLAUDE.md";
+      // Cursor: "Cursor supports AGENTS.md in the project root and subdirectories."
+      readers: ["codex", "claude-code", "cursor"],
+    },
   ),
-  row(
-    "cursor",
-    "project-rules",
-    "project",
-    "<project>/.cursor/rules/**/*.mdc or *.md",
-    CURSOR_RULES_DOC,
-  ),
-  row("cursor", "legacy-rules", "project", "<project>/.cursorrules", CURSOR_RULES_DOC),
+  row("cursor", "project-rules", "project", "<project>/.cursor/rules/**/*.mdc", CURSOR_RULES_DOC),
+  row("cursor", "legacy-rules", "project", "<project>/.cursorrules", CURSOR_RULES_DOC, {
+    status: "unverified",
+    note: "the current rules page does not mention .cursorrules; kept since older Cursor versions read it, and a file there is still instructions outside the plane",
+  }),
 ];
 
 const BY_ID = new Map(HARNESS_LOCATIONS.map((l) => [l.id, l]));
@@ -137,6 +169,16 @@ export interface HarnessMemory {
   mtime: string;
 }
 
+/**
+ * Where the harnesses' own folders are, when moved from their defaults: the
+ * Codex home (`CODEX_HOME`, default `<home>/.codex`) and Claude Code's
+ * auto memory folder (its `autoMemoryDirectory` setting, none by default).
+ */
+export interface HarnessPlaces {
+  codexHome?: string;
+  autoMemoryDirectory?: string;
+}
+
 /** A path's segments, separators of either kind, empty and `.` segments dropped. */
 const segments = (path: string) => path.split(/[\\/]+/).filter((s) => s !== "" && s !== ".");
 
@@ -153,7 +195,27 @@ function below(path: string, dir: string): string[] | undefined {
   return d.every((s, i) => same(s, p[i] as string)) ? p.slice(d.length) : undefined;
 }
 
+/** Whether two paths name the same place, by their segments. */
+function samePath(a: string, b: string): boolean {
+  const p = segments(a);
+  const q = segments(b);
+  const fold = windows(a) || windows(b);
+  return (
+    p.length === q.length &&
+    p.every((s, i) => (fold ? s.toLowerCase() === (q[i] as string).toLowerCase() : s === q[i]))
+  );
+}
+
 const isMd = (name: string) => name.toLowerCase().endsWith(".md");
+
+/** The location of a file in the Codex home; null when it is one of Codex's own files. */
+function codexLocation(rel: readonly string[]): HarnessLocation | null {
+  const [top] = rel;
+  if (rel.length === 1 && (top === "AGENTS.md" || top === "AGENTS.override.md"))
+    return loc("codex/user-agents-md");
+  if ((top === "memories" || top === "memories_v2") && rel.length > 1) return loc("codex/memories");
+  return null;
+}
 
 /** The location of a file under the home's harness folders; null when it is one of their own files. */
 function homeLocation(rel: readonly string[]): HarnessLocation | null | undefined {
@@ -172,12 +234,8 @@ function homeLocation(rel: readonly string[]): HarnessLocation | null | undefine
       return loc("claude-code/auto-memory");
     return null;
   }
-  if (top === ".codex") {
-    if (rel.length === 2 && (second === "AGENTS.md" || second === "AGENTS.override.md"))
-      return loc("codex/user-agents-md");
-    if (second === "memories" && rel.length > 2) return loc("codex/memories");
-    return null;
-  }
+  // The default Codex home is classified as such; a moved one leaves this folder Codex's own.
+  if (top === ".codex") return null;
   // Cursor keeps user rules in its settings, not in files under the home.
   if (top === ".cursor") return null;
   return undefined;
@@ -193,13 +251,28 @@ function projectLocation(parts: readonly string[]): HarnessLocation | undefined 
   if (name === "AGENTS.md" || name === "AGENTS.override.md") return loc("codex/project-agents-md");
   if (name === ".cursorrules") return loc("cursor/legacy-rules");
   if (under(".claude", "rules") && isMd(name)) return loc("claude-code/project-rules");
-  if (under(".cursor", "rules") && (isMd(name) || name.toLowerCase().endsWith(".mdc")))
+  // "Project rules must use the .mdc extension"; a plain .md there is ignored by Cursor.
+  if (under(".cursor", "rules") && name.toLowerCase().endsWith(".mdc"))
     return loc("cursor/project-rules");
   return undefined;
 }
 
+/** The Codex home: `places.codexHome` when given, else `<home>/.codex`. */
+export const codexHomeOf = (home: string, places: HarnessPlaces = {}): string =>
+  places.codexHome ?? `${home.replace(/[\\/]+$/, "")}/.codex`;
+
 /** The known location a path is at, by the path alone; undefined when it is at none. */
-export function harnessLocationOf(path: string, home: string): HarnessLocation | undefined {
+export function harnessLocationOf(
+  path: string,
+  home: string,
+  places: HarnessPlaces = {},
+): HarnessLocation | undefined {
+  if (MANAGED_CLAUDE_MD.some((m) => samePath(path, m))) return loc("claude-code/managed-claude-md");
+  const auto = places.autoMemoryDirectory;
+  if (auto !== undefined && below(path, auto) !== undefined)
+    return isMd(path) ? loc("claude-code/auto-memory") : undefined;
+  const codex = below(path, codexHomeOf(home, places));
+  if (codex !== undefined) return codexLocation(codex) ?? undefined;
   const rel = below(path, home);
   if (rel !== undefined) {
     const at = homeLocation(rel);
@@ -218,8 +291,9 @@ export function classifyHarnessMemory(
   path: string,
   head: FileHead,
   home: string,
+  places: HarnessPlaces = {},
 ): HarnessMemory | undefined {
-  const at = harnessLocationOf(path, home);
+  const at = harnessLocationOf(path, home, places);
   if (at === undefined) return undefined;
   return {
     path,
@@ -238,6 +312,8 @@ export const insideRoot = (path: string, roots: readonly string[]): boolean =>
 export interface DiscoveryGroup {
   harness: Harness;
   kind: string;
+  /** Every harness that reads files of this kind (AGENTS.md: three). */
+  readers: readonly Harness[];
   files: number;
   bytes: number;
   /** The latest modification time among them. */
@@ -272,6 +348,7 @@ export function summarizeDiscovery(
       groups.set(f.location, {
         harness: f.harness,
         kind: f.kind,
+        readers: BY_ID.get(f.location)?.readers ?? [f.harness],
         files: 1,
         bytes: f.size,
         newest: f.mtime,

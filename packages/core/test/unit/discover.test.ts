@@ -34,6 +34,11 @@ describe("the location table", () => {
       expect(row.as_of, row.id).toBe(LOCATIONS_AS_OF);
       expect(["documented", "unverified"], row.id).toContain(row.status);
       expect(row.pattern.length, row.id).toBeGreaterThan(0);
+      expect(row.readers[0], row.id).toBe(row.harness);
+      // An unverified row says why it stays.
+      if (row.status === "unverified") expect(row.note?.length, row.id).toBeGreaterThan(0);
+      // The links the review of 2026-11-28 found current.
+      expect(row.doc, row.id).not.toMatch(/docs\.cursor\.com|developers\.openai\.com|github\.com/);
       expect(ids.has(row.id), row.id).toBe(false);
       ids.add(row.id);
     }
@@ -60,6 +65,8 @@ describe("classifyHarnessMemory", () => {
     expect(kindOf(".codex/AGENTS.md")).toBe("codex user-agents-md");
     expect(kindOf(".codex/AGENTS.override.md")).toBe("codex user-agents-md");
     expect(kindOf(".codex/memories/notes.md")).toBe("codex memories");
+    // "In a fresh Codex home, the CLI writes to $CODEX_HOME/memories_v2/".
+    expect(kindOf(".codex/memories_v2/topic/a.json")).toBe("codex memories");
   });
 
   it("finds project files anywhere: CLAUDE.md, CLAUDE.local.md, rules, AGENTS.md, Cursor's rules", () => {
@@ -71,7 +78,9 @@ describe("classifyHarnessMemory", () => {
     expect(kindOf("/src/lantern/AGENTS.md")).toBe("codex project-agents-md");
     expect(kindOf("/src/lantern/AGENTS.override.md")).toBe("codex project-agents-md");
     expect(kindOf("/src/lantern/.cursor/rules/style.mdc")).toBe("cursor project-rules");
-    expect(kindOf("/src/lantern/.cursor/rules/nested/a.md")).toBe("cursor project-rules");
+    expect(kindOf("/src/lantern/.cursor/rules/nested/a.mdc")).toBe("cursor project-rules");
+    // "A plain .md file in .cursor/rules is ignored by the rules system."
+    expect(kindOf("/src/lantern/.cursor/rules/nested/a.md")).toBeUndefined();
     expect(kindOf("/src/lantern/.cursorrules")).toBe("cursor legacy-rules");
     // A project under the home is a project like any other.
     expect(kindOf("work/lantern/CLAUDE.md")).toBe("claude-code project-claude-md");
@@ -154,6 +163,50 @@ describe("classifyHarnessMemory", () => {
   });
 });
 
+describe("the documented relocations and the shared and managed rows", () => {
+  it("reads CODEX_HOME's folder as the Codex home, and leaves ~/.codex then to Codex", () => {
+    const places = { codexHome: "/opt/codex" };
+    const c = (p: string) => classifyHarnessMemory(p, HEAD, HOME, places)?.kind;
+    expect(c("/opt/codex/AGENTS.md")).toBe("user-agents-md");
+    expect(c("/opt/codex/memories_v2/a.md")).toBe("memories");
+    expect(c("/opt/codex/config.toml")).toBeUndefined();
+    expect(c(at(".codex/AGENTS.md"))).toBeUndefined();
+  });
+
+  it("reads the autoMemoryDirectory setting's folder as auto memory, its .md files only", () => {
+    const places = { autoMemoryDirectory: "/data/claude-memory" };
+    const c = (p: string) => classifyHarnessMemory(p, HEAD, HOME, places)?.location;
+    expect(c("/data/claude-memory/MEMORY.md")).toBe("claude-code/auto-memory");
+    expect(c("/data/claude-memory/topic/a.md")).toBe("claude-code/auto-memory");
+    expect(c("/data/claude-memory/notes.txt")).toBeUndefined();
+  });
+
+  it("finds the managed policy CLAUDE.md at each platform's fixed path, and not a project's", () => {
+    expect(kindOf("/etc/claude-code/CLAUDE.md")).toBe("claude-code managed-claude-md");
+    expect(kindOf("/Library/Application Support/ClaudeCode/CLAUDE.md")).toBe(
+      "claude-code managed-claude-md",
+    );
+    expect(
+      classifyHarnessMemory("c:/program files/claudecode/CLAUDE.md", HEAD, "C:/Users/Dana")?.kind,
+    ).toBe("managed-claude-md");
+    expect(kindOf("/etc/claude-code/sub/CLAUDE.md")).toBe("claude-code project-claude-md");
+  });
+
+  it("says AGENTS.md is read by Codex, Claude Code and Cursor, in the row and the counts", () => {
+    const row = HARNESS_LOCATIONS.find((r) => r.id === "codex/project-agents-md");
+    expect(row?.readers).toEqual(["codex", "claude-code", "cursor"]);
+    const agents = classifyHarnessMemory("/src/AGENTS.md", HEAD, HOME);
+    const s = summarizeDiscovery(agents === undefined ? [] : [agents], []);
+    expect(s.groups[0]?.readers).toEqual(["codex", "claude-code", "cursor"]);
+  });
+
+  it("marks .cursorrules unverified, with its reason", () => {
+    const row = HARNESS_LOCATIONS.find((r) => r.id === "cursor/legacy-rules");
+    expect(row?.status).toBe("unverified");
+    expect(row?.note).toContain("does not mention .cursorrules");
+  });
+});
+
 describe("insideRoot", () => {
   it("holds a path under a root, never a sibling that shares its prefix", () => {
     expect(insideRoot("/src/mem/a.md", ["/src/mem"])).toBe(true);
@@ -186,6 +239,7 @@ describe("summarizeDiscovery", () => {
       {
         harness: "claude-code",
         kind: "project-claude-md",
+        readers: ["claude-code"],
         files: 1,
         bytes: 7,
         newest: "2026-09-01T00:00:00.000Z",
@@ -193,6 +247,7 @@ describe("summarizeDiscovery", () => {
       {
         harness: "codex",
         kind: "user-agents-md",
+        readers: ["codex"],
         files: 1,
         bytes: 5,
         newest: "2026-10-01T00:00:00.000Z",
@@ -212,6 +267,7 @@ describe("summarizeDiscovery", () => {
     expect(a.groups[0]).toEqual({
       harness: "claude-code",
       kind: "auto-memory",
+      readers: ["claude-code"],
       files: 2,
       bytes: 50,
       newest: "2026-11-03T00:00:00.000Z",
