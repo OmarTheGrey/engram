@@ -1,8 +1,9 @@
 // The canary workspace of card E8.16, shared by the leak and parity suites of
 // the server, MCP, the CLI (with the TUI) and the pi extension. Ported in
 // shape from ClickHouse/loom's tests/integration/test_cross_principal_leakage.py
-// (https://github.com/ClickHouse/loom, commit 61b22646a1af, Apache License
-// 2.0, Copyright ClickHouse, Inc.): seeded canary nonces planted by one
+// (https://github.com/ClickHouse/loom, commit
+// 61b22646a1af78d0b21cac91059c237645dc1882, Apache License 2.0, Copyright
+// 2026 ClickHouse, Inc.; NOTICE at the root): seeded canary nonces planted by one
 // principal, probed as others, and a leak counted whenever a probe's answer
 // carries a canary its principal may not see. Rewritten for Engram's write
 // paths, its probe actors and its surfaces; nothing of loom's code is kept
