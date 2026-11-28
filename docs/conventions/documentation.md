@@ -48,7 +48,7 @@ Entry types and what they are for:
 2. Failures are logged with the same care as successes. The limitations chapter is written from `type: failure`, and a thesis with no limitations is not believed.
 3. Numbers are never typed. A measurement entry links the results file that `research/scripts/` produced and the config that produced it. The consolidation script checks that the file exists and that its hash matches the one recorded in `research/results/MANIFEST.md`.
 4. Decisions that change architecture get an ADR in `docs/decisions/NNNN-<slug>.md` (context, decision, alternatives, consequences) and a `decision` entry that links it. Small decisions get only the entry.
-5. Entries are immutable. To correct one, write a new entry with `supersedes:` pointing at the old one. The old one stays.
+5. Entries are immutable. To correct one, write a new entry with `supersedes:` pointing at the old one. The old one stays, out of every draft; the consolidation script still checks its frontmatter, body and evidence paths, but not a superseded measurement's link to a MANIFEST row and config, so a mistyped measurement is corrected by an entry of the right type.
 6. Friday demos produce a `milestone` entry with the recorded session or results table linked. No demo entry, no merge that week.
 7. Dogfood observations are logged as aggregates only (counts, rates). No content from anyone's memory, ever.
 8. Write for the reader who was not there: full names of cards, stores, benchmarks, conditions. No "the thing from Tuesday".

@@ -3,7 +3,8 @@
 Usage: python research/scripts/consolidate_log.py [--root DIR] [--out DIR]
 
 Reads every entry under <root>/docs/log (names starting with "_" are skipped),
-validates all of them, and only then writes <out>/<chapter>.md for the seven
+validates all of them (a superseded entry is not held to the measurement
+rules, since its correction replaces it), and only then writes <out>/<chapter>.md for the seven
 chapters plus timeline.md, results-index.md and decisions.md. Superseded
 entries are left out of every draft. The output is byte-stable: the same
 inputs always give the same bytes.
@@ -261,13 +262,22 @@ def _check_measurement(e: Entry, root: Path, manifest: dict[str, ManifestRow]) -
     return problems
 
 
-def validate(e: Entry, root: Path, manifest: dict[str, ManifestRow]) -> list[str]:
+def validate(
+    e: Entry, root: Path, manifest: dict[str, ManifestRow], superseded: bool = False
+) -> list[str]:
+    """The entry's problems; a superseded one is not held to the measurement rules.
+
+    Entries are immutable (convention rule 5), so a measurement typed wrongly or
+    citing no config is corrected by a new entry that supersedes it. The old one
+    stays out of every draft, and its frontmatter, body and evidence paths are
+    still checked; only its links to a MANIFEST row and config are not.
+    """
     problems = [f"{e.path}: missing field {f}" for f in FIELDS if f not in e.fields]
     problems += [f"{e.path}: unknown field {f}" for f in e.fields if f not in FIELDS]
     if problems:
         return problems
     problems += _check_values(e, root)
-    if e.get("type") == "measurement":
+    if e.get("type") == "measurement" and not superseded:
         problems += _check_measurement(e, root, manifest)
     return problems
 
@@ -396,12 +406,12 @@ def consolidate(root: Path, out: Path) -> list[Path]:
     """Validate every entry under root, then write the drafts to out."""
     entries, problems = load_entries(root)
     manifest = load_manifest(root)
+    superseded = {e.get("supersedes") for e in entries}
     for e in entries:
-        problems += validate(e, root, manifest)
+        problems += validate(e, root, manifest, superseded=e.path in superseded)
     if problems:
         raise ConsolidationError(problems)
 
-    superseded = {e.get("supersedes") for e in entries}
     current = [e for e in entries if e.path not in superseded]
     drafts = {f"{key}.md": render_chapter(key, current) for key in CHAPTERS}
     drafts["timeline.md"] = render_timeline(current)
