@@ -199,6 +199,22 @@ export const ROUTES: readonly Route[] = [
       return { read_id: readId, explanations, counts: event ? readCounts(event) : null };
     },
   }),
+  route<z.infer<typeof C.ExplainAbsentRequest>>({
+    id: "explainAbsent",
+    method: "post",
+    path: "/explain-absent",
+    summary:
+      "Why not this item (card E2.17): the first stage (match, status, ttl, validity, the rank cut) that keeps one item out of the read the actor would make now with the same text and validity time, from the read's own predicates, or that the read returns it. Answered only for an actor who may ask for the item by id (ADR 0047); anyone else gets the refusal an unknown id gets. No sweep or adoption runs; appends no event.",
+    request: C.ExplainAbsentRequest,
+    response: C.AbsenceExplanation,
+    errors: [400],
+    handler: ({ workspace, body, now }) =>
+      workspace.plane.explainAbsent(body.actor, body.item_id, {
+        at: now(),
+        ...(body.text === undefined ? {} : { text: body.text }),
+        ...(body.at === undefined ? {} : { valid_at: body.at }),
+      }),
+  }),
   route<z.infer<typeof C.PromoteRequest>>({
     id: "promote",
     method: "post",

@@ -102,6 +102,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/explain-absent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Why not this item (card E2.17): the first stage (match, status, ttl, validity, the rank cut) that keeps one item out of the read the actor would make now with the same text and validity time, from the read's own predicates, or that the read returns it. Answered only for an actor who may ask for the item by id (ADR 0047); anyone else gets the refusal an unknown id gets. No sweep or adoption runs; appends no event. */
+        post: operations["explainAbsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/promote": {
         parameters: {
             query?: never;
@@ -826,6 +843,42 @@ export interface components {
         WhoCanReadScopeRequest: {
             actor: components["schemas"]["Actor"];
             scope: string;
+        };
+        /** @description Why not this item (card E2.17): the first stage of a read that kept an item out of what it returned, from the read's own predicates. Answered only to an actor who may ask for the item by id (ADR 0047); anyone else gets the refusal an unknown id gets. Never stored; no event. */
+        AbsenceExplanation: {
+            /** @description False when the plane refuses to answer: for an id the log never held and for an item the asker may not know exists alike. Every other field but item_id, at, valid_at and reason is then null. */
+            answered: boolean;
+            /** @description The item id asked about, as given. */
+            item_id: string;
+            /**
+             * Format: date-time
+             * @description The read's access time: the time status, ttl and grants are judged at, never before the log's head.
+             */
+            at: string;
+            /**
+             * Format: date-time
+             * @description The time the read judges validity windows at: its valid_at, else its at.
+             */
+            valid_at: string;
+            /** @description True when the read would leave the item out, false when it would return it; null on a refusal. */
+            absent: boolean | null;
+            /** @description The first stage that kept the item out, in the read's order: match (the query text did not make it a candidate), status (not active), ttl (past its ttl), validity (outside its validity window at valid_at), rank-cut (admitted, but below the core pipeline's read limit). Null when it is returned, or on a refusal. */
+            stage: ("match" | "status" | "ttl" | "validity" | "rank-cut") | null;
+            /** @description The rule of that stage, or the rule that admits a returned item; null on a refusal. */
+            policy_id: string | null;
+            /** @description Why, in words; or why the plane refused. */
+            reason: string;
+        };
+        ExplainAbsentRequest: {
+            actor: components["schemas"]["Actor"];
+            item_id: string;
+            /** @description The read's query text, as for /read. */
+            text?: string;
+            /**
+             * Format: date-time
+             * @description The time validity windows are judged at, UTC ISO 8601, when the reader asks what was true at another time. The read itself happens at the server's clock: its event's ts, and the time status, ttl and grant expiry are judged at. It sweeps nothing, and the read event's reason records it.
+             */
+            at?: string;
         };
         EventsRequest: {
             actor: components["schemas"]["Actor"];
@@ -1646,6 +1699,93 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExplainResponse"];
+                };
+            };
+            /** @description the request fails its schema, or the plane refused the call (InvalidCallError) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description no such route, or the read id names no read event */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the body is over the size limit */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description the body is not application/json */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description an unexpected error; the body carries no internals */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    explainAbsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExplainAbsentRequest"];
+            };
+        };
+        responses: {
+            /** @description the result; a policy decision of any kind is 200 with its event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AbsenceExplanation"];
                 };
             };
             /** @description the request fails its schema, or the plane refused the call (InvalidCallError) */

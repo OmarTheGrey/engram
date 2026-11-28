@@ -665,6 +665,110 @@
         }
       }
     },
+    "/api/v1/explain-absent": {
+      "post": {
+        "operationId": "explainAbsent",
+        "summary": "Why not this item (card E2.17): the first stage (match, status, ttl, validity, the rank cut) that keeps one item out of the read the actor would make now with the same text and validity time, from the read's own predicates, or that the read returns it. Answered only for an actor who may ask for the item by id (ADR 0047); anyone else gets the refusal an unknown id gets. No sweep or adoption runs; appends no event.",
+        "security": [
+          {},
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExplainAbsentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "the result; a policy decision of any kind is 200 with its event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceExplanation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "the request fails its schema, or the plane refused the call (InvalidCallError)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "on a server with credentials (ADR 0042): no bearer credential, or one it does not accept; WWW-Authenticate names the protected-resource metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "the Host or Origin is not this server's, the credential's actor is not the request's (forbidden_actor), or the actor may not explain this read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such route, or the read id names no read event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the body is over the size limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "the body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "an unexpected error; the body carries no internals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/promote": {
       "post": {
         "operationId": "promote",
@@ -4315,6 +4419,105 @@
         "required": [
           "actor",
           "scope"
+        ],
+        "additionalProperties": false
+      },
+      "AbsenceExplanation": {
+        "type": "object",
+        "properties": {
+          "answered": {
+            "type": "boolean",
+            "description": "False when the plane refuses to answer: for an id the log never held and for an item the asker may not know exists alike. Every other field but item_id, at, valid_at and reason is then null."
+          },
+          "item_id": {
+            "type": "string",
+            "description": "The item id asked about, as given."
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "description": "The read's access time: the time status, ttl and grants are judged at, never before the log's head."
+          },
+          "valid_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "description": "The time the read judges validity windows at: its valid_at, else its at."
+          },
+          "absent": {
+            "description": "True when the read would leave the item out, false when it would return it; null on a refusal.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "match",
+                  "status",
+                  "ttl",
+                  "validity",
+                  "rank-cut"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The first stage that kept the item out, in the read's order: match (the query text did not make it a candidate), status (not active), ttl (past its ttl), validity (outside its validity window at valid_at), rank-cut (admitted, but below the core pipeline's read limit). Null when it is returned, or on a refusal."
+          },
+          "policy_id": {
+            "description": "The rule of that stage, or the rule that admits a returned item; null on a refusal.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why, in words; or why the plane refused."
+          }
+        },
+        "required": [
+          "answered",
+          "item_id",
+          "at",
+          "valid_at",
+          "absent",
+          "stage",
+          "policy_id",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "description": "Why not this item (card E2.17): the first stage of a read that kept an item out of what it returned, from the read's own predicates. Answered only to an actor who may ask for the item by id (ADR 0047); anyone else gets the refusal an unknown id gets. Never stored; no event."
+      },
+      "ExplainAbsentRequest": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          },
+          "item_id": {
+            "type": "string"
+          },
+          "text": {
+            "description": "The read's query text, as for /read.",
+            "type": "string"
+          },
+          "at": {
+            "description": "The time validity windows are judged at, UTC ISO 8601, when the reader asks what was true at another time. The read itself happens at the server's clock: its event's ts, and the time status, ttl and grant expiry are judged at. It sweeps nothing, and the read event's reason records it.",
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "actor",
+          "item_id"
         ],
         "additionalProperties": false
       },
