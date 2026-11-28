@@ -3,7 +3,15 @@
 // and never a failure. Every file's time is set on the copy, since a
 // checkout's are not fixed; doctor's store probes are cheap fakes, so no
 // test opens Mem0 or a MemFS repository.
-import { cpSync, mkdirSync, readdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { discoverHarnessMemory } from "../src/discover.ts";
@@ -46,14 +54,14 @@ describe("engram discover", () => {
     expect([code, err]).toEqual([0, ""]);
     expect(relative(out, f.home)).toBe(
       [
-        "discover: 10 harness memory files outside every store root, 2 inside one; sizes and times only, no file opened",
+        "discover: 10 harness memory files outside every store root, 2 inside one; sizes and times only, no memory file opened",
         "  claude-code  user-claude-md        1 file      51 bytes  newest 2026-11-20T10:00:00.000Z",
         "  claude-code  user-rules            1 file      18 bytes  newest 2026-11-20T10:00:00.000Z",
         "  claude-code  project-claude-md    2 files      55 bytes  newest 2026-11-20T10:00:00.000Z",
         "  claude-code  project-rules         1 file      21 bytes  newest 2026-11-20T10:00:00.000Z",
         "  codex        user-agents-md        1 file      31 bytes  newest 2026-11-20T10:00:00.000Z",
         "  codex        memories              1 file      21 bytes  newest 2026-11-20T10:00:00.000Z",
-        "  codex        project-agents-md     1 file      38 bytes  newest 2026-11-20T10:00:00.000Z",
+        "  codex        project-agents-md     1 file      38 bytes  newest 2026-11-20T10:00:00.000Z  read by codex, claude-code, cursor",
         "  cursor       project-rules         1 file      53 bytes  newest 2026-11-20T10:00:00.000Z",
         "  cursor       legacy-rules          1 file      27 bytes  newest 2026-11-20T10:00:00.000Z",
         "outside every store root:",
@@ -67,7 +75,7 @@ describe("engram discover", () => {
         "  <home>/lantern/AGENTS.md  38 bytes  2026-11-20T10:00:00.000Z  codex project-agents-md",
         "  <home>/lantern/CLAUDE.md  28 bytes  2026-11-20T10:00:00.000Z  claude-code project-claude-md",
         "  <home>/lantern/packages/ui/CLAUDE.md  27 bytes  2026-11-20T10:00:00.000Z  claude-code project-claude-md",
-        "searched: home <home>; projects <home>/lantern; store roots <home>/.claude/projects/-src-lantern/memory; locations as of 2026-11-28",
+        "searched: home <home>; codex home <home>/.codex; auto memory the default folders; projects <home>/lantern; store roots <home>/.claude/projects/-src-lantern/memory; locations as of 2026-11-28",
         "",
       ].join("\n"),
     );
@@ -84,6 +92,7 @@ describe("engram discover", () => {
     expect(d.groups[0]).toEqual({
       harness: "claude-code",
       kind: "auto-memory",
+      readers: ["claude-code"],
       files: 2,
       bytes: 53,
       newest: "2026-11-20T10:00:00.000Z",
@@ -129,22 +138,109 @@ describe("engram discover", () => {
     const { code, out } = await cli(["discover"], { home: empty, cwd: empty });
     expect(code).toBe(0);
     expect(out.split("\n")[0]).toBe(
-      "discover: no harness memory file outside every store root, 0 inside one; sizes and times only, no file opened",
+      "discover: no harness memory file outside every store root, 0 inside one; sizes and times only, no memory file opened",
     );
     const bad = await cli(["discover", "extra"], { home: empty, cwd: empty });
     expect(bad.code).toBe(2);
   });
 
-  it("never opens a file: the walk and the classifier call no read of content", () => {
-    for (const file of ["packages/cli/src/discover.ts", "packages/core/src/discover.ts"]) {
-      const code = readFileSync(join(REPO, file), "utf8")
+  it("never opens a memory file: the walk and the classifier read no content; only the settings key is read", () => {
+    const code = (file: string) =>
+      readFileSync(join(REPO, file), "utf8")
         .split("\n")
         .filter((l) => !l.trim().startsWith("//") && !l.trim().startsWith("*"))
         .join("\n");
-      expect(code, file).not.toMatch(
+    for (const file of ["packages/cli/src/discover.ts", "packages/core/src/discover.ts"])
+      expect(code(file), file).not.toMatch(
         /readFile|openSync|\bopen\(|createReadStream|readSync|FileHandle/,
       );
+    // The one read: Claude Code's user settings, a configuration file, for one key.
+    const settings = code("packages/cli/src/harness-settings.ts");
+    expect(settings.match(/readFile\w*\(/g)).toEqual(["readFileSync("]);
+    expect(settings).toMatch(/readFileSync\(file, "utf8"\)/);
+    expect(settings).toMatch(/join\(home, "\.claude", "settings\.json"\)/);
+  });
+
+  it("follows no link: a linked start folder, folder or file is counted as linked, its target not walked", async () => {
+    const root = await tempDir();
+    const home = join(root, "home");
+    const project = join(root, "project");
+    const elsewhere = join(root, "elsewhere");
+    mkdirSync(join(home, ".claude", "projects", "p"), { recursive: true });
+    mkdirSync(join(project, ".claude"), { recursive: true });
+    mkdirSync(elsewhere);
+    writeFileSync(join(elsewhere, "shared.md"), "a shared rule\n");
+    writeFileSync(join(project, "AGENTS.md"), "instructions\n");
+    // Junctions need no privilege on Windows; a plain directory link elsewhere.
+    const dirLink = (target: string, path: string) =>
+      symlinkSync(target, path, process.platform === "win32" ? "junction" : "dir");
+    dirLink(elsewhere, join(home, ".claude", "rules"));
+    dirLink(elsewhere, join(home, ".claude", "projects", "p", "memory"));
+    dirLink(elsewhere, join(project, ".claude", "rules"));
+    dirLink(elsewhere, join(project, "sub"));
+    let fileLinks = 0;
+    try {
+      symlinkSync(join(project, "AGENTS.md"), join(project, "CLAUDE.md"), "file");
+      fileLinks = 1;
+    } catch {
+      // A file link needs a privilege on Windows: the folder links still test the rule.
     }
+    const d = discoverHarnessMemory({ home, projects: [project], roots: [] });
+    expect(d.files.map((x) => x.path)).toEqual([join(project, "AGENTS.md")]);
+    expect(d.linked).toBe(4 + fileLinks);
+    const { code, out } = await cli(["doctor"], { home, cwd: project, doctorProbes: PROBES });
+    expect(out).toMatch(
+      new RegExp(
+        `^warn harness memory  1 harness memory file outside every store root \\(codex project-agents-md 1\\) \\(a floor: ${4 + fileLinks} links not followed\\); 0 inside one; engram discover lists them$`,
+        "m",
+      ),
+    );
+    expect(code).toBe(0);
+    const text = await cli(["discover", "--home", home, "--project", project], { cwd: project });
+    expect(text.out).toContain(
+      `linked: ${4 + fileLinks} links at harness locations, not followed; the counts are a floor`,
+    );
+  });
+
+  it("walks the Codex home CODEX_HOME names, memories_v2 included, and not ~/.codex then", async () => {
+    const root = await tempDir();
+    const codex = join(root, "codex-home");
+    mkdirSync(join(codex, "memories_v2"), { recursive: true });
+    writeFileSync(join(codex, "AGENTS.md"), "codex instructions\n");
+    writeFileSync(join(codex, "memories_v2", "topic.md"), "a memory\n");
+    mkdirSync(join(root, ".codex"));
+    writeFileSync(join(root, ".codex", "AGENTS.md"), "unused\n");
+    const empty = await tempDir();
+    const { out } = await cli(["discover", "--json"], {
+      home: root,
+      cwd: empty,
+      env: { CODEX_HOME: codex },
+    });
+    const d = JSON.parse(out);
+    expect(d.codex_home).toBe(codex);
+    expect(d.files.map((f: { path: string; kind: string }) => `${f.kind} ${f.path}`)).toEqual([
+      `user-agents-md ${join(codex, "AGENTS.md")}`,
+      `memories ${join(codex, "memories_v2", "topic.md")}`,
+    ]);
+  });
+
+  it("walks the folder Claude Code's autoMemoryDirectory setting names", async () => {
+    const root = await tempDir();
+    mkdirSync(join(root, ".claude"));
+    mkdirSync(join(root, "memstore"));
+    writeFileSync(join(root, "memstore", "MEMORY.md"), "an index\n");
+    writeFileSync(join(root, "memstore", "notes.txt"), "not memory by name\n");
+    writeFileSync(
+      join(root, ".claude", "settings.json"),
+      JSON.stringify({ autoMemoryDirectory: "~/memstore" }),
+    );
+    const empty = await tempDir();
+    const { out } = await cli(["discover", "--json"], { home: root, cwd: empty });
+    const d = JSON.parse(out);
+    expect(d.auto_memory_directory).toBe(join(root, "memstore"));
+    expect(d.files.map((f: { location: string }) => f.location)).toEqual([
+      "claude-code/auto-memory",
+    ]);
   });
 });
 
@@ -180,5 +276,18 @@ describe("doctor's harness memory check", () => {
     const check = report.checks.find((c: { name: string }) => c.name === "harness memory");
     expect(check.status).toBe("warn");
     expect([report.failed, report.warned, json.code]).toEqual([0, 1, 0]);
+  });
+
+  it("exits 1 on a failure beside the warning, the summary naming both", async () => {
+    const f = await fakeHome();
+    const { code, out } = await cli(["doctor"], {
+      home: f.home,
+      cwd: f.project,
+      doctorProbes: { ...PROBES, "adapter mem0": async () => ["fail", "a fixture failure"] },
+    });
+    expect(out).toMatch(/^fail adapter mem0 {4}a fixture failure$/m);
+    expect(out).toMatch(/^warn harness memory {2}/m);
+    expect(out).toContain("doctor: 1 check failed, 1 warning\n");
+    expect(code).toBe(1);
   });
 });

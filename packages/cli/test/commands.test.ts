@@ -250,7 +250,8 @@ discover options (card E9.10; no plane call, no log opened):
                               (default the current folder)
   --root <folder>             a store root: a file inside one is not counted as outside; repeatable
   counts per harness and kind, then each file outside every root by path, size and time;
-  no file is opened, nothing is written; existence only, not whether a harness read it
+  no memory file is opened, no link followed, nothing written; existence only, not whether
+  a harness read it; honours CODEX_HOME and autoMemoryDirectory in ~/.claude/settings.json
 
 tui options (card E8.15b; docs/design/tui.md):
   --no-color  --high-contrast  --ascii  --reduced-motion  --no-mouse

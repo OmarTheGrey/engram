@@ -15,7 +15,8 @@
 //
 // One check warns and never fails: `harness memory` (card E9.10), the harness
 // memory files outside every store root, counted by `engram discover`'s walk
-// of the home and the current folder, by size and time only, never content.
+// of the home and the current folder (honouring CODEX_HOME and Claude Code's
+// autoMemoryDirectory setting), by size and time only, never memory content.
 //
 // The checks that read the repository (provider key names, benchmark pins,
 // the pi pin) run only from a checkout (`io.repo`); elsewhere they are
@@ -47,7 +48,13 @@ import {
 } from "@engram/core";
 import { bindRefusal, hasCredentialFlags, openCredentials } from "@engram/server";
 import { parse } from "./commands.ts";
-import { discoverHarnessMemory, outsideText } from "./discover.ts";
+import {
+  type DiscoverInput,
+  discoverHarnessMemory,
+  discoverInput,
+  floorText,
+  outsideText,
+} from "./discover.ts";
 import { plural } from "./format.ts";
 import { AUTH_OPTIONS, OPTIONS } from "./registry.ts";
 import type { Io } from "./run.ts";
@@ -630,15 +637,14 @@ export function checkServe(
  * says how much of it there is on this machine. The walk is discover's:
  * the home's harness locations and the current folder, sizes and times only.
  */
-export function checkHarnessMemory(
-  home: string,
-  projects: readonly string[],
-  roots: readonly string[],
-): CheckResult {
-  const d = discoverHarnessMemory({ home, projects, roots });
-  const floor = d.bounded.length > 0 ? " (a floor: the walk stopped at a bound)" : "";
-  const said = `${outsideText(d)}${floor}; ${d.inside} inside one`;
-  return d.outside === 0 ? ["ok", said] : ["warn", `${said}; engram discover lists them`];
+export function checkHarnessMemory(input: DiscoverInput): CheckResult {
+  const d = discoverHarnessMemory(input);
+  const floor = floorText(d);
+  const said = `${outsideText(d)}${floor === "" ? "" : ` (a floor: ${floor})`}; ${d.inside} inside one`;
+  // A link at a harness location is memory the walk could not see: a warning too.
+  return d.outside === 0 && d.linked === 0
+    ? ["ok", said]
+    : ["warn", `${said}; engram discover lists them`];
 }
 
 /** Node 24 or later. */
@@ -694,7 +700,9 @@ export async function doctorCommand(args: string[], io: Io): Promise<number> {
   await check("pi pin", () => checkPiPin(io.repo));
   await check("node", () => checkNode(io.nodeVersion));
   await check("harness memory", () =>
-    checkHarnessMemory(io.home, [io.cwd], root === undefined ? [] : [root]),
+    checkHarnessMemory(
+      discoverInput(io, { project: [io.cwd], root: root === undefined ? [] : [root] }),
+    ),
   );
   await check("serve", () => checkServe(values, io.cwd, at));
 
