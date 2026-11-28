@@ -202,21 +202,6 @@ export interface Replayed {
  */
 export const FINDINGS = {
   /**
-   * Adoption retires a projected item the store no longer lists, or whose
-   * listed record it refused (adopt.ts adoptStoreItems), and the retirement
-   * is an allowed change other handles' checks count. The model has no
-   * retraction (specs/README.md, "Item status"), and the code appends one
-   * even while the item's person scope is being erased.
-   */
-  "E18-F1": "an adoption's retraction, which the model leaves out",
-  /**
-   * A record adoption refused while its scope was being erased
-   * (engram/offboard/erasing) is never adopted after the erasure completes
-   * while it holds the same bytes: adoption treats the same-hash deny as
-   * final (adopt.ts, "denied before with the same hash"). The model adopts it.
-   */
-  "E18-F2": "a record refused while its scope was erased is never adopted after",
-  /**
    * The model's own-bytes test (commit.qnt touchedSince's `ign`) compares
    * content only; the code's (commit.ts ownBytes, recovery) compares every
    * field but provenance and grants. An adoption of a writer's bytes whose
@@ -224,13 +209,6 @@ export const FINDINGS = {
    * change in the code.
    */
   "E18-F3": "own bytes with a hand-edited confidence",
-  /**
-   * A record whose purge adoption already decided (an engram/adopt/erased
-   * deny of the same bytes) is deleted again by a later adoption without the
-   * deferral the model applies to a listing older than a change (adopt.ts,
-   * `decided`), and without an event.
-   */
-  "E18-F4": "a repeated purge skips the listing's deferral",
   /**
    * The settle writes a withdrawal's put-back at a version above the
    * projection's before it commits; an adoption in between records that
@@ -264,6 +242,40 @@ export const FINDINGS = {
   "E18-F8": "the erasure erases an item a withdrawal left retired",
 } as const;
 
+/**
+ * The findings of card E1.8 that card E1.7 closed in the code: no mark is
+ * made for them, so a divergence of their kind is unexplained again, and
+ * their scenarios (specs/replay.qnt) replay to their end.
+ */
+export const FIXED = {
+  /**
+   * Adoption retired a projected item the store no longer listed, or whose
+   * listed record it refused, even while the item's person scope was being
+   * erased (adopt.ts adoptStoreItems): an allowed change other handles'
+   * checks count, which the model, without retraction, does not have. It no
+   * longer retracts while the scope's erasure is open; the erasure takes the
+   * item out. Outside an erasure the model's store never lacks the record of
+   * a live item, so the model's missing retraction is not reached there.
+   */
+  "E18-F1": "an adoption's retraction while the scope is being erased",
+  /**
+   * A record adoption refused while its scope was being erased
+   * (engram/offboard/erasing) was never adopted after the erasure completed
+   * while it held the same bytes (adopt.ts, "denied before with the same
+   * hash"). That refusal is for the time being now: once the erasure has
+   * completed, the record is gated again.
+   */
+  "E18-F2": "a record refused while its scope was erased was never adopted after",
+  /**
+   * A record whose purge adoption had already decided (an engram/adopt/erased
+   * deny of the same bytes) was deleted again by a later adoption without
+   * the deferral the model applies to a listing older than a change
+   * (adopt.ts, `decided`). The purge now checks under the lock, just before
+   * its delete, that nothing changed since the listing (or the refusal).
+   */
+  "E18-F4": "a repeated purge skipped the listing's deferral",
+} as const;
+
 export type Finding = keyof typeof FINDINGS | "unexplained";
 
 /** The kinds of difference a mismatch is: which part of the state differs. */
@@ -271,10 +283,7 @@ export type Kind = "projection" | "store" | "marks" | "trail" | "busy" | "call";
 
 /** The kinds of difference each finding can cause. */
 export const KINDS: Record<keyof typeof FINDINGS, readonly Kind[]> = {
-  "E18-F1": ["projection", "trail", "busy"],
-  "E18-F2": ["projection"],
   "E18-F3": ["projection", "store", "trail", "busy"],
-  "E18-F4": ["trail", "busy"],
   "E18-F5": ["projection", "trail", "busy"],
   "E18-F6": ["projection", "store", "trail", "busy"],
   "E18-F7": ["store", "trail", "busy"],
@@ -677,7 +686,7 @@ export async function replay(trace: Trace): Promise<Replayed> {
 
   /**
    * The marks the code's events appended since the last call show, at step
-   * i: E18-F1 a retraction, E18-F6 a withdrawal to nothing (a retire),
+   * i: E18-F6 a withdrawal to nothing (a retire),
    * E18-F7 an erasure that found no record, E18-F8 an offboarding begun
    * while the scope holds a retired item (it will erase it) or an erasure of
    * an item whose last allowed event retired it.
@@ -691,7 +700,6 @@ export async function replay(trace: Trace): Promise<Replayed> {
             marks.push({ finding: "E18-F8", step: i, item: NAME.get(held.id) ?? held.id });
       if (e.item_id === null) continue;
       const x = NAME.get(e.item_id) ?? e.item_id;
-      if (e.policy_id === ADOPT_RETRACT_ID) marks.push({ finding: "E18-F1", step: i, item: x });
       if (e.policy_id === ADOPT_WITHDRAWN_ID && e.op === "retire")
         marks.push({ finding: "E18-F6", step: i, item: x });
       if (e.policy_id === ERASURE_ID) {
@@ -863,13 +871,8 @@ export async function replay(trace: Trace): Promise<Replayed> {
 
 /**
  * The findings' marks a model trace carries up to state `upTo`:
- * - E18-F2: an adoption allows a record whose bytes the item's last write
- *   event, an adoption's engram/offboard/erasing deny, refused;
  * - E18-F3: an adoption records, with a confidence edited by hand, the
- *   content a writer then in flight wrote;
- * - E18-F4: an adoption defers or skips a record whose bytes the item's last
- *   write event, an adoption's engram/adopt/erased deny, refused, while the
- *   id is still projected as no item.
+ *   content a writer then in flight wrote.
  */
 function modelMarks(states: readonly State[], upTo: number): Mark[] {
   const out: Mark[] = [];
@@ -880,26 +883,10 @@ function modelMarks(states: readonly State[], upTo: number): Mark[] {
     const a = s.lastAction;
     const rec = prev.pc.get(a.handle)?.listing.get(a.iid);
     const bytes = rec ? `${rec.content}/${rec.kind}/${rec.meta}` : "";
-    const was = last.get(a.iid);
-    if (
-      (a.name === "adoptDefer" || a.name === "adoptSkip") &&
-      was?.rule === ADOPT_ERASED_ID &&
-      was.bytes === bytes
-    )
-      if (!projOf(ITEMS, prev.log).get(a.iid)?.live)
-        out.push({ finding: "E18-F4", step: j, item: a.iid });
     for (const e of s.log.slice(prev.log.length)) {
       if (!WRITE_OPS.has(e.rule)) continue;
       const eb = e.adopted ? bytes : "";
       const before = last.get(e.iid);
-      if (
-        e.adopted &&
-        e.decision === "allow" &&
-        before?.rule === ERASING_ID &&
-        before.adopted &&
-        before.bytes === eb
-      )
-        out.push({ finding: "E18-F2", step: j, item: e.iid });
       if (e.adopted && e.decision === "allow" && e.meta !== 0)
         for (const p of prev.pc.values())
           if (
@@ -932,12 +919,13 @@ const WRITE_OPS = new Set([
 
 /**
  * The model's log up to state `upTo` as the code records it. One rule of the
- * code the model leaves out is applied (a finding of card E1.8): adoption
- * appends no event for a record whose bytes the item's last write event
- * already denied (adopt.ts, "denied before with the same hash"; a purge it
- * decided is repeated without one). So an adoption's deny of a record whose
- * bytes, as listed, equal those of the item's last recorded write event, an
- * adoption's deny, is dropped here.
+ * code the model leaves out is applied: adoption appends no event for a
+ * record whose bytes the item's last write event already denied (adopt.ts,
+ * "denied before with the same hash"; a purge it decided is repeated without
+ * one, and since card E1.7 an erasing refusal is repeated without one only
+ * while the erasure is open, which is when the model repeats it). So an
+ * adoption's deny of a record whose bytes, as listed, equal those of the
+ * item's last recorded write event, an adoption's deny, is dropped here.
  */
 function modelTrail(states: readonly State[], upTo: number): string[] {
   const out: string[] = [];
