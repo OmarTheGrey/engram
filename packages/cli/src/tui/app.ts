@@ -591,7 +591,8 @@ export class App implements Component, Ctx {
     extra: readonly string[] = [],
   ): Promise<RunResult | undefined> {
     const word = argv[0] as string;
-    const why = NOT_RUN_HERE[word];
+    // engram hook install writes a settings file and reads no stdin: it runs here (card E8.17).
+    const why = word === "hook" && argv[1] === "install" ? undefined : NOT_RUN_HERE[word];
     if (why !== undefined) {
       this.say(`${why}: open its screen from Home; c copies the command to run in a shell`);
       return undefined;

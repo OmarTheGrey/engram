@@ -450,6 +450,72 @@ describe("text fields and the server's log (9.1, 8.15)", () => {
   }, 30_000);
 });
 
+describe("Codex's hook beside Claude Code's (card E8.17)", () => {
+  it("the Harness row switches the snippet to .codex/hooks.json, and Install merges it after asking, naming the file", async () => {
+    const cwd = await tempDir();
+    mkdirSync(join(cwd, "mem"));
+    const h = await usable({ cwd, given: { owner: "dana", db: "engram.db", root: "mem" } });
+    await h.press("b");
+    const screen = h.app.top() as unknown as {
+      harness: string;
+      snippetArgs(): string[];
+      installArgv(): string[];
+    };
+    expect(screen.snippetArgs().slice(0, 2)).toEqual(["hook", "claude-code"]);
+    await h.focusField("choice:harness");
+    await h.press(SPACE);
+    expect(screen.harness).toBe("codex");
+    expect(screen.snippetArgs().slice(0, 2)).toEqual(["hook", "codex"]);
+    const text = (await h.text()).replace(/\s+/g, " ");
+    expect(text).toContain(".codex/hooks.json, hooks.PreToolUse:");
+    expect(text).toContain("/hooks");
+    expect(screen.installArgv().slice(0, 3)).toEqual(["hook", "install", "codex"]);
+    await h.focusField("button:install");
+    await h.press(ENTER);
+    expect(h.overlay()).toBe("confirm");
+    const file = join(cwd, ".codex", "hooks.json");
+    expect((await h.text()).replace(/\s+/g, " ")).toContain(
+      "does not exist yet: it will be created.",
+    );
+    await h.press("y");
+    await waitFor(h, "installed:");
+    const entry = JSON.parse(readFileSync(file, "utf8")).hooks.PreToolUse[0].hooks[0];
+    expect(entry.command).toContain("hook codex");
+    expect(entry.command).toContain(join(cwd, "mem"));
+    // A second Install asks again, and the installer writes nothing.
+    const before = readFileSync(file, "utf8");
+    await h.focusField("button:install");
+    await h.press(ENTER);
+    if (h.overlay() === "confirm") await h.press("y");
+    await waitFor(h, "unchanged:");
+    expect(readFileSync(file, "utf8")).toBe(before);
+    await h.quit();
+  }, 60_000);
+
+  it("Codex's Try it sends Codex's Bash tool, and the hook blocks the store sample", async () => {
+    const cwd = await tempDir();
+    mkdirSync(join(cwd, "mem"));
+    const h = await usable({ cwd, given: { owner: "dana", db: "engram.db", root: "mem" } });
+    const spec = command("hook codex");
+    if (spec === undefined) throw new Error("no hook codex entry");
+    const screen = surfaceScreen(spec, h.app, {}, []) as unknown as {
+      harness: string;
+      tryIt(ctx: unknown): Promise<void>;
+      tried: { results: { label: string; outcome: string; expected: boolean }[] } | undefined;
+    };
+    expect(screen.harness).toBe("codex");
+    h.app.push(screen as never);
+    await screen.tryIt(h.app);
+    const results = screen.tried?.results ?? [];
+    expect(results.map((r) => r.label.split(" ")[0])).toEqual(["Bash", "Bash"]);
+    expect(results.map((r) => [r.outcome, r.expected])).toEqual([
+      ["blocked", true],
+      ["allowed", true],
+    ]);
+    await h.quit();
+  }, 120_000);
+});
+
 describe("the review's fix pass (E8.15d)", () => {
   it("a server keeps running after esc; Serve opened again attaches to it and s stops it (review 3)", async () => {
     const h = await usable();

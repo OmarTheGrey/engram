@@ -70,6 +70,28 @@ const FINDING: LintFinding = {
   schema_version: 1,
 };
 
+/**
+ * Card L9: a model finding under `lints.model.evidence: "on"`, as card L3's
+ * fault fixture gives it with card L9's scripted model, its quotes in its
+ * evidence (fixtures/lint/l9-script.json, research/configs/l9-grounding-fixture.json).
+ */
+const GROUNDED: LintFinding = {
+  id: "01950000-0000-7000-8000-0000000000f2",
+  lint_id: "contradiction",
+  item_id: ID2,
+  tier: "model",
+  severity: "warn",
+  message: `it contradicts ${ID1}, an earlier active semantic item in team:core, as scripted/lint-1 judged it`,
+  evidence: [
+    `contradicts ${ID1}`,
+    "model scripted/lint-1, seed 1",
+    "reason: The freeze cannot start on both Friday and Monday.",
+    `quote of ${ID1}: "The release freeze starts on Friday"`,
+    `quote of ${ID2}: "The release freeze starts on Monday"`,
+  ],
+  schema_version: 1,
+};
+
 const outcome = (step: number, decision: "allow" | "deny", policy: string, reason: string) => ({
   step,
   op: "write" as const,
@@ -146,6 +168,8 @@ const SCREENS: Record<
     given: Record<string, string>;
     values?: Record<string, unknown>;
     set: (s: never, h: Harness) => void | Promise<void>;
+    /** Keys pressed once the screen is pushed (card L9: open a finding's evidence). */
+    after?: (h: Harness) => Promise<void>;
   }
 > = {
   retain: {
@@ -191,6 +215,31 @@ const SCREENS: Record<
           ],
         ),
       ),
+  },
+  // Card L9: a grounded model finding, its evidence opened, so its quotes show.
+  "lint-grounded": {
+    name: "lint",
+    given: USABLE,
+    values: { scope: "team:core" },
+    set: (s: SurfaceScreen) =>
+      s.show(
+        result(
+          ["lint", "--scope", "team:core", "--db", "engram.db", "--owner", "dana", "--root", "mem"],
+          1,
+          "lint team:core at 2026-11-06T12:00:00Z as person:dana: allow, 1 finding\nlog engram.db\n",
+          [
+            call("/api/v1/lint", {
+              decision: "allow",
+              findings: [GROUNDED],
+              events: [{ policy_id: "fixture.faults/lint/contradiction" }],
+            }),
+          ],
+        ),
+      ),
+    after: async (h) => {
+      await h.focusField(`finding:${GROUNDED.id}`);
+      await h.press(" ");
+    },
   },
   simulate: {
     name: "simulate",
@@ -301,6 +350,43 @@ const SCREENS: Record<
               stdout: "",
             },
           ],
+        },
+      });
+    },
+  },
+  // Card E8.17: the same screen opened on Codex's hook, after Try it and an install.
+  "hook-codex": {
+    name: "hook codex",
+    given: NO_PATHS,
+    values: { root: ["/src/lantern/memory"], as: "person:dana" },
+    set: (s: SurfaceScreen & { setLaunch(l: Launch): void }) => {
+      s.setLaunch(LAUNCH);
+      Object.assign(s, {
+        tried: {
+          scratch: { replaced: [] },
+          results: [
+            {
+              label: "Bash cat /src/lantern/memory/user_role.md",
+              code: 0,
+              outcome: "blocked",
+              expected: true,
+              detail: "exit 0, blocked: permissionDecision deny",
+              stdout: "",
+            },
+            {
+              label: "Bash cat /src/lantern/README.md",
+              code: 0,
+              outcome: "allowed",
+              expected: true,
+              detail: "exit 0, allowed: the hook printed nothing",
+              stdout: "",
+            },
+          ],
+        },
+        installed: {
+          argv: ["hook", "install", "codex"],
+          code: 0,
+          out: "installed: /src/lantern/.codex/hooks.json created with the engram hook codex entry in hooks.PreToolUse\nCodex runs a hook only once you trust it, at the project or the user level alike, and again after each change to the entry: review it in /hooks.\n",
         },
       });
     },
@@ -499,6 +585,7 @@ async function shoot(key: string, mode: Mode, columns: number, rows: number) {
   const screen = surfaceScreen(spec, h.app, (s.values ?? {}) as never, []) as SurfaceScreen;
   await s.set(screen as never, h);
   h.app.push(screen);
+  await s.after?.(h);
   const frame = await h.frame();
   const cells = await h.cells();
   const drawn = h.app.render(columns);

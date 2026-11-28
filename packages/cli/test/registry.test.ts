@@ -63,7 +63,7 @@ const ON_MAIN = [
   "log verify",
   "log checkpoint",
 ];
-/** The commands card E8.15a adds (docs/design/tui.md 3.6), read --item and scopes over card E8.14's routes, E8.15b's tui and E9.10's discover. */
+/** The commands card E8.15a adds (docs/design/tui.md 3.6), read --item and scopes over card E8.14's routes, E8.15b's tui, E9.10's discover and E8.17's Codex hook and installer. */
 const ADDED = [
   "read --item",
   "check",
@@ -74,6 +74,9 @@ const ADDED = [
   "tui",
   // Card E9.10.
   "discover",
+  // Card E8.17.
+  "hook codex",
+  "hook install",
 ];
 
 describe("HELP from the registry", () => {
@@ -222,6 +225,8 @@ describe("the registry's entries", () => {
       ["mcp", {}, {}, "process"],
       ["mcp", { http: "7314" }, {}, "process"],
       ["hook claude-code", {}, {}, "audit"],
+      ["hook codex", {}, {}, "audit"],
+      ["hook install", ROOT, SERVER, "file"],
       ["key create", {}, {}, "state"],
       ["key list", {}, {}, "none"],
       ["key revoke", {}, {}, "erase"],

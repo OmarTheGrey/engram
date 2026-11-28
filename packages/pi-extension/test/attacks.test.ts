@@ -217,6 +217,35 @@ describe("R7-1: store commands and store paths are blocked in a pi session (deci
     expect(allEvents(log.db).filter((e) => e.policy_id === BYPASS_PATH_ID)).toHaveLength(8);
   });
 
+  test("a PowerShell backtick or cmd caret inside a store path is still a store path (card E8.17's review)", async () => {
+    const { log } = await seeded();
+    const { base, root } = storeRoot();
+    const ext = createEngramExtension({
+      ...log,
+      policy,
+      actor: OMAR,
+      now: () => AT,
+      storeRoots: [root],
+    });
+    const commands = [
+      `Get-Content ${join(base, "mem`ory", "a.md")}`,
+      `type ${join(base, "mem^ory", "a.md")}`,
+    ];
+    const steps = [
+      ...commands.map((command, i) => call(`e${i}`, "bash", { command })),
+      { text: "done" },
+    ];
+    const run = await session([ext], steps, ["bash"]);
+    await run.session.prompt("go");
+    const results = toolResults(run.sessionManager);
+    expect(results).toHaveLength(commands.length);
+    for (const r of results) {
+      expect(r.isError, textOf(r)).toBe(true);
+      expect(textOf(r)).toContain(BYPASS_PATH_ID);
+    }
+    expect(sentToModel(run.scripted)).not.toContain(FILE_SECRET);
+  });
+
   test("a file tool outside the root still runs", async () => {
     const { log } = await seeded();
     const { base, root } = storeRoot();

@@ -83,6 +83,13 @@ export interface CommandSpec {
   summary: string;
   /** False when HELP's commands list shows this command on another entry's line. */
   listed: boolean;
+  /**
+   * False when Home reaches this command from another entry's screen, not a
+   * row of its own (Home fits 120x40, docs/design/tui.md 8.1): the Codex hook
+   * and the installer are on the hook setup screen (card E8.17). The palette
+   * and a typed command line still name it.
+   */
+  home?: false;
   group: Group;
   positionals: PositionalSpec[];
   /** The flags a form for this command offers, each as the handler parses it (see OptionSpec). */
@@ -659,8 +666,51 @@ export const OPTIONS = {
     as: {
       ...AS,
       help: "who the block events are recorded as",
-      defaultText: "agent:claude-code",
+      defaultText: "agent:claude-code, or agent:codex",
     },
+    ...EXPORT_OPTIONS,
+    ...CLIENT_OPTIONS,
+  },
+  "hook install": {
+    db: DB,
+    policy: POLICY,
+    root: {
+      ...ROOT,
+      multiple: true as const,
+      label: "Store roots",
+      help: "a store root the hook guards, written absolute into the entry; repeatable",
+      control: "list" as const,
+      card: "E8.17",
+    },
+    protect: flag({
+      type: "string",
+      multiple: true,
+      label: "Protected files",
+      help: "a file the hook guards, written absolute into the entry; repeatable",
+      control: "list",
+      card: "E8.17",
+    }),
+    as: {
+      ...AS,
+      help: "who the hook records its block events as",
+      defaultText: "agent:claude-code, or agent:codex",
+      card: "E8.17",
+    },
+    user: flag({
+      type: "boolean",
+      label: "User settings",
+      help: "install into the user's settings (~/.claude/settings.json, $CODEX_HOME/hooks.json), not the project's",
+      control: "toggle",
+      card: "E8.17",
+    }),
+    project: flag({
+      type: "string",
+      label: "Project folder",
+      help: "the project whose .claude/settings.json or .codex/hooks.json takes the entry",
+      control: "file",
+      defaultText: "the current folder",
+      card: "E8.17",
+    }),
     ...EXPORT_OPTIONS,
     ...CLIENT_OPTIONS,
   },
@@ -1492,6 +1542,66 @@ export const REGISTRY: readonly CommandSpec[] = [
     writes: () => "audit",
     env: [...PLANE_ENV, "CLAUDE_PROJECT_DIR"],
     handler: H.hook,
+  },
+  {
+    name: "hook codex",
+    title: "Codex hook setup",
+    usage: "hook codex",
+    summary: "a Codex PreToolUse hook that blocks store bypasses",
+    listed: true,
+    home: false,
+    group: "surfaces",
+    positionals: [],
+    options: OPTIONS.hook,
+    allowPositionals: true,
+    helpSection: [
+      "hook codex options (card E8.17): as hook claude-code's, read the way Codex sends them:",
+      "  Bash checked as POSIX and PowerShell, apply_patch by its file headers; --root and a",
+      "  relative --db resolve against the folder Codex starts the hook in; protects the log,",
+      "  .codex/config.toml, .codex/hooks.json and those of $CODEX_HOME (default ~/.codex);",
+      "  --as defaults to agent:codex; a block answers permissionDecision deny with the reason",
+    ],
+    listedIn: [],
+    exitCodes: [
+      { code: 0, when: "always once its flags parse: the decision is in the JSON" },
+      PLANE_EXITS.usage,
+    ],
+    writes: () => "audit",
+    env: [...PLANE_ENV, "CODEX_HOME"],
+    handler: H.hook,
+    card: "E8.17",
+  },
+  {
+    name: "hook install",
+    title: "Install a hook",
+    usage: "hook install <harness>",
+    summary: "merge the hook into claude-code's or codex's settings, idempotently, with a backup",
+    listed: true,
+    home: false,
+    group: "surfaces",
+    positionals: [{ name: "harness", label: "Harness (claude-code or codex)", required: true }],
+    options: OPTIONS["hook install"],
+    allowPositionals: true,
+    helpSection: [
+      "hook install options (card E8.17): engram hook install claude-code | codex",
+      "  --project <folder>          the project whose .claude/settings.json or .codex/hooks.json",
+      "                              takes the entry (default the current folder)",
+      "  --user                      the user's ~/.claude/settings.json or $CODEX_HOME/hooks.json instead",
+      "  --root, --protect, --as, --server or --db and --policy: written into the entry, paths absolute",
+      "  writes that one file (and its folder), keeping every other entry; an earlier engram hook",
+      "  entry is replaced, never duplicated; a changed file is backed up beside it first; a second",
+      "  run writes nothing; refuses a link or a file that is not JSON, writing nothing",
+    ],
+    listedIn: [],
+    exitCodes: [
+      { code: 0, when: "installed, or already installed and nothing written" },
+      { code: 1, when: "refused: a link, not a regular file, not JSON, or hooks of another shape" },
+      PLANE_EXITS.usage,
+    ],
+    writes: () => "file",
+    env: [...HOME_ENV, "CODEX_HOME", "PATH"],
+    handler: H.hook,
+    card: "E8.17",
   },
   {
     name: "key create",
