@@ -217,3 +217,11 @@ def test_check_fails_on_a_stale_register(tmp_path: Path) -> None:
     assert main(args) == 0
     assert main([*args, "--check"]) == 0
     assert b"\r\n" not in out.read_bytes()
+
+
+def test_proof_of_concept_is_a_status_that_decides_no_hypothesis() -> None:
+    # The lead's request of 2026-11-28: a count that shows the system working
+    # on fixtures (card E8.16's zero-leak count first) is registered as such.
+    assert "proof of concept" in STATUSES
+    assert "decides no hypothesis" in STATUSES["proof of concept"]
+    assert "proof of concept" not in HYPOTHESIS_RESULTS

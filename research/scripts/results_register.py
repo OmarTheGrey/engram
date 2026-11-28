@@ -54,7 +54,7 @@ STATUSES = {
     "power computation": "a simulation of the registered test that sets or checks a sample size",
     "engineering check": "a check of a component's behaviour or speed that decides no hypothesis",
     "proof of concept": "the system shown working on fixtures, scripted models or a model's own "
-    "traces, model-free; decides no hypothesis",
+    "traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis",
 }
 # The statuses that are a test of a hypothesis. None yet: no MANIFEST row decides H1 to H5.
 HYPOTHESIS_RESULTS: frozenset[str] = frozenset()

@@ -230,3 +230,23 @@ f1bb834527637231e23575e2a70c57375efdac04), whose NOTICE reads:
   Licensed under the Apache License, Version 2.0.
 
 Modified here: see the header of near-duplicate.ts.
+
+------------------------------------------------------------------------
+Loom
+
+packages/server/test/leakage-kit.ts and the leak suites that use it
+(packages/server/test/leakage.test.ts, packages/mcp/test/leakage.test.ts,
+packages/cli/test/parity.test.ts, packages/pi-extension/test/parity.test.ts)
+port the structure of tests/integration/test_cross_principal_leakage.py from
+Loom (https://github.com/ClickHouse/loom, commit
+61b22646a1af78d0b21cac91059c237645dc1882), whose NOTICE reads:
+
+  Loom
+  Copyright 2026 ClickHouse, Inc.
+
+  This product includes software developed at ClickHouse, Inc.
+  (https://clickhouse.com).
+
+  Licensed under the Apache License, Version 2.0. See the LICENSE file.
+
+Modified here: see the header of leakage-kit.ts.

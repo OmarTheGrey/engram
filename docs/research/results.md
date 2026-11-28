@@ -16,9 +16,9 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | cost estimate | 4 | dollars and calls estimated from token counts and prices; no model called |
 | power computation | 2 | a simulation of the registered test that sets or checks a sample size |
 | engineering check | 4 | a check of a component's behaviour or speed that decides no hypothesis |
-| proof of concept | 1 | the system shown working on fixtures, scripted models or a model's own traces, model-free; decides no hypothesis |
+| proof of concept | 2 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
 
-25 results in all, one per MANIFEST row.
+26 results in all, one per MANIFEST row.
 
 ## What each hypothesis still needs
 
@@ -457,10 +457,35 @@ Recorded by [`docs/log/2026-11-28-rr-measurement-cost-table.md`](../log/2026-11-
 
 Recorded by [`docs/log/2026-11-28-rr-measurement-perf-budget.md`](../log/2026-11-28-rr-measurement-perf-budget.md).
 
+### `research/results/h1-leakage.json`
+
+- **Question.** Do canaries written through every write path reach a non-member, an expired grantee, a former member or a partial grantee on any surface (the HTTP API, MCP, the CLI, the TUI, the pi extension)?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. Card E8.16's suites on a fixture workspace; the file is under `h1-` for the results glob only. Answers that tell existence by their shape, not by a canary, are counted apart as characterised oracles.
+- **Made by.** `research/scripts/leakage.py` from `research/configs/leakage.json`, MANIFEST commit `3018f629`, sha256 `bc5c43f6e2ba848c2c0ba371d35b30ab0f7bf37ac93c0937018f578d7f1798fa`.
+
+| value | reads | key path |
+|---|---|---|
+| canaries written | 13 | `canaries.written` |
+| probes, all surfaces | 2,188 | `totals.probes` |
+| leaks, all surfaces | 0 | `totals.leaks` |
+| probes over the HTTP API | 696 | `surfaces.http.probes` |
+| probes over MCP | 288 | `surfaces.mcp.probes` |
+| probes through the CLI | 576 | `surfaces.cli.probes` |
+| probes through the TUI | 580 | `surfaces.tui.probes` |
+| probes through the pi extension | 48 | `surfaces.pi.probes` |
+| denied and missing ids compared over the HTTP API | 377 | `denied_and_missing.http.compared` |
+| of them answering alike | 275 | `denied_and_missing.http.alike` |
+| of them pinned as telling existence: writes under a held id | 47 | `denied_and_missing.http.characterised.write` |
+| a model's operations through the HTTP API agreeing with MCP | 5 | `parity.http (model).same` |
+| the suite passed | true | `suite_passed` |
+
+Recorded by [`docs/log/2026-11-28-e8-16-measurement-leak-count-revised.md`](../log/2026-11-28-e8-16-measurement-leak-count-revised.md).
+
 ### `research/results/h1-quint-trace-replay.json`
 
 - **Question.** Does the code follow the Quint model of the commit and erasure protocol, step by step, on the model's own traces?
-- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces, model-free; decides no hypothesis.
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. Card E1.8: 200 traces of `specs/replay.qnt` (good under the code's schedule, seed 1) replayed on real Plane handles; a divergence counts only when one of the card's findings explains it. Filed under `h1-` for the results glob only.
 - **Made by.** `research/scripts/quint_trace_replay.py` from `research/configs/quint-trace-replay.json`, MANIFEST commit `ebcc2eee`, sha256 `c80cce59149fc69f048e04c14ae36c0815f56cc98008fbc675670ae4bcee4353`.
 
