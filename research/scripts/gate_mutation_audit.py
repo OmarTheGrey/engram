@@ -12,8 +12,9 @@ exact substitution (`find` to `replace`) in one source file, and the
 invariant whose test must kill it. The config names each invariant's test
 (a file and the test's exact name). The script:
 
-1. refuses to start when a tracked file under the audited paths has
-   uncommitted changes: the audit is of the committed code;
+1. refuses to start when any tracked file the copy takes (everything but
+   the config's `copy_exclude`: the packages, the root configs, fixtures)
+   has uncommitted changes: the audit is of the committed code;
 2. copies the tracked files into a scratch folder outside the repository and
    gives it the repository's installed dependencies by links (a workspace
    package's link points into the copy, so the copy's packages import each
@@ -23,11 +24,14 @@ invariant whose test must kill it. The config names each invariant's test
 4. for each mutant, checks that `find` occurs exactly once in its file,
    applies it in the copy, runs that one test, and restores the file
    whatever happens, checking its bytes are back and the working tree's
-   status is what it was before the run;
+   status is what it was before the run (ignored paths, such as the
+   installed packages the copy links to, are outside that status);
 5. counts a red run as a kill only when an assertion failed: a red run from
    a crash, a module that does not load, a timeout, or a filter that did not
    select exactly the named test is could-not-tell, and stops the run with
-   an error, since it says nothing about the test;
+   an error, since it says nothing about the test; a kill records the first
+   line of its first failed assertion, so a kill by a test's vacuity guard
+   ("... needs ...; it saw ...") reads apart from one by its oracle;
 6. fails unless every invariant of the config has at least one killed
    mutant; survivors are listed, never hidden.
 
@@ -35,7 +39,7 @@ No model is called and nothing leaves the machine. The result serves no
 hypothesis ("hypothesis": "none"): it is a proof of concept on the code's own
 property tests, an engineering check of card X16, and it takes the `h1-`
 prefix only because test_prereg.py requires one. It is slow (the
-invariants' property tests, about ten to twenty minutes on one worker) and
+invariants' property tests, about five to ten minutes on one worker) and
 `make test-repro` runs it; CI does not.
 """
 
@@ -52,6 +56,7 @@ invariants' property tests, about ten to twenty minutes on one worker) and
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import hashlib
 import json
 import os
@@ -68,6 +73,7 @@ from typing import Any
 from scripts.results_io import REPO, load_config, write_result
 
 VERDICTS = ("killed", "survived")
+MESSAGE_CHARS = 200
 TIMED_OUT = re.compile(r"Test timed out|timed out in \d+ms|Hook timed out", re.I)
 MUTANT_KEYS = {"id", "invariant", "area", "file", "find", "replace", "what"}
 OPTIONAL_KEYS = {"note"}
@@ -102,6 +108,8 @@ class Outcome:
 
     status: str  # passed | assertion | could-not-tell
     detail: str = ""
+    #: For an assertion, the first line of the first failed assertion's message.
+    message: str = ""
 
 
 def load_invariants(config: Mapping[str, Any]) -> dict[str, Invariant]:
@@ -216,8 +224,10 @@ def classify(report: Mapping[str, Any] | None, inv: Invariant) -> Outcome:
     errors = [e for c in test.get("errors", []) for e in c]
     if any(TIMED_OUT.search(str(e.get("message", ""))) for e in errors):
         return Outcome("could-not-tell", "the test timed out")
-    if any(_is_assertion(e) for e in errors):
-        return Outcome("assertion")
+    asserted = [e for e in errors if _is_assertion(e)]
+    if asserted:
+        line = (str(asserted[0].get("message", "")).splitlines() or [""])[0]
+        return Outcome("assertion", message=line[:MESSAGE_CHARS])
     first = errors[-1] if errors else {"name": "", "message": "no error recorded"}
     line = (str(first.get("message", "")).splitlines() or [""])[0]
     text = f"{first.get('name')}: {line[:200]}"
@@ -236,6 +246,7 @@ def summarise(
     mutants: Sequence[Mutant],
     verdicts: Mapping[str, str],
     invariants: Mapping[str, Invariant],
+    messages: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """The result body's counts: per mutant, per invariant, per area and in total."""
     rows = []
@@ -250,6 +261,8 @@ def summarise(
         }
         if m.note is not None:
             row["note"] = m.note
+        if messages and m.id in messages:
+            row["killed_by"] = messages[m.id]
         rows.append(row)
 
     def counts(group: Sequence[Mutant]) -> dict[str, Any]:
@@ -295,9 +308,20 @@ def tree_status() -> str:
     return _git(["status", "--porcelain=v1", "--untracked-files=all"])
 
 
+def _excluded(path: str, exclude: Sequence[str]) -> bool:
+    return any(path == e or path.startswith(e + "/") for e in exclude)
+
+
+def copied_changes(exclude: Sequence[str]) -> list[str]:
+    """Tracked files with uncommitted changes the copy would take: every path but `exclude`."""
+    out = _git(["status", "--porcelain=v1", "-z", "--untracked-files=no"])
+    paths = [entry[3:] for entry in out.split("\0") if len(entry) > 3]
+    return sorted(p for p in paths if not _excluded(p, exclude))
+
+
 def tracked_files(exclude: Sequence[str]) -> list[str]:
     files = [f for f in _git(["ls-files", "-z"]).split("\0") if f]
-    return [f for f in files if not any(f == e or f.startswith(e + "/") for e in exclude)]
+    return [f for f in files if not _excluded(f, exclude)]
 
 
 def _link(target: Path, link: Path) -> None:
@@ -419,7 +443,11 @@ def vitest_runner(
         except subprocess.TimeoutExpired:
             return Outcome("could-not-tell", f"the run passed its {timeout_s} s timeout")
         report = json.loads(out.read_text(encoding="utf-8")) if out.exists() else None
-        return classify(report, inv)
+        outcome = classify(report, inv)
+        # No absolute path of the copy in what the result records.
+        for root in (str(copy), copy.as_posix()):
+            outcome = dataclasses.replace(outcome, message=outcome.message.replace(root, "<copy>"))
+        return outcome
 
     return run
 
@@ -431,8 +459,12 @@ def audit(
     run: Callable[[Invariant], Outcome],
     status: Callable[[], str],
     log: Callable[[str], None] = print,
+    messages: dict[str, str] | None = None,
 ) -> dict[str, str]:
-    """The verdict of every mutant; raises AuditError when a guard fails."""
+    """The verdict of every mutant; raises AuditError when a guard fails.
+
+    `messages`, when given, receives each killed mutant's assertion line.
+    """
     before = status()
     for m in mutants:
         check_mutant(m, (copy / m.file).read_text(encoding="utf-8"), invariants)
@@ -464,15 +496,20 @@ def audit(
         if outcome.status == "could-not-tell":
             raise AuditError(f"mutant {m.id}: could not tell ({outcome.detail})")
         verdicts[m.id] = "killed" if outcome.status == "assertion" else "survived"
+        if outcome.status == "assertion" and messages is not None:
+            messages[m.id] = outcome.message
         log(f"gate-mutation-audit: {m.id} {verdicts[m.id]}")
     return verdicts
 
 
 def result_body(
-    config: Mapping[str, Any], mutants: Sequence[Mutant], verdicts: Mapping[str, str]
+    config: Mapping[str, Any],
+    mutants: Sequence[Mutant],
+    verdicts: Mapping[str, str],
+    messages: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     invariants = load_invariants(config)
-    summary = summarise(mutants, verdicts, invariants)
+    summary = summarise(mutants, verdicts, invariants, messages)
     return {
         "name": config["name"],
         "card": config["card"],
@@ -496,20 +533,27 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     invariants = load_invariants(config)
     mutants = load_mutants(REPO / config["mutants"])
-    dirty = _git(["status", "--porcelain=v1", "--untracked-files=no", "--", *config["audited"]])
-    if dirty.strip():
+    dirty = copied_changes(config["copy_exclude"])
+    if dirty:
         raise AuditError(
-            f"tracked files under {config['audited']} have uncommitted changes:\n{dirty}"
+            "tracked files the copy takes have uncommitted changes:\n" + "\n".join(dirty)
         )
     scratch = Scratch(config["copy_exclude"])
     try:
         run = vitest_runner(scratch.root, config["env"], int(config["run_timeout_s"]))
+        messages: dict[str, str] = {}
         verdicts = audit(
-            mutants, invariants, scratch.root, run, tree_status, lambda s: print(s, flush=True)
+            mutants,
+            invariants,
+            scratch.root,
+            run,
+            tree_status,
+            lambda s: print(s, flush=True),
+            messages,
         )
     finally:
         scratch.close()
-    body = result_body(config, mutants, verdicts)
+    body = result_body(config, mutants, verdicts, messages)
     toothless = every_invariant_bites(body)
     if toothless:
         raise AuditError(f"no mutant of {toothless} was killed; every invariant needs one")

@@ -58,6 +58,31 @@ def test_a_failed_assertion_is_a_kill_also_as_a_property_s_cause() -> None:
     assert g.classify(report((INV.name, "failed", false)), INV).status == "assertion"
 
 
+def test_a_kill_records_the_first_line_of_its_first_assertion() -> None:
+    chain = [
+        [err("Error", "Property failed after 3 tests\nseed 1"), err("AssertionError", "a\nb")],
+        [err("AssertionError", "second")],
+    ]
+    assert g.classify(report((INV.name, "failed", chain)), INV) == g.Outcome(
+        "assertion", message="a"
+    )
+    long = [[err("AssertionError", "x" * 500)]]
+    out = g.classify(report((INV.name, "failed", long)), INV)
+    assert out.message == "x" * g.MESSAGE_CHARS
+
+
+def test_the_dirty_check_covers_every_path_the_copy_takes(monkeypatch: pytest.MonkeyPatch) -> None:
+    status = "\0".join(
+        [" M packages/core/src/a.ts", " M vitest.shared.ts", "M  fixtures/x.json", " M docs/a.md"]
+    )
+    monkeypatch.setattr(g, "_git", lambda args: status + "\0")
+    assert g.copied_changes(["docs", "research"]) == [
+        "fixtures/x.json",
+        "packages/core/src/a.ts",
+        "vitest.shared.ts",
+    ]
+
+
 def test_a_crash_is_could_not_tell_not_a_kill() -> None:
     chain = [[err("Error", "Property failed after 1 tests"), err("TypeError", "x is undefined")]]
     out = g.classify(report((INV.name, "failed", chain)), INV)
@@ -186,9 +211,14 @@ def test_the_audit_runs_baselines_then_each_mutant_and_restores_the_file(tmp_pat
     copy = setup_copy(tmp_path)
     killed = g.Mutant(**mutant(id="I1-k"))
     survives = g.Mutant(**mutant(id="I2-s", invariant="I2", find="if (c)", replace="if (!c)"))
-    fake = Fake(copy, {"a >= 0": g.Outcome("assertion")})
-    verdicts = g.audit([killed, survives], INVS, copy, fake, lambda: "", lambda _: None)
+    fake = Fake(copy, {"a >= 0": g.Outcome("assertion", message="expected 1 to be 2")})
+    messages: dict[str, str] = {}
+    verdicts = g.audit([killed, survives], INVS, copy, fake, lambda: "", lambda _: None, messages)
     assert verdicts == {"I1-k": "killed", "I2-s": "survived"}
+    assert messages == {"I1-k": "expected 1 to be 2"}
+    rows = g.summarise([killed, survives], verdicts, INVS, messages)["mutants"]
+    assert rows[0]["killed_by"] == "expected 1 to be 2"
+    assert "killed_by" not in rows[1]
     assert fake.calls == ["I1", "I2", "I1", "I2"]
     assert (copy / "a.ts").read_text(encoding="utf-8") == "if (a > 0) b(); if (c) d();"
 
@@ -274,7 +304,8 @@ def test_every_frozen_mutant_still_applies_once_to_the_committed_code() -> None:
     invariants = g.load_invariants(config)
     mutants = g.load_mutants(REPO / config["mutants"])
     for m in mutants:
-        g.check_mutant(m, (REPO / m.file).read_text(encoding="utf-8"), invariants)
+        # Raw bytes, as the audit reads them: no newline translation.
+        g.check_mutant(m, (REPO / m.file).read_bytes().decode("utf-8"), invariants)
         assert m.file.startswith(tuple(f"{p}/" for p in config["audited"])), m.id
         assert m.id.startswith(f"{m.invariant}-"), m.id
     assert {m.invariant for m in mutants} == set(invariants), "every invariant has a mutant"

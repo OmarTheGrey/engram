@@ -14,12 +14,12 @@
   },
   "run_timeout_s": 900,
   "guards": [
-    "the tracked files under packages/ have no uncommitted changes when the run starts",
+    "no tracked file the copy takes (everything but docs/ and research/) has uncommitted changes when the run starts",
     "every invariant's test passes on the unmutated copy before any mutant runs",
     "each mutant's find string occurs exactly once in its file",
     "each mutant is applied only in a scratch copy outside the repository, and its file's bytes are restored after its run",
     "the working tree's status is unchanged after every mutant",
-    "a kill is a failed assertion in exactly the named test; a crash, a module that does not load, a timeout or a wrong selection stops the run",
+    "a kill is a failed assertion in exactly the named test, recorded with its first line; a crash, a module that does not load, a timeout or a wrong selection stops the run",
     "every invariant has at least one killed mutant"
   ],
   "invariants": [
