@@ -47,12 +47,15 @@ BYTE_TIERS = ("db-file", "db-wal", "store-files", "store-history")
 TIERS = LIVE_TIERS + BYTE_TIERS
 RETAINED = (
     "promoted",
-    "outside-person-scope",
     "shared-store-ref",
     "erased-content-hash",
     "surviving-hash",
 )
-ORDER = ("residue", *RETAINED)
+# A byte hit of a canary the plane keeps by decision in a live tier: neither
+# residue nor retained, since its bytes cannot be told from the erased copy's.
+INDETERMINATE = "indeterminate"
+ORDER = ("residue", INDETERMINATE, *RETAINED)
+KEPT = ("promoted", "shared-store-ref")
 
 
 def rate(successes: int, n: int, confidence: float) -> dict[str, Any]:
@@ -64,7 +67,7 @@ def rate(successes: int, n: int, confidence: float) -> dict[str, Any]:
 
 
 def outcome(row: Mapping[str, Any], tier: str) -> str | None:
-    """What a canary was found as in `tier`, text or hash: residue first, then a retained kind."""
+    """What a canary was found as in `tier`, text or hash, in ORDER: residue comes first."""
     found = [v for v in (row["text"].get(tier), row["hash"].get(tier)) if v is not None]
     return min(found, key=ORDER.index) if found else None
 
@@ -81,6 +84,9 @@ def summarise(run: Mapping[str, Any], confidence: float) -> dict[str, Any]:
     exposed = [r for r in run["canaries"] if r["role"] != "never"]
     never = [r for r in run["canaries"] if r["role"] == "never"]
     available = {t: True for t in LIVE_TIERS} | dict(run["byte_tiers"])
+    # A canary kept by decision (promoted, or at a shared ref) is not countable
+    # in a byte tier: its bytes there are indeterminate.
+    countable = [r for r in exposed if all(outcome(r, t) not in KEPT for t in LIVE_TIERS)]
     tiers: dict[str, Any] = {}
     for tier in TIERS:
         if not available[tier]:
@@ -88,18 +94,24 @@ def summarise(run: Mapping[str, Any], confidence: float) -> dict[str, Any]:
             continue
         outcomes = [outcome(r, tier) for r in exposed]
         residue = [r for r, o in zip(exposed, outcomes, strict=True) if o == "residue"]
+        in_bytes = tier in BYTE_TIERS
         tiers[tier] = {
-            "residue": rate(len(residue), len(exposed), confidence),
+            # In a byte tier the rate is over the countable canaries; the share
+            # of all exposed canaries is given beside it.
+            "residue": rate(len(residue), len(countable) if in_bytes else len(exposed), confidence),
             **(
                 {
+                    "residue_of_exposed": rate(len(residue), len(exposed), confidence),
+                    "countable": len(countable),
+                    "indeterminate": sum(1 for o in outcomes if o == INDETERMINATE),
                     # inspeximus's split (docs/absorbed.md): bytes no live row
                     # or record holds any more, the storage engine's unzeroed
                     # pages, apart from bytes a live copy explains.
                     "residue_unreclaimed": sum(
                         1 for r in residue if all(outcome(r, t) != "residue" for t in LIVE_TIERS)
-                    )
+                    ),
                 }
-                if tier in BYTE_TIERS
+                if in_bytes
                 else {}
             ),
             "residue_text": sum(1 for r in exposed if r["text"].get(tier) == "residue"),
@@ -117,6 +129,9 @@ def summarise(run: Mapping[str, Any], confidence: float) -> dict[str, Any]:
         hit = [r for r in exposed if any(outcome(r, t) == "residue" for t in names)]
         return {
             "residue": rate(len(hit), len(exposed), confidence),
+            "residue_of_countable": rate(
+                sum(1 for r in hit if r in countable), len(countable), confidence
+            ),
             "residue_by_role": _counts([r["role"] for r in hit]),
             "never_exposed_found": rate(
                 sum(1 for r in never if any(outcome(r, t) is not None for t in names)),

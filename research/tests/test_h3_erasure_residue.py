@@ -54,14 +54,21 @@ def test_residue_outranks_retention_and_retained_hits_are_never_residue() -> Non
     o = outcome(
         [
             row("plain", {"db-file": "residue"}, {"events": "erased-content-hash"}),
-            row("promoted", {"projection": "promoted", "db-file": "promoted"}),
+            row("promoted", {"projection": "promoted", "db-file": "indeterminate"}),
             row("left-in-store", {"store-records": "residue"}, {"store-records": "residue"}),
             {**row("never", {}), "before": None},
         ]
     )
     s = h3_erasure_residue.summarise(o, 0.95)
-    assert s["tiers"]["db-file"]["residue"]["successes"] == 1
-    assert s["tiers"]["db-file"]["retained_by_decision"] == {"promoted": 1}
+    db_file = s["tiers"]["db-file"]
+    assert db_file["residue"]["successes"] == 1
+    # The kept canary is indeterminate in the bytes and not countable there.
+    assert db_file["countable"] == 2
+    assert db_file["residue"]["n"] == 2
+    assert db_file["residue_of_exposed"]["n"] == 3
+    assert db_file["indeterminate"] == 1
+    assert db_file["retained_by_decision"] == {}
+    assert s["any_tier"]["residue_of_countable"]["n"] == 2
     assert s["tiers"]["events"]["residue"]["successes"] == 0
     assert s["tiers"]["events"]["retained_by_decision"] == {"erased-content-hash": 1}
     assert s["tiers"]["store-records"]["residue_by_role"] == {"left-in-store": 1}
@@ -92,9 +99,12 @@ def test_a_real_run_finds_the_two_store_records_and_no_never_exposed_canary() ->
     for tier in ("projection", "explanations", "events", "log-other"):
         assert s["tiers"][tier]["residue"]["successes"] == 0
     assert s["tiers"]["projection"]["retained_by_decision"] == {
-        "outside-person-scope": 20,
         "promoted": 20,
+        "shared-store-ref": 20,
     }
+    for tier in ("db-file", "db-wal", "store-files"):
+        assert s["tiers"][tier]["countable"] == 160
+        assert s["tiers"][tier]["retained_by_decision"] == {}
     assert s["any_tier"]["never_exposed_found"]["successes"] == 0
     assert r["registered"] is False and r["decides"] is False
 
