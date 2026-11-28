@@ -77,6 +77,9 @@ const ADDED = [
   // Card E8.17.
   "hook codex",
   "hook install",
+  // Card E9.15.
+  "audit export",
+  "audit verify",
 ];
 
 describe("HELP from the registry", () => {
@@ -234,6 +237,9 @@ describe("the registry's entries", () => {
       ["discover", ROOT, SERVER, "none"],
       ["log verify", {}, {}, "none"],
       ["log checkpoint", {}, {}, "state"],
+      ["audit export", ROOT, SERVER, "none"],
+      ["audit export", { out: "report.json" }, {}, "file"],
+      ["audit verify", ROOT, SERVER, "none"],
       // The TUI runs until quit; what each action changes is its own entry's answer.
       ["tui", {}, {}, "process"],
       ["tui", ROOT, SERVER, "process"],

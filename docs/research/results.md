@@ -16,9 +16,9 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | cost estimate | 4 | dollars and calls estimated from token counts and prices; no model called |
 | power computation | 2 | a simulation of the registered test that sets or checks a sample size |
 | engineering check | 4 | a check of a component's behaviour or speed that decides no hypothesis |
-| proof of concept | 8 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
+| proof of concept | 9 | the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
 
-32 results in all, one per MANIFEST row.
+33 results in all, one per MANIFEST row.
 
 ## What each hypothesis still needs
 
@@ -615,3 +615,20 @@ Recorded by [`docs/log/2026-11-28-d4-measurement-drift-fixture.md`](../log/2026-
 | cases held, report | 0 | `modes.report.hold.count` |
 
 Recorded by [`docs/log/2026-11-28-d5-measurement-procedure-scan-limits.md`](../log/2026-11-28-d5-measurement-procedure-scan-limits.md).
+
+### `research/results/h1-audit-report.json`
+
+- **Question.** Does a signed, content-free audit report of a window of the log verify against the log as exported and after a later write, and fail, at the check that should catch it, under every tampering of the report or the log a person with database access but not the operator's key can make?
+- **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** no hypothesis; no pre-registration section. Card E9.15's core suite on one chained fixture log, SQLite, a fixed key; the file is under `h1-` for the results glob only. The envelope's sha256 is fixed by the log, the clock and the key.
+- **Made by.** `research/scripts/audit_report.py` from `research/configs/audit-report.json`, MANIFEST commit `aeb88f23`, sha256 `d503840658800b3cd4318fe4f660df3fe49ae89c5f3bec16f07a2b4714840c5e`.
+
+| value | reads | key path |
+|---|---|---|
+| cases | 11 | `totals.cases` |
+| cases with the expected verdict and check | 11 | `totals.matched` |
+| tamperings detected | 8 | `totals.tampering_detected` |
+| events counted in the window | 5 | `statement.events_counted` |
+| envelope bytes | 3,351 | `envelope.bytes` |
+
+Recorded by [`docs/log/2026-11-28-e9-15-measurement-audit-report-chain-v2.md`](../log/2026-11-28-e9-15-measurement-audit-report-chain-v2.md).
