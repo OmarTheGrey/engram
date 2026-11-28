@@ -11,13 +11,28 @@
 // one with only a window is Incognito. `except_topics` are its carve-outs: a
 // write whose content names one is not covered by that opt-out.
 //
-// Which writes it judges: a write that records content into the scope, that
-// is a first write, a rewrite moving an item into the scope, or a rewrite
-// whose content differs from the projected item's (core's normal form,
-// content-hash.ts). A rewrite that keeps the content (a status change, a
-// close, a grant change, a promotion's in-place transition) records nothing
-// new, and a retire removes, so neither is refused: a person can always
-// retire what was recorded before they opted out.
+// Which writes it judges (the decision entry
+// docs/log/2026-11-28-e9-12-decision-which-writes.md): a write that records
+// content into the scope or makes covered content live. That is a first
+// write, whatever its status (a write landing retired still puts its content
+// in the log and the store); a rewrite moving an item into the scope; a
+// rewrite whose content differs from the projected item's (core's normal
+// form, content-hash.ts), a retire carrying new content included; and a
+// rewrite that makes the same content more live than it was: retired to
+// candidate or active, or candidate to active (an un-retire, a promotion in
+// place, an owner's acceptance). Only a rewrite in the same scope that keeps
+// the content and makes it no more live passes unjudged: a plain retire, a
+// close, a grant change, a confidence change. So a person can always retire
+// what was recorded before they opted out, and nothing an opt-out covers is
+// brought back to life while it is active.
+//
+// What it is not: a gate on writes, judged at the write's time. Content
+// produced during an Incognito window and written after it (a store record
+// adopted later, a session distilled or consolidated later) is judged at the
+// later time; the pi session tree, the episodic record, is not under the gate
+// at all. Consent is a control a cooperative writer meets, the person's own
+// agent and tools, not a filter an adversarial writer cannot evade (see the
+// matching limits below).
 //
 // How a topic matches (the decision entry
 // docs/log/2026-11-28-e9-12-decision-topic-matches-words.md): items carry no
@@ -28,7 +43,14 @@
 // (the text, or a key or string value of a record, or a procedure's body or
 // one of its tools). Whole words only, no stemming: "health" matches "Health
 // insurance" and "my health." but not "healthy". The rule is one a person
-// can predict, and the reason names it.
+// can predict, and the reason names it. Its known evasions, stated and not
+// closed: plurals and inflections ("bank accounts" escapes "bank account");
+// a combining accent inside a word ("he\u0301alth" keeps its mark); joined
+// compounds and camelCase ("healthcare", "bankAccount"); a digit glued to a
+// word ("health2"); letters split by spaces or punctuation ("h.e.a.l.t.h");
+// homoglyphs NFKC does not fold (Cyrillic U+0435 for "e"); a topic split across two
+// writes; and toLowerCase is not full case folding ("STRASSE" is not
+// "strasse" with a sharp s, U+00DF).
 //
 // The refusal (`engram/write/consent`) names the opt-out by its index and its
 // fields, never the content: what a person asked not to be recorded is not
@@ -57,9 +79,10 @@ const WORD = /[\p{L}\p{M}\p{N}]+/gu;
 /**
  * Code points that render as nothing (content-hash.ts reads them the same
  * way): removed before words are cut, so a zero-width joiner inside a word
- * does not hide it from a topic.
+ * does not hide it from a topic. The property covers the Hangul fillers
+ * U+3164 and U+115F, which content-hash.ts also lists by name.
  */
-const INVISIBLE = /[\p{Default_Ignorable_Code_Point}ㅤᅟ]/gu;
+const INVISIBLE = /\p{Default_Ignorable_Code_Point}/gu;
 
 /** The words of `s`, NFKC-normalised without invisible code points and lower-cased, in order. */
 export function words(s: string): string[] {
@@ -115,11 +138,20 @@ export function covers(o: OptOut, item: MemoryItem, at: string | undefined): boo
   return !(o.except_topics ?? []).some((t) => namesTopic(item.content, t));
 }
 
-/** Does the write record content into the item's scope (a first write, a move into it, or new content)? */
+/** How live a status is: a retired item is read by no one, a candidate waits for review, an active item is read. */
+const LIVENESS: Record<MemoryItem["status"], number> = { retired: 0, candidate: 1, active: 2 };
+
+/**
+ * Does the write record content into the item's scope, or make it live: a
+ * first write (any status), a move into the scope, new content, or the same
+ * content made more live than the projected item (an un-retire, candidate to
+ * active)? False only for a same-scope, same-content rewrite that makes it no
+ * more live.
+ */
 export function recordsContent(item: MemoryItem, existing: MemoryItem | undefined): boolean {
-  if (item.status === "retired") return false;
   if (existing === undefined || existing.scope !== item.scope) return true;
-  return contentHash(item.content) !== contentHash(existing.content);
+  if (contentHash(item.content) !== contentHash(existing.content)) return true;
+  return LIVENESS[item.status] > LIVENESS[existing.status];
 }
 
 /** The opt-out as a reason names it: its fields, never the content. */
@@ -166,12 +198,20 @@ export function consentRefusal(
   return `consent.opt_outs[${hit.index}] of policy ${policy.id} (${optOutText(hit.optOut)}) covers this write to ${item.scope}: the person opted out of recording it, so nothing was stored`;
 }
 
+/** Do the words `part` occur consecutively in `whole`? */
+function within(part: readonly string[], whole: readonly string[]): boolean {
+  for (let i = 0; i + part.length <= whole.length; i++)
+    if (part.every((w, j) => whole[i + j] === w)) return true;
+  return false;
+}
+
 /**
  * What the loader reports in a consent block (policy/load.ts): an opt-out
  * that could never cover a write, which is a mistake to report rather than a
  * rule to apply. A topic or carve-out with no word matches nothing; a window
- * whose end is not after its start holds no instant; a carve-out with the
- * topic's own words removes every write the topic covers.
+ * whose end is not after its start holds no instant; a carve-out whose words
+ * are the topic's, or a consecutive part of them, removes every write the
+ * topic covers.
  */
 export function consentProblems(policy: Policy): { path: (string | number)[]; message: string }[] {
   const out: { path: (string | number)[]; message: string }[] = [];
@@ -188,10 +228,13 @@ export function consentProblems(policy: Policy): { path: (string | number)[]; me
           path: [...at, "except_topics", j],
           message: `except topic "${t}" has no word (letters or digits), so it would carve out nothing`,
         });
-      else if (o.topic !== undefined && words(t).join(" ") === words(o.topic).join(" "))
+      else if (o.topic !== undefined && within(words(t), words(o.topic)))
         out.push({
           path: [...at, "except_topics", j],
-          message: `except topic "${t}" is the opt-out's own topic, so the opt-out would cover no write`,
+          message:
+            words(t).join(" ") === words(o.topic).join(" ")
+              ? `except topic "${t}" is the opt-out's own topic, so the opt-out would cover no write`
+              : `except topic "${t}" is part of the topic "${o.topic}", so every write the topic covers is carved out and the opt-out would cover no write`,
         });
     });
     if (o.since !== undefined && o.until !== undefined && compareTimestamps(o.until, o.since) <= 0)

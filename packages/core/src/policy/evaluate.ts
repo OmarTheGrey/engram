@@ -248,7 +248,8 @@ export interface WriteDecision {
  *
  * Consent (card E9.12, policy/consent.ts): off unless the policy has a
  * `consent` block. After the identity, grant and trust checks, a write that
- * records content into a person scope an active opt-out covers is denied
+ * records content into a person scope an active opt-out covers, or makes
+ * such content live again (an un-retire, a candidate made active), is denied
  * (`engram/write/consent`), whatever the write rule would say, so it lands
  * neither active nor as a candidate. Its window is judged at `at`, or at
  * `options.consentAt` for a caller that passes no `at` (the promotion gate,

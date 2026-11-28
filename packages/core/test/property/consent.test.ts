@@ -10,6 +10,10 @@
 // - a write the oracle says an opt-out covers is denied: under
 //   `engram/write/consent`, naming that opt-out's index, or by a check the
 //   gate runs before consent (membership, version, move, grants, trust);
+// - a write landing retired or as a candidate, a retire that changes the
+//   content, an un-retire and a candidate made active are judged like a
+//   first write (review finding 1 of the card's review: a retired first
+//   write, then a same-content un-retire, once let covered content in);
 // - every consent denial is one the oracle covers, its event carries no item
 //   and its reason never repeats the content (each content holds a nonce
 //   the reason must not contain); `checkWrite` answers the same;
@@ -62,7 +66,7 @@ const WORDS = [
   "meeting",
   "notes",
   "dentist",
-  "h‍ealth",
+  "h\u200Dealth",
 ] as const;
 const PUNCT = [" ", ", ", ". ", "-", "\n", " / "] as const;
 const INSTANTS = [
@@ -154,11 +158,16 @@ type Step =
       slot: number;
       scope: string;
       content: string | Record<string, unknown>;
+      /** The status the write asks for: a first write or a rewrite may land retired or as a candidate. */
+      status: MemoryItem["status"];
       source: Kind;
       at: string;
     }
   | { op: "retire"; slot: number; source: Kind; at: string }
-  | { op: "restate"; slot: number; source: Kind; at: string };
+  /** The same content at another status: an un-retire, a candidate made active, or a step down. */
+  | { op: "restate"; slot: number; status: MemoryItem["status"]; source: Kind; at: string };
+
+const arbStatus = fc.constantFrom<MemoryItem["status"]>("active", "active", "candidate", "retired");
 
 const arbStep: fc.Arbitrary<Step> = fc.oneof(
   {
@@ -168,6 +177,7 @@ const arbStep: fc.Arbitrary<Step> = fc.oneof(
       slot: fc.integer({ min: 0, max: 3 }),
       scope: fc.constantFrom(...SCOPES),
       content: arbContent,
+      status: arbStatus,
       source: fc.constantFrom(...KINDS),
       at: fc.constantFrom(...INSTANTS),
     }),
@@ -182,10 +192,11 @@ const arbStep: fc.Arbitrary<Step> = fc.oneof(
     }),
   },
   {
-    weight: 1,
+    weight: 2,
     arbitrary: fc.record({
       op: fc.constant("restate" as const),
       slot: fc.integer({ min: 0, max: 3 }),
+      status: fc.constantFrom<MemoryItem["status"]>("active", "candidate", "retired"),
       source: fc.constantFrom(...KINDS),
       at: fc.constantFrom(...INSTANTS),
     }),
@@ -199,6 +210,7 @@ function newItem(
   scope: string,
   content: MemoryItem["content"],
   kind: Kind,
+  status: MemoryItem["status"] = "active",
 ): MemoryItem {
   return {
     id: idOf(slot),
@@ -214,7 +226,7 @@ function newItem(
     grants: [],
     version: 1,
     lineage: [],
-    status: "active",
+    status,
     store_ref: null,
     schema_version: 1,
   } as MemoryItem;
@@ -273,6 +285,14 @@ interface Seen {
   coveredRetireAllowed: number;
   coveredRestateAllowed: number;
   otherScopeAllowed: number;
+  /** Refused by consent: a first write landing retired or as a candidate (review finding 1). */
+  quietFirstWriteRefused: number;
+  /** Refused by consent: a retire that changes the content. */
+  changedRetireRefused: number;
+  /** Refused by consent: the same content brought back from retired. */
+  unretireRefused: number;
+  /** Refused by consent: the same content made active from a candidate. */
+  candidateToActiveRefused: number;
 }
 
 /** Runs `steps` under `policy`, checking each write against the oracle; returns the write events. */
@@ -291,15 +311,16 @@ async function run(policy: Policy, steps: Step[], seen?: Seen): Promise<MemoryEv
             ...before,
             scope: step.scope,
             content: withNonce(step.content, nonce),
+            status: step.status,
             version: before.version + 1,
             store_ref: null,
           } as MemoryItem)
-        : newItem(step.slot, step.scope, withNonce(step.content, nonce), step.source);
+        : newItem(step.slot, step.scope, withNonce(step.content, nonce), step.source, step.status);
     else if (!before) continue;
     else
       item = {
         ...before,
-        status: step.op === "retire" ? "retired" : before.status,
+        status: step.op === "retire" ? "retired" : step.status,
         version: before.version + 1,
         store_ref: null,
       } as MemoryItem;
@@ -336,6 +357,12 @@ async function run(policy: Policy, steps: Step[], seen?: Seen): Promise<MemoryEv
       if (o.source !== undefined) seen.bySource++;
       if (o.since !== undefined || o.until !== undefined) seen.byWindow++;
       if (Object.keys(o).length === 1) seen.byEverything++;
+      if (!before && item.status !== "active") seen.quietFirstWriteRefused++;
+      if (before && step.op === "write" && item.status === "retired") seen.changedRetireRefused++;
+      if (before?.status === "retired" && step.op === "restate" && item.status !== "retired")
+        seen.unretireRefused++;
+      if (before?.status === "candidate" && step.op === "restate" && item.status === "active")
+        seen.candidateToActiveRefused++;
     }
     if (event.decision === "allow" && step.op === "write") {
       // Allowed only because a carve-out held: the same opt-out without it covers the write.
@@ -373,6 +400,10 @@ describe("consent at the write gate (card E9.12)", () => {
       coveredRetireAllowed: 0,
       coveredRestateAllowed: 0,
       otherScopeAllowed: 0,
+      quietFirstWriteRefused: 0,
+      changedRetireRefused: 0,
+      unretireRefused: 0,
+      candidateToActiveRefused: 0,
     };
     await fc.assert(
       fc.asyncProperty(

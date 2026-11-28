@@ -14,7 +14,7 @@ evidence:
 supersedes: none
 ---
 
-**What.** Deleted consent's row in `NOT_BUILT_YET` and added `consentProblems`, which the loader reports: a topic or carve-out with no word, a carve-out equal to the topic, a window whose end is not after its start.
+**What.** Deleted consent's row in `NOT_BUILT_YET` and added `consentProblems`, which the loader reports: a topic or carve-out with no word, a carve-out equal to the topic or a consecutive part of it, a window whose end is not after its start.
 
 **Why.** E2.14 refused every consent value until this card; each consuming card lifts its own row with a loader test.
 

@@ -58,6 +58,13 @@
 // (`protectionProblem`). `writeForbidden` judges a sourceless writer at the
 // least trusted kind when the floor is on, and `budgetVictims` takes the
 // items an eviction may choose. Trust is ranked by the oracle's own `TRUST`.
+//
+// Consent (card E9.12; a `decision` log entry records the change) adds
+// `consentForbids` and `phraseOf`, at the end of the file: no allowed write
+// may record content an active opt-out of the person scope covers, nor make
+// such content live again. They are not read by `writeForbidden`, so
+// invariant 2 is unchanged; the acceptance property
+// (test/property/consent.test.ts) judges the Plane by them.
 import type { Actor } from "./actor.ts";
 import { strictContentHash } from "./content-hash.ts";
 import type { Grant, MemoryEvent, MemoryItem, Policy } from "./schema.ts";
@@ -916,10 +923,14 @@ export function protectionProblem(
 
 // Consent (card E9.12; a `decision` log entry records the change): the
 // oracle's own reading of when an opt-out covers a write, written apart from
-// policy/consent.ts. A write records content when it is a first write, moves
-// the item into a scope, or its content reads differently from the item it
-// rewrites (the oracle's `sameContent`), and its status is not retired. An
-// opt-out covers it when it names the item's scope, its source (if set) is
+// policy/consent.ts and read from the rule's statement: no allowed write
+// puts covered content into the scope or makes it live. The only writes that
+// do neither are the rewrites listed in `QUIET`: in the item's own scope,
+// content reading the same (the oracle's `sameContent`), from a status to one
+// no more read than it (active to active, candidate or retired; candidate to
+// candidate or retired; retired to retired). Every other write is judged: a
+// first write in any status, a move, new content, an un-retire, a candidate
+// made active. An opt-out covers it when it names the item's scope, its source (if set) is
 // the recorded kind, the write's time is inside its window, its topic (if
 // set) is a phrase of the content and none of its carve-outs is. A phrase is
 // read by padding: the content's strings are folded (NFKC, without the
@@ -927,6 +938,16 @@ export function protectionProblem(
 // every character that is not a letter, mark or digit becomes a space, and
 // the folded topic, padded with a space on each side, must occur in a padded
 // string. Absent consent covers nothing.
+
+/** The status changes of a same-scope, same-content rewrite that put nothing new in the scope and make nothing more live. */
+const QUIET: ReadonlySet<string> = new Set([
+  "active>active",
+  "active>candidate",
+  "active>retired",
+  "candidate>candidate",
+  "candidate>retired",
+  "retired>retired",
+]);
 
 /** Folded words joined by single spaces, padded with a space at each end; "" when there is no word. */
 const padded = (s: string): string => {
@@ -969,12 +990,12 @@ export function consentForbids(
   before: MemoryItem | undefined,
   at: string,
 ): number | undefined {
-  const records =
-    item.status !== "retired" &&
-    (before === undefined ||
-      before.scope !== item.scope ||
-      !sameContent(before.content, item.content));
-  if (!records) return undefined;
+  const quiet =
+    before !== undefined &&
+    before.scope === item.scope &&
+    sameContent(before.content, item.content) &&
+    QUIET.has(`${before.status}>${item.status}`);
+  if (quiet) return undefined;
   const k = (policy.consent?.opt_outs ?? []).findIndex(
     (o) =>
       o.scope === item.scope &&

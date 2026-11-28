@@ -16,6 +16,6 @@ supersedes: none
 
 **Why.** E2.14's gap (a): items have no topic field, and adding one is a schema change the plan forbids. Matching had to be deterministic and explainable.
 
-**Result.** "health" matches "Health insurance" and "h\u200Dealth" but not "healthy" or "healthcare"; "bank account" does not match across two record fields. No stemming, no synonyms: a person lists variants as further opt-outs.
+**Result.** "health" matches "Health insurance" and "h\u200Dealth", not "healthy". Stated evasions: plurals, an accent inside a word, compounds and camelCase, glued digits, split letters, homoglyphs NFKC keeps, a topic split across writes, lower case short of case folding.
 
-**Consequence.** If wrong, a paraphrase slips through or a passing mention is refused; the proof of concept and the twin profile's comment say both. A topic field or a model tier would be a later card.
+**Consequence.** Consent is a control a cooperative writer meets, not a filter against an adversary; ADR XXXX records the choice for the lead.

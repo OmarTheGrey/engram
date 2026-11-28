@@ -125,6 +125,12 @@ describe("the loader takes consent (its E2.14 refusal lifted)", () => {
       "own topic",
     ],
     [
+      "a carve-out that is part of the topic",
+      "    - { scope: person:omar, topic: bank account, except_topics: [Bank] }\n",
+      "consent.opt_outs.0.except_topics.0",
+      "part of the topic",
+    ],
+    [
       "a window that ends before it starts",
       '    - { scope: person:omar, since: "2026-12-02T00:00:00Z", until: "2026-12-01T00:00:00Z" }\n',
       "consent.opt_outs.0.until",
@@ -144,6 +150,13 @@ describe("the loader takes consent (its E2.14 refusal lifted)", () => {
     expect(p?.line).toBeGreaterThan(0);
   });
 
+  test("a carve-out that only shares a word with the topic is not reported", () => {
+    const text = withConsent(
+      "    - { scope: person:omar, topic: bank account, except_topics: [account manager] }\n",
+    );
+    expect(consentProblems(parsePolicy(text, "test.yaml"))).toEqual([]);
+  });
+
   test("consentProblems is empty for every registered preset", () => {
     for (const name of ["strict", "medium", "permissive"] as const)
       expect(consentProblems(loadPreset(name))).toEqual([]);
@@ -157,11 +170,12 @@ describe("a topic matches whole words of the content", () => {
     ["HEALTH.", "health", true],
     ["healthy lunches", "health", false],
     ["healthcare", "health", false],
-    ["h‍ealth form", "health", true],
+    ["h\u200Dealth form", "health", true],
+    ["h\u3164ealth and h\u115Fealth", "health", true],
     ["my bank account", "bank account", true],
     ["my bank, account", "bank account", true],
     ["bank of the account", "bank account", false],
-    ["Ｈealth (fullwidth H)", "health", true],
+    ["\uFF28ealth (fullwidth H)", "health", true],
     ["anything", "!!", false],
   ] as const)("%j names %j: %s", (content, topic, expected) => {
     expect(namesTopic(content, topic)).toBe(expected);
@@ -320,6 +334,40 @@ describe("through the plane", () => {
     expect(plane.events()).toHaveLength(1);
   });
 
+  // The review's probe (finding 1): a retired first write of covered
+  // content, then a same-content un-retire, once let the content in.
+  test("a retired first write and a later un-retire of covered content are both refused", async () => {
+    const { plane, db, adapter } = fresh(withOptOuts([omar({ topic: "health" })]));
+    const agent = { ...OMAR, source: "model" as const };
+    const content = "my health insurance claim";
+    const active = await plane.write(agent, mine(22, { content }), AT);
+    expect(active.event.policy_id).toBe(CONSENT_ID);
+    const retired = await plane.write(agent, mine(22, { content, status: "retired" }), AT);
+    expect(retired.event).toMatchObject({ decision: "deny", policy_id: CONSENT_ID });
+    expect(retired.event.item ?? null).toBeNull();
+    expect(itemById(db, mine(22).id)).toBeUndefined();
+    expect(adapter.writes).toBe(0);
+    // Recorded before the opt-out, retired, then brought back while it holds.
+    const before = fresh(testPolicy());
+    await before.plane.write(agent, mine(23, { content }), AT);
+    const held = itemById(before.db, mine(23).id) as MemoryItem;
+    await before.plane.write(
+      OMAR,
+      { ...held, status: "retired", version: 2, store_ref: null } as MemoryItem,
+      AT,
+    );
+    const gone = itemById(before.db, mine(23).id) as MemoryItem;
+    const d = evaluateWrite(
+      withOptOuts([omar({ topic: "health" })]),
+      agent,
+      { ...gone, status: "active", version: 3, store_ref: null } as MemoryItem,
+      gone,
+      new Map(),
+      AT,
+    );
+    expect(d).toMatchObject({ decision: "deny", policy_id: CONSENT_ID });
+  });
+
   test("the simulator replays a workload under a candidate with consent", async () => {
     const { plane } = fresh(testPolicy());
     const report = await plane.simulate(
@@ -339,7 +387,48 @@ describe("the oracle reads consent as core does", () => {
   test.each([
     ["covered by topic", mine(30, { content: "health" }), undefined, 0],
     ["not covered", mine(31, { content: "lunch" }), undefined, undefined],
-    ["a retire", mine(32, { content: "health", status: "retired" }), undefined, undefined],
+    [
+      "a first write landing retired",
+      mine(32, { content: "health", status: "retired" }),
+      undefined,
+      0,
+    ],
+    [
+      "a first write landing a candidate",
+      mine(32, { content: "health", status: "candidate" }),
+      undefined,
+      0,
+    ],
+    [
+      "a retire keeping the content",
+      mine(32, { content: "health", status: "retired", version: 2 }),
+      mine(32, { content: "health" }),
+      undefined,
+    ],
+    [
+      "a retire changing the content",
+      mine(32, { content: "my health", status: "retired", version: 2 }),
+      mine(32, { content: "health" }),
+      0,
+    ],
+    [
+      "an un-retire",
+      mine(32, { content: "health", version: 2 }),
+      mine(32, { content: "health", status: "retired" }),
+      0,
+    ],
+    [
+      "a candidate made active",
+      mine(32, { content: "health", version: 2 }),
+      mine(32, { content: "health", status: "candidate" }),
+      0,
+    ],
+    [
+      "an active item stepped down to a candidate",
+      mine(32, { content: "health", status: "candidate", version: 2 }),
+      mine(32, { content: "health" }),
+      undefined,
+    ],
     [
       "a same-content rewrite",
       mine(33, { content: "Health", version: 2 }),
@@ -375,7 +464,9 @@ describe("the twin profile's example", () => {
   });
 
   test("uncommented, it loads and refuses what it says", () => {
-    const on = text.replace(/^# ( {0,4}(?:consent:|opt_outs:|- \{ scope: person:omar))/gm, "$1");
+    const on = text
+      .replace(/^# ( {0,4}(?:consent:|opt_outs:|- \{ scope: person:<you>))/gm, "$1")
+      .replaceAll("person:<you>", "person:omar");
     const policy = parsePolicy(on, url.pathname);
     expect(policy.consent?.opt_outs).toHaveLength(3);
     const health = mine(40, { content: "my health" });
