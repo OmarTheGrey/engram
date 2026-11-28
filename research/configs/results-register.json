@@ -595,6 +595,48 @@
       ]
     },
     {
+      "file": "research/results/h3-fault-injection.json",
+      "hypothesis": "H3",
+      "status": "proof of concept",
+      "prereg": "#### U6. The paired fault-injection arm, for H3 (not scheduled)",
+      "question": "When deletion, temporal-supersession and missing-metadata faults corrupt LongMemEval's 500 memory states, written as card B5 writes them, at the projection or in the log, how often does the read change, how often does the plane's own enforcement restore it, and do the deterministic lints or the log's hash chain see the fault?",
+      "note": "Card X18's engineering check of proposal U6, which is not registered (the lead registered U7 only): it supports H3 and is not H3's test. Model-free. A projection fault is recovered by replay by construction, so its recovery rate is a regression check of the replay property; the log faults carry the information.",
+      "headline": [
+        {
+          "label": "pairs faulted",
+          "path": ["pairs", "targeted"]
+        },
+        {
+          "label": "projection faults: change rate",
+          "path": ["by_place", "projection", "change", "rate"]
+        },
+        {
+          "label": "projection faults: recovery rate by replay",
+          "path": ["by_place", "projection", "recovery", "rate"]
+        },
+        {
+          "label": "log faults: change rate",
+          "path": ["by_place", "log", "change", "rate"]
+        },
+        {
+          "label": "log faults: recovery rate after the deterministic lints",
+          "path": ["by_place", "log", "recovery", "rate"]
+        },
+        {
+          "label": "log faults: share `engram log verify` detects",
+          "path": ["by_place", "log", "verify_detection", "rate"]
+        },
+        {
+          "label": "log faults: share a deterministic lint detects",
+          "path": ["by_place", "log", "lint_detection", "rate"]
+        },
+        {
+          "label": "unedited control logs that fail verification",
+          "path": ["control", "verify_failed"]
+        }
+      ]
+    },
+    {
       "file": "research/results/h4-power.json",
       "hypothesis": "H4",
       "status": "power computation",

@@ -16,9 +16,9 @@ H1's live runs, the first that can decide a hypothesis, are scheduled for 1 to 8
 | cost estimate | 4 | dollars and calls estimated from token counts and prices; no model called |
 | power computation | 2 | a simulation of the registered test that sets or checks a sample size |
 | engineering check | 4 | a check of a component's behaviour or speed that decides no hypothesis |
-| proof of concept | 1 | a count on fixtures or scripted models that shows the system working (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
+| proof of concept | 2 | a count on fixtures or scripted models that shows the system working (a zero-leak count, mutants killed, traces replayed); decides no hypothesis |
 
-25 results in all, one per MANIFEST row.
+26 results in all, one per MANIFEST row.
 
 ## What each hypothesis still needs
 
@@ -313,6 +313,26 @@ Recorded by [`docs/log/2026-11-21-l5-near-duplicate-result-capped.md`](../log/20
 | decides a hypothesis | false | `decides` |
 
 Recorded by [`docs/log/2026-11-22-l7-measurement-h3-lint-nli-revised.md`](../log/2026-11-22-l7-measurement-h3-lint-nli-revised.md).
+
+### `research/results/h3-fault-injection.json`
+
+- **Question.** When deletion, temporal-supersession and missing-metadata faults corrupt LongMemEval's 500 memory states, written as card B5 writes them, at the projection or in the log, how often does the read change, how often does the plane's own enforcement restore it, and do the deterministic lints or the log's hash chain see the fault?
+- **Status.** proof of concept: a count on fixtures or scripted models that shows the system working (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
+- **Serves.** H3; pre-registration section "U6. The paired fault-injection arm, for H3 (not scheduled)". Card X18's engineering check of proposal U6, which is not registered (the lead registered U7 only): it supports H3 and is not H3's test. Model-free. A projection fault is recovered by replay by construction, so its recovery rate is a regression check of the replay property; the log faults carry the information.
+- **Made by.** `research/scripts/h3_fault_injection.py` from `research/configs/h3-fault-injection.json`, MANIFEST commit `9fce0ec3`, sha256 `9b6a7c2f81c7c6a8768e5e61f208230040d08a67a7af85aac97af3e9ee4844f4`.
+
+| value | reads | key path |
+|---|---|---|
+| pairs faulted | 2,970 | `pairs.targeted` |
+| projection faults: change rate | 0.666667 | `by_place.projection.change.rate` |
+| projection faults: recovery rate by replay | 1.0 | `by_place.projection.recovery.rate` |
+| log faults: change rate | 0.666667 | `by_place.log.change.rate` |
+| log faults: recovery rate after the deterministic lints | 0.0 | `by_place.log.recovery.rate` |
+| log faults: share `engram log verify` detects | 1.0 | `by_place.log.verify_detection.rate` |
+| log faults: share a deterministic lint detects | 0.333333 | `by_place.log.lint_detection.rate` |
+| unedited control logs that fail verification | 0 | `control.verify_failed` |
+
+Recorded by [`docs/log/2026-11-28-x18-measurement-fault-injection.md`](../log/2026-11-28-x18-measurement-fault-injection.md).
 
 ## H4. The plane is store-, model- and harness-agnostic
 
