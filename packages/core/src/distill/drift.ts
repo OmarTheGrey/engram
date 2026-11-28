@@ -27,6 +27,11 @@
 //   store and the log (ADR 0010). A later re-validation that meets the
 //   admission rule again (D3's record meets replay_k of replay_n, and the
 //   rate reaches the floor) puts the same version back, active.
+//
+// Ideas only, no code taken (ADR 0037): SkillGuard's drift re-tests
+// (arXiv 2605.10990), Library Drift's retirement after a minimum number of
+// trials (arXiv 2605.19576), and SKILL.nb's rollback of retired skills
+// (arXiv 2606.08049).
 import type { LifecycleTrigger } from "../lint.ts";
 import { validationMeets } from "../policy/promotion.ts";
 import type { Policy } from "../schema.ts";
