@@ -95,7 +95,7 @@ export class HomeScreen implements Screen {
     this.entries = [];
     GROUPS.forEach((group, i) => {
       this.entries.push({ kind: "group", group, n: i + 1 });
-      for (const spec of offered().filter((s) => s.group === group))
+      for (const spec of offered().filter((s) => s.group === group && s.home !== false))
         this.entries.push({ kind: "command", spec });
     });
     this.selected = this.entries.findIndex((r) => r.kind === "command");
