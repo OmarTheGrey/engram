@@ -28,22 +28,50 @@ export interface KnownItem {
 
 /** The ops whose allowed event makes the item it names one the viewer may see. */
 const CREATING_OPS = new Set<MemoryEvent["op"]>(["write", "promote"]);
+/** The ops whose allowed event retires the item it names (core's events.ts). */
+const RETIRING_OPS = new Set<MemoryEvent["op"]>(["retire", "evict"]);
+/**
+ * Whether an event erases the item it names: core's `erases` (events.ts),
+ * injected by the caller, since the package imports no runtime code and
+ * holds no rule id (no-policy.test.ts). Without it, an erased item shows as
+ * retired, its content already redacted in the log by core.
+ */
+export type Erases = (event: MemoryEvent) => boolean;
+const NONE: Erases = () => false;
 
 /**
  * The items the viewer may see something of: every item its read returned,
  * every item a visible event carries, and every item an allowed write or
  * promotion among its events names. The state kept is the read's, else the
- * one the latest event carries. An id only a lineage, a denied write or a
- * read's returned ids names is not known.
+ * one the latest event carries, retired by a later allowed retire or evict.
+ * An id only a lineage, a denied write or a read's returned ids names is not
+ * known.
  */
 export function knownItems(
   items: readonly MemoryItem[],
   events: readonly MemoryEvent[],
+  erases: Erases = NONE,
 ): Map<string, KnownItem> {
   const known = new Map<string, KnownItem>();
   for (const e of events) {
     if (e.item) known.set(e.item.id, { id: e.item.id, state: e.item });
     else if (
+      // An allowed retire or evict carries no item and retires the one it
+      // names, as core's projection does (events.ts applyEvent): a drift or
+      // ttl retirement shows as retired (card D4).
+      e.item_id !== null &&
+      e.decision === "allow" &&
+      RETIRING_OPS.has(e.op)
+    ) {
+      // An erasure removes its item, as core's projection does (events.ts
+      // erases): it is absent, not retired.
+      if (erases(e)) {
+        known.delete(e.item_id);
+        continue;
+      }
+      const was = known.get(e.item_id)?.state;
+      if (was) known.set(e.item_id, { id: e.item_id, state: { ...was, status: "retired" } });
+    } else if (
       e.item_id !== null &&
       e.decision === "allow" &&
       CREATING_OPS.has(e.op) &&
@@ -100,8 +128,9 @@ export function provenanceGraph(
   focusId: string,
   items: readonly MemoryItem[],
   events: readonly MemoryEvent[],
+  erases: Erases = NONE,
 ): ProvenanceGraph | null {
-  const known = knownItems(items, events);
+  const known = knownItems(items, events, erases);
   if (!known.has(focusId)) return null;
   // Every lineage link whose two ends the viewer may see; an item is never its own ancestor.
   const links: [string, string][] = [];
@@ -193,8 +222,9 @@ export function itemVersions(
   focusId: string,
   items: readonly MemoryItem[],
   events: readonly MemoryEvent[],
+  erases: Erases = NONE,
 ): Version[] {
-  const graph = provenanceGraph(focusId, items, events);
+  const graph = provenanceGraph(focusId, items, events, erases);
   if (graph === null) return [];
   // The focus and the item nodes it descends from, through lineage edges.
   const ancestors = new Set([focusId]);

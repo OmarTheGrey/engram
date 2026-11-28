@@ -13,6 +13,7 @@ export {
 } from "./db/postgres.ts";
 export { openSqlite } from "./db/sqlite.ts";
 export * from "./discover.ts";
+export * from "./distill/drift.ts";
 export * from "./distill/episode.ts";
 export * from "./distill/induce.ts";
 export * from "./distill/scrub.ts";
@@ -27,6 +28,7 @@ export * from "./lint/evidence.ts";
 export * from "./lint/intervals.ts";
 export * from "./lint/model.ts";
 export * from "./lint/nli.ts";
+export { reviewCouldLand, SAFETY_SCAN_ID } from "./lint/procedural.ts";
 export * from "./lint/supersession.ts";
 export * from "./lint.ts";
 export * from "./log/chain.ts";
@@ -47,6 +49,11 @@ export {
   type WalkedItem,
   walkToAdmitted,
 } from "./plane/retrieve.ts";
+export {
+  lastValidated,
+  type RevalidateOptions,
+  type RevalidationResult,
+} from "./plane/revalidate.ts";
 export * from "./plane.ts";
 export * from "./policy/evaluate.ts";
 export * from "./policy/grants.ts";

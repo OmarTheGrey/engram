@@ -100,6 +100,29 @@ describe("a grant change from the inspector", () => {
     ).toEqual(["deny", "deny"]);
   });
 
+  // Card E2.21: the twin profile caps a grant's expiry at 365 days after the
+  // change; the workspace's clock is its `now`, 2026-11-19T12:00:00.000Z.
+  it("is a deny event naming the limit and the grant's expiry, past the twin profile's cap", async () => {
+    const { client, viewer, workspace } = await twinWorkspace();
+    const before = workspace.plane.events().length;
+    const far = { ...toSam, expires: "2027-11-19T12:00:01Z" };
+    const r = await changeGrants(client, viewer, ONE as string, { add: [far] });
+    expect(r.decision).toBe("deny");
+    expect(r.event.policy_id).toBe("engram/write/grant-expiry-cap");
+    expect(r.event.reason).toContain("expires 2027-11-19T12:00:01Z");
+    expect(r.event.reason).toContain("expires after 2027-11-19T12:00:00.000Z");
+    expect(grantOutcome(ONE as string, r)).toMatchObject({
+      decision: "deny",
+      policyId: "engram/write/grant-expiry-cap",
+    });
+    expect(workspace.plane.events().slice(before)).toHaveLength(1);
+    // Exactly 365 days lands.
+    const edge = { ...toSam, expires: "2027-11-19T12:00:00.000Z" };
+    expect((await changeGrants(client, viewer, ONE as string, { add: [edge] })).decision).toBe(
+      "allow",
+    );
+  });
+
   it("leaves the grants the lanes show unchanged when the plane refuses it (review M4)", async () => {
     const { client, viewer } = await twinWorkspace();
     const shown = async () =>
@@ -111,6 +134,7 @@ describe("a grant change from the inspector", () => {
     const refused: [string, Grant][] = [
       [TWO as string, noExpiry],
       [TWO as string, { ...toSam, expires: "2026-11-01T00:00:00Z" }],
+      [TWO as string, { ...toSam, expires: "2028-01-01T00:00:00Z" }],
       [SIX as string, toSam],
       [FOUR as string, toSam],
     ];

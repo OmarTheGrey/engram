@@ -12,6 +12,9 @@
 // redactions, manifests, salts, commitments recomputed from the stored salt,
 // columns edited alone; and forged genesis, head and checkpoint rows. Each
 // tamper works with database access and the code but not the operator's key.
+// Since card E1.9 Lee works through a served surface, so his events carry an
+// attestation row (card E8.12) that the chain holds; an attestation edited,
+// deleted, or added to an event chained without one is caught too.
 //
 // Guards require the runs to reach an erasure that redacted an item event
 // and a lint event about an item the offboarding did not erase, and every
@@ -49,12 +52,14 @@ import type { MemoryEvent, MemoryItem } from "../../src/schema.ts";
 import { forEachBackend } from "../db/backends.ts";
 import { seedFor } from "../generators.ts";
 import {
+  attestingHandle,
   ed25519Check,
   fixedSigner,
   forgeAppend,
   rehash,
   seededKeeper,
   setBodyAt,
+  type TestAttestation,
 } from "../helpers/chain.ts";
 import { AT, id, item, testPolicy } from "../unit/plane/helpers.ts";
 
@@ -75,6 +80,14 @@ const SCOPES = ["person:dana", "role:lead", "team:core", "person:lee"] as const;
 const POOL = ["alpha note", "beta note", "gamma note", "delta note"] as const;
 const LINTS = ["source-changed", "missing-provenance", "orphan", "duplicate"];
 const LEAVE = { person: "person:dana", roles: [{ scope: "role:lead", successor: "person:lee" }] };
+/** How a served surface authenticated Lee (card E8.12): his events carry this attestation. */
+const LEE_KEY: TestAttestation = {
+  surface: "http",
+  method: "api_key",
+  actor: LEE.id,
+  issuer: null,
+  subject: "lee-key",
+};
 
 const arbOp = fc.oneof(
   {
@@ -146,10 +159,11 @@ function linksCoverTheirPredecessors(db: Db, events: readonly MemoryEvent[]) {
 
 async function run(db: Db, c: Case, seen: Seen) {
   migrate(db);
-  keepChain(db, seededKeeper(c.salt));
+  const served = attestingHandle(db);
+  keepChain(served, seededKeeper(c.salt));
   let n = 0;
   const deps = {
-    db,
+    db: served as Db,
     adapter: createFakeAdapter(),
     policy: testPolicy({ lints: { enabled: LINTS, thresholds: {} } }),
     newId: () => id(800_000 + ++n),
@@ -158,6 +172,8 @@ async function run(db: Db, c: Case, seen: Seen) {
   const written: MemoryItem[] = [];
   let next = 1;
   const apply = async (op: Op, at: string, gone: Set<string>) => {
+    const lee = op.op === "lint" ? op.scope === "person:lee" : op.lee;
+    served.next = lee ? LEE_KEY : undefined;
     const live = written.filter((w) => !gone.has(w.scope));
     if (op.op === "write") {
       const actor = op.lee ? LEE : DANA;
@@ -208,6 +224,7 @@ async function run(db: Db, c: Case, seen: Seen) {
   // source-changed lint flags Lee's note naming hers.
   const source = item(900, { scope: "person:dana", owner: DANA.id, content: "a source" });
   await plane.write(DANA, source, AT);
+  served.next = LEE_KEY;
   await plane.write(
     LEE,
     item(901, {
@@ -223,6 +240,7 @@ async function run(db: Db, c: Case, seen: Seen) {
     }),
     AT,
   );
+  served.next = undefined;
   await plane.write(
     DANA,
     { ...source, content: "the source, changed", version: 2 } as MemoryItem,
@@ -232,6 +250,7 @@ async function run(db: Db, c: Case, seen: Seen) {
   for (const op of c.before) await apply(op, AT, new Set());
   const before = allEvents(db);
   linksCoverTheirPredecessors(db, before);
+  served.next = undefined;
   const report = await offboard(deps, DANA, LEAVE, LATER);
   expect(report.decision).toBe("allow");
   for (const op of c.after) await apply(op, LATER, new Set(["person:dana"]));
@@ -259,7 +278,8 @@ async function run(db: Db, c: Case, seen: Seen) {
   expect(signed.verdict, JSON.stringify(signed.checks)).toBe("OK");
   seen.runs++;
 
-  const tampers = tamperings(db, c, held);
+  // Through the keeping handle: a tamper that appends an event chains it, as a writer with the code would.
+  const tampers = tamperings(served, c, held);
   for (const [name, expected, tamper] of tampers) {
     const outcome = attempt(db, () => {
       tamper();
@@ -300,11 +320,20 @@ function attempt(db: Db, fn: () => ChainReport | null): ChainReport | null {
   return out;
 }
 
-/** Removes the explanation rows of the events `where` selects, as a tamperer must before deleting or renaming a read event. */
-const unexplain = (db: Db, where: string, ...params: number[]) =>
-  db
-    .prepare(`DELETE FROM explanations WHERE read_id IN (SELECT id FROM events WHERE ${where})`)
-    .run(...params);
+/**
+ * Removes the explanation rows of the events `where` selects, as a tamperer
+ * must before deleting or renaming a read event, and their attestation rows,
+ * as a tamperer must before deleting an attested event (both are keyed to
+ * the event by a foreign key).
+ */
+const unexplain = (db: Db, where: string, ...params: number[]) => {
+  db.prepare(
+    `DELETE FROM explanations WHERE read_id IN (SELECT id FROM events WHERE ${where})`,
+  ).run(...params);
+  db.prepare(
+    `DELETE FROM event_attestations WHERE seq IN (SELECT seq FROM events WHERE ${where})`,
+  ).run(...params);
+};
 
 type Tamper = [name: string, caughtBy: string[], fn: () => void];
 
@@ -337,11 +366,55 @@ function tamperings(db: Db, c: Case, held: { size: number }): Tamper[] {
     (e) => e.op === "lint" && !salted.has(e.seq) && redactedLintReason(e.reason) === e.reason,
   );
   const notErase = events.filter((e) => !erases.includes(e));
+  const attested = new Set(
+    db
+      .prepare("SELECT seq FROM event_attestations")
+      .all()
+      .map((r) => Number(r.seq)),
+  );
   const genesis = JSON.parse(
     String(db.prepare("SELECT data FROM chain WHERE pos = 0").get()?.data),
   ) as Genesis;
   const head = readHead(db) as { size: number; hash: string; seq: number };
   const out: Tamper[] = [
+    [
+      "an edited attestation",
+      ["attestations"],
+      () => {
+        const e = pick(
+          events.filter((x) => attested.has(x.seq)),
+          6,
+        );
+        db.prepare("UPDATE event_attestations SET actor = ? WHERE seq = ?").run(
+          "person:mallory",
+          e.seq,
+        );
+      },
+    ],
+    [
+      "a deleted attestation",
+      ["attestations"],
+      () => {
+        const e = pick(
+          events.filter((x) => attested.has(x.seq)),
+          7,
+        );
+        db.prepare("DELETE FROM event_attestations WHERE seq = ?").run(e.seq);
+      },
+    ],
+    [
+      "an attestation added to an event chained without one",
+      ["attestations"],
+      () => {
+        const e = pick(
+          events.filter((x) => !attested.has(x.seq)),
+          0,
+        );
+        db.prepare(
+          "INSERT INTO event_attestations (seq, event_id, surface, method, actor, issuer, subject) VALUES (?, ?, 'http', 'api_key', ?, NULL, 'forged')",
+        ).run(e.seq, e.id, e.actor);
+      },
+    ],
     [
       "an edited body",
       ["links"],
@@ -701,6 +774,9 @@ class SkipTamper extends Rollback {}
 
 /** Every tamper the property must meet and catch. */
 const TAMPERS = [
+  "an edited attestation",
+  "a deleted attestation",
+  "an attestation added to an event chained without one",
   "an edited body",
   "a deleted event",
   "two events reordered",

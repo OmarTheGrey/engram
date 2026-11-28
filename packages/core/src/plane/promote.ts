@@ -53,6 +53,7 @@ import {
 } from "../distill/validate.ts";
 import { allEvents, appendEvent, currentItems } from "../events.ts";
 import { itemById, lineage } from "../items.ts";
+import { applySafetyScan, releaseProblem } from "../lint/procedural.ts";
 import type { GateResult, PlaneDeps, PromoteOptions } from "../plane.ts";
 import { readableScope, STORE_FAILURE_ID } from "../policy/evaluate.ts";
 import {
@@ -181,7 +182,37 @@ export function promote(
     const problem = replayProblem(options.replay);
     if (problem) throw new InvalidCallError(`Plane.promote: ${problem}`);
   }
+  const release = releaseProblem(options.release);
+  if (release) throw new InvalidCallError(`Plane.promote: ${release}`);
   return inWriteQueue(deps.db, () => decideAndCommit(deps, actor, itemId, toScope, at, options));
+}
+
+/**
+ * A drift restore (card D4, Plane.revalidate): a procedure drift retired,
+ * judged again as a candidate by the promotion gate with the presented
+ * replay, so every check an admission meets applies to it (expiry, the write
+ * rule, a duplicate, the replay rule, the budget and every gate later cards
+ * add to promotion). Its own retirement is left out of the retired content it
+ * is judged against. On allow it is the in-place promotion (same id, version
+ * plus one, active) under `restore.policy_id`; every reason starts with
+ * `restore.prefix`. An in-slot primitive: call it only inside the write
+ * queue, as Plane.revalidate does.
+ */
+export function restoreRetired(
+  deps: PlaneDeps,
+  actor: Actor,
+  item: MemoryItem,
+  at: string,
+  replay: ReplayEvidence,
+  restore: Restore,
+): Promise<GateResult> {
+  return decideAndCommit(deps, actor, item.id, item.scope, at, { replay }, restore);
+}
+
+/** How a restore is recorded: its rule on allow, and the clause every reason starts with. */
+export interface Restore {
+  policy_id: string;
+  prefix: string;
 }
 
 async function decideAndCommit(
@@ -191,12 +222,18 @@ async function decideAndCommit(
   toScope: string,
   at: string,
   options: PromoteOptions,
+  restore?: Restore,
 ): Promise<GateResult> {
   const { db, adapter, newId, policy } = deps;
   const base = { ts: at, actor: actor.id, schema_version: 1 as const };
   // The head before the projection is read (commit.ts).
   const basis = basisNow(db, [itemId], []);
-  const item = itemById(db, itemId);
+  const held = itemById(db, itemId);
+  // A restore is judged as the candidate it was before its admission (card D4).
+  const item =
+    restore !== undefined && held !== undefined
+      ? ({ ...held, status: "candidate" } as MemoryItem)
+      : held;
 
   if (!item) {
     // The same refusal as for an item the actor cannot access: an unknown id
@@ -215,27 +252,41 @@ async function decideAndCommit(
     return { decision: "deny", item: null, event, events: [event] };
   }
 
-  const d = evaluatePromotion(
+  // The procedure safety scan (card D5, lint/procedural.ts): off unless the
+  // policy sets procedures.safety_scan; under hold a critical finding holds
+  // an allowed admission as a gate event until a release ADRs 0026 and 0049 allow.
+  // A drift restore (card D4) goes through here too, so it meets the scan as
+  // any admission does; it carries no release, so a held restore stays retired.
+  const d = applySafetyScan(
     policy,
     actor,
     item,
-    { scope: toScope, at },
-    {
-      confirmations: confirmationsOf(deps, item),
-      authors: authorsOf(deps, item),
-      duplicate: duplicateOf(
-        deps,
-        item,
-        toScope,
-        item.class === "episodic" ? "semantic" : item.class,
-      ),
-      review: options.review === true,
-      // The record is derived here from the replay's outcomes, never taken
-      // from the caller (card D3, ADR 0046 proposed), and the replay is
-      // checked against the item: its id, content and distill ref (D3-3).
-      ...(options.replay === undefined ? {} : replayEvidence(deps, item, options.replay)),
-    },
-    retiredContent(db, toScope),
+    evaluatePromotion(
+      policy,
+      actor,
+      item,
+      { scope: toScope, at },
+      {
+        confirmations: confirmationsOf(deps, item),
+        authors: authorsOf(deps, item),
+        duplicate: duplicateOf(
+          deps,
+          item,
+          toScope,
+          item.class === "episodic" ? "semantic" : item.class,
+        ),
+        review: options.review === true,
+        // The record is derived here from the replay's outcomes, never taken
+        // from the caller (card D3, ADR 0046 proposed), and the replay is
+        // checked against the item: its id, content and distill ref (D3-3).
+        ...(options.replay === undefined ? {} : replayEvidence(deps, item, options.replay)),
+      },
+      // A restore is judged without its own retirement (card D4).
+      restore === undefined
+        ? retiredContent(db, toScope)
+        : new Map([...retiredContent(db, toScope)].filter(([, id]) => id !== item.id)),
+    ),
+    { release: options.release, target: toScope, authors: () => authorsOf(deps, item) },
   );
   const visible = d.policy_id !== PROMOTE_MEMBERSHIP_ID;
   const common = {
@@ -243,8 +294,11 @@ async function decideAndCommit(
     item_id: item.id,
     scope_from: visible ? item.scope : null,
     scope_to: toScope,
-    reason: d.reason,
-    policy_id: d.policy_id,
+    reason: restore === undefined ? d.reason : `${restore.prefix}; ${d.reason}`,
+    policy_id:
+      restore !== undefined && d.decision === "allow" && d.promoted !== null
+        ? restore.policy_id
+        : d.policy_id,
   };
 
   if (d.decision !== "allow" || d.promoted === null) {

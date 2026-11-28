@@ -42,6 +42,7 @@ import { filteredRead, readOne, storedExplanations } from "./plane/read.ts";
 export { accessTime } from "./plane/read.ts";
 
 import { retain } from "./plane/retention.ts";
+import { type RevalidateOptions, type RevalidationResult, revalidate } from "./plane/revalidate.ts";
 import { listScopes, type ScopeList } from "./plane/scopes.ts";
 import { simulate } from "./plane/simulate.ts";
 import type { WhoCanReadAnswer } from "./plane/who-can-read.ts";
@@ -287,6 +288,17 @@ export interface PromoteOptions {
    * InvalidCallError before the log is touched.
    */
   replay?: ReplayEvidence;
+  /**
+   * A user-sourced actor's reason for releasing the procedure safety scan's
+   * hold (card D5, lint/procedural.ts): under `procedures.safety_scan: hold`
+   * an allowed promotion of a procedural item with a critical finding is a
+   * gate event under engram/promote/safety-scan until it is presented again
+   * with this reason, which the allow event's reason records. A release by
+   * another source is a deny event; an empty reason, or one over 500
+   * characters, is refused with InvalidCallError before the log is touched.
+   * Without a hold it changes nothing.
+   */
+  release?: string;
 }
 
 export interface Plane {
@@ -348,6 +360,29 @@ export interface Plane {
    * InvalidCallError before the log is touched.
    */
   changeGrants(actor: Actor, itemId: string, change: GrantChange, at: string): Promise<GrantResult>;
+  /**
+   * Re-validates an admitted procedure on drift (card D4, ADR 0011 and
+   * ADR 0050, proposed): the replay is presented, as for promote (ADR 0046),
+   * by a user-sourced member of the item's scope, and checked against the
+   * item as an admission replay is. Due only under the policy's
+   * `procedures.drift` (an environment hash change, or its period since the
+   * last validation); absent is off and every call is refused. A due
+   * re-validation whose success rate falls below `replay-drift.success-floor`
+   * after `replay-drift.min-trials` retires the procedure (one `retire`
+   * event, allow, `<policy>/drift/<trigger>`); one at or above it keeps it
+   * (the same event, deny). A drift-retired procedure whose re-validation
+   * meets the admission rule and the floor again is restored, the same
+   * version active (`<policy>/drift/restored`). Every call that reaches the
+   * log appends one event. Runs in the write queue. An invalid actor, time,
+   * item id, replay or environment is refused with InvalidCallError before
+   * the log is touched.
+   */
+  revalidate(
+    actor: Actor,
+    itemId: string,
+    at: string,
+    options: RevalidateOptions,
+  ): Promise<RevalidationResult>;
   /**
    * Sweeps one scope (ADR 0025): retires items past their ttl, then evicts
    * any budget overage in the rule's order, each one event; items stay in
@@ -519,6 +554,7 @@ export function createPlane(deps: PlaneDeps): Plane {
     lint: async (actor, at, scope, options) => lint(deps, actor, at, scope, options),
     changeGrants: async (actor, itemId, change, at) =>
       changeGrants(deps, actor, itemId, change, at),
+    revalidate: async (actor, itemId, at, options) => revalidate(deps, actor, itemId, at, options),
     simulate: (workload, policy) => simulate(deps, workload, policy),
     distill: async () => {
       // Card D2 built the induction as a Distiller (distill/induce.ts); this
