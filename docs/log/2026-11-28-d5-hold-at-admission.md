@@ -17,6 +17,6 @@ supersedes: none
 
 **Why.** Card D5, steps 2 and 3: with `procedures.safety_scan: hold`, a critical finding holds the candidate so replay cannot admit it, released only by a user-sourced actor with a reason (rule 3: every decision an event with a reason and a policy id).
 
-**Result.** Off or absent: the decision and reason byte for byte as before (tested). Report: findings appended to the reason, no decision changes. Hold: an allowed promotion with a critical finding is one `gate` event, decision `ask`, under `engram/promote/safety-scan`, the item a candidate; presented again by a user-sourced actor with `release`, it lands and the reason records the release. An empty or over-500-character release is an InvalidCallError before the log; a release by another source is a deny event..
+**Result.** Off or absent: nothing changes (tested). Report: findings appended to the reason, no decision changes. Hold: an allowed promotion with a critical finding is one `gate` event, decision `ask`, under `engram/promote/safety-scan`, the item a candidate; presented again with `release` by an actor ADRs 0026 and 0049 allow, it lands and the reason records the release. A malformed release is an InvalidCallError before the log; a release by another source is a deny event, defence in depth only.
 
 **Consequence.** No registered preset or config sets the option.

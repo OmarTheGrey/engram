@@ -582,7 +582,7 @@ Recorded by [`docs/log/2026-11-28-l9-measurement-grounding-after-review.md`](../
 - **Question.** On card D5's hand-labelled corpus of procedural candidates, each presented to Plane.promote with a replay that would admit it, what share of the unsafe ones does `procedures.safety_scan: hold` keep from admission, and what share of the safe controls does it wrongly hold; do off and report change no decision?
 - **Status.** proof of concept: the system shown working on fixtures, scripted models or a model's own traces (a zero-leak count, mutants killed, traces replayed); decides no hypothesis.
 - **Serves.** no hypothesis; no pre-registration section. Card D5: a proof of concept on a corpus the card's author wrote; the hard negatives (benign text quoting a dangerous command or phrase) are its known false holds. Filed under `h5-` as the nearest hypothesis (Distill); it decides none.
-- **Made by.** `research/scripts/procedure_scan.py` from `research/configs/procedure-scan.json`, MANIFEST commit `053fd7c6`, sha256 `5fab0dbdf606e5926787e68fb85cdb9a5fc5805cb4567ef0f42b34947c6a3c63`.
+- **Made by.** `research/scripts/procedure_scan.py` from `research/configs/procedure-scan.json`, MANIFEST commit `69cea16c`, sha256 `0ac5428238ea46f52fbd3d152f649f370935ebef2bee4a7ba95fb03e296cc39f`.
 
 | value | reads | key path |
 |---|---|---|
@@ -594,4 +594,4 @@ Recorded by [`docs/log/2026-11-28-l9-measurement-grounding-after-review.md`](../
 | near-misses held, hold | 0 | `modes.hold.false_hold_by_group.near-miss.count` |
 | cases held, report | 0 | `modes.report.hold.count` |
 
-Recorded by [`docs/log/2026-11-28-d5-measurement-procedure-scan.md`](../log/2026-11-28-d5-measurement-procedure-scan.md).
+Recorded by [`docs/log/2026-11-28-d5-measurement-procedure-scan-limits.md`](../log/2026-11-28-d5-measurement-procedure-scan-limits.md).

@@ -18,4 +18,4 @@ supersedes: none
 
 **Result.** The surfaces show the scan's findings: the CLI prints the reason (tested under report and hold), and the TUI promote screen has frames of a held answer.
 
-**Consequence.** When replay reaches a surface, the release reason goes beside it in the same pull request.
+**Consequence.** The operator releases in process, `Plane.promote(actor, id, scope, at, { replay, release })`, named in the card and `docs/architecture.md`. When replay reaches a surface (E8.8, E2.19), the release goes beside it.

@@ -8,14 +8,15 @@ pillar: distill
 hypothesis: none
 evidence:
   - packages/core/src/lint/procedural.ts
-  - docs/tasks/D5.md
+  - docs/decisions/0026-promotion-corroboration-and-review.md
+  - docs/decisions/0049-owner-accepts-in-own-person-scope.md
 supersedes: none
 ---
 
-**What.** A hold is released by any user-sourced actor who presents the candidate again with a reason; ADR 0026's reviewer rule (not the owner, not an author) is not added.
+**What.** Who may release a hold applies ADRs 0026 and 0049, with no new ADR: in the owner's own person scope, the owner acting as user; in any other target, a reviewer's widening of an active procedure included, only a distinct user-sourced member of the target who neither owns nor wrote it (`reviewerProblem`). Any other release is a deny event under `engram/promote/safety-scan`.
 
-**Why.** The card says "a user-sourced actor with a reason". A replay is already presented only by a user-sourced actor (D3), and the distiller that writes a candidate acts with source model, so the agent can never release its own procedure.
+**Why.** The review (finding 2) and the coordinator's decision: the first draft let any user-sourced actor release, so the owner who ran the replay could release a flagged procedure into a shared scope alone, against ADR 0049 decision 5.
 
-**Result.** `applySafetyScan` refuses a release by another source under `engram/promote/safety-scan`; the release reason is stored trimmed in the allow event's reason.
+**Result.** Tests: the owner's release in a team scope is one deny event, the item a candidate; a distinct member releases it; a reviewer widening an active procedure is held, then releases it; an author is refused.
 
-**Consequence.** If wrong: A person may release a held procedure their own agent distilled without a second pair of eyes; requiring a reviewer is one condition in `applySafetyScan`.
+**Consequence.** The releaser presents the replay or review itself, in one call.
