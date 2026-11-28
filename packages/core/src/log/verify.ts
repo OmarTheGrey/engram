@@ -21,9 +21,17 @@
 //                body; one without verifies as erased only when a manifest
 //                chained after it names it and its redacted parts hold the
 //                marker; an event a manifest names keeps no salt
+//   attestations from chain version 2 (card E1.9), each event chained under
+//                it has exactly the attestation row its entry's digest names,
+//                or none when its entry names none; a row of an event chained
+//                under version 1, or before the chain began, is counted as
+//                uncovered, and a row naming no event in the log fails
 //   checkpoints  each stored checkpoint's root (RFC 6962, log/merkle.ts) and
 //                head recompute at its size, and its signature verifies
 //   held         each checkpoint the operator kept outside the log does too
+//
+// The walk reads both chain versions (log/chain.ts): the genesis's version,
+// raised by each version entry to exactly the next one this verifier knows.
 //
 // A row that is not what this chain writes (a null body, a manifest whose
 // lists are not lists of seqs) fails the check that reads it; it never
@@ -52,6 +60,8 @@ import type { Db, Row } from "../db/db.ts";
 import { ERASURE_ID } from "../events.ts";
 import { type MemoryEvent, type MemoryItem, Timestamp } from "../schema.ts";
 import {
+  ATTESTATION_KEY,
+  attestationDigest,
   CHAIN_SEED,
   CHAIN_VERSION,
   chainCanonical,
@@ -63,7 +73,9 @@ import {
   type Genesis,
   leafHash,
   type Manifest,
+  readAttestations,
   readHead,
+  type VersionRecord,
 } from "./chain.ts";
 import { merkleRoot } from "./merkle.ts";
 import { redacted, redactedLintReason } from "./redact.ts";
@@ -94,6 +106,8 @@ export interface ChainReport {
   first_break: Break | null;
   /** The log's id, from its genesis; null when there is none. */
   log: string | null;
+  /** The chain's version at the last entry the walk reached (1 or 2); null when it reached no genesis. */
+  version: number | null;
   counts: {
     /** Chain entries, the genesis included. */
     entries: number;
@@ -105,6 +119,10 @@ export interface ChainReport {
     erased: number;
     manifests: number;
     checkpoints: number;
+    /** Attestation rows the chain vouches for: each chained, as a digest, with its event (version 2). */
+    attested: number;
+    /** Attestation rows of events chained under version 1 or before the chain began: nothing vouches for them. */
+    attestations_uncovered: number;
   };
   /** The head the walk reached: entry count, chain hash and RFC 6962 root. */
   head: { size: number; hash: string; root: string } | null;
@@ -204,6 +222,7 @@ interface Walk {
   checks: Check[];
   failure: Break | null;
   genesis: Genesis | null;
+  version: number | null;
   leaves: string[];
   hashes: string[];
   counts: ChainReport["counts"];
@@ -212,8 +231,25 @@ interface Walk {
 /** The checks up to `commitments`. */
 function walk(db: Db): Walk {
   const checks: Check[] = [];
-  const counts = { entries: 0, events: 0, unchained: 0, erased: 0, manifests: 0, checkpoints: 0 };
-  const out: Walk = { checks, failure: null, genesis: null, leaves: [], hashes: [], counts };
+  const counts = {
+    entries: 0,
+    events: 0,
+    unchained: 0,
+    erased: 0,
+    manifests: 0,
+    checkpoints: 0,
+    attested: 0,
+    attestations_uncovered: 0,
+  };
+  const out: Walk = {
+    checks,
+    failure: null,
+    genesis: null,
+    version: null,
+    leaves: [],
+    hashes: [],
+    counts,
+  };
   const fail = (
     check: string,
     detail: string,
@@ -244,7 +280,9 @@ function walk(db: Db): Walk {
   if (
     genesisText !== String(first.data) ||
     genesis.kind !== "genesis" ||
-    genesis.version !== CHAIN_VERSION ||
+    !Number.isSafeInteger(genesis.version) ||
+    genesis.version < 1 ||
+    genesis.version > CHAIN_VERSION ||
     typeof genesis.log !== "string" ||
     !/^[0-9a-f]+$/.test(genesis.log) ||
     !Number.isSafeInteger(genesis.start) ||
@@ -260,6 +298,7 @@ function walk(db: Db): Walk {
   if (genesisHash !== String(first.hash))
     return fail("genesis", "the genesis's hash does not link from the chain's seed", 0);
   out.genesis = genesis;
+  out.version = genesis.version;
   out.leaves.push(genesisLeaf);
   out.hashes.push(genesisHash);
   checks.push({ name: "genesis", ok: true });
@@ -280,6 +319,9 @@ function walk(db: Db): Walk {
   const entrySeq: (number | null)[] = [null];
   /** Erase events a manifest already named: each belongs to one manifest only. */
   const usedErase = new Set<number>();
+  /** Events chained under version 2, by seq, to the attestation digest their entry names (undefined: none). */
+  const digests = new Map<number, string | undefined>();
+  let version = genesis.version;
   let next = genesis.start;
   let prev = genesisHash;
 
@@ -316,7 +358,14 @@ function walk(db: Db): Walk {
           pos,
           seq,
         );
-      const commits = c as Record<string, string>;
+      const { [ATTESTATION_KEY]: digest, ...commits } = c as Record<string, string>;
+      if (digest !== undefined && version < 2)
+        return fail(
+          "links",
+          `event ${seq}'s entry carries an attestation digest under chain version ${version}, which chains none`,
+          pos,
+          seq,
+        );
       const expected = [...committedParts(body).keys()].sort().join(",");
       if (Object.keys(commits).sort().join(",") !== expected)
         return fail(
@@ -325,7 +374,8 @@ function walk(db: Db): Walk {
           pos,
           seq,
         );
-      record = eventRecord(body, commits);
+      record = eventRecord(body, c as Record<string, string>);
+      if (version >= 2) digests.set(seq, digest);
       bodies.set(seq, body);
       given.set(seq, commits);
       entryPos.set(seq, pos);
@@ -402,6 +452,21 @@ function walk(db: Db): Walk {
         if (!named.has(seq)) named.set(seq, pos);
       }
       counts.manifests++;
+    } else if (row.kind === "version") {
+      const v = parsed(row.data);
+      if (!isRecord(v) || v.kind !== "version" || !Number.isSafeInteger(v.version))
+        return fail("links", "a version record is not one this chain writes", pos);
+      record = chainCanonical(v as unknown as VersionRecord);
+      if (record !== String(row.data))
+        return fail("links", "a version record is not one this chain writes", pos);
+      const to = v.version as number;
+      if (to !== version + 1 || to > CHAIN_VERSION)
+        return fail(
+          "links",
+          `the version entry moves the chain to version ${to}, which is not the next version after ${version} (this verifier knows up to ${CHAIN_VERSION})`,
+          pos,
+        );
+      version = to;
     } else {
       return fail(
         "links",
@@ -421,6 +486,7 @@ function walk(db: Db): Walk {
     entrySeq.push(row.kind === "event" ? Number(row.seq) : null);
     out.leaves.push(leaf);
     out.hashes.push(hash);
+    out.version = version;
     prev = hash;
   }
   counts.entries = rows.length;
@@ -498,6 +564,51 @@ function walk(db: Db): Walk {
         seq,
       );
   checks.push({ name: "commitments", ok: true });
+
+  // Attestations (card E1.9): from version 2 each chained event has exactly
+  // the row its entry's digest names.
+  const attestationRows = readAttestations(db);
+  for (const [seq, digest] of digests) {
+    const pos = entryPos.get(seq) ?? null;
+    const row = attestationRows.get(seq);
+    if (digest === undefined) {
+      if (row !== undefined)
+        return fail(
+          "attestations",
+          `event ${seq} has an attestation row, but was chained without one: the row was added after`,
+          pos,
+          seq,
+        );
+      continue;
+    }
+    if (row === undefined)
+      return fail(
+        "attestations",
+        `event ${seq} was chained with an attestation, and its row is gone: deleted`,
+        pos,
+        seq,
+      );
+    if (attestationDigest(row) !== digest)
+      return fail(
+        "attestations",
+        `event ${seq}'s attestation row does not match the digest chained with it: edited`,
+        pos,
+        seq,
+      );
+    counts.attested++;
+  }
+  for (const seq of attestationRows.keys()) {
+    if (digests.has(seq)) continue;
+    if (!events.has(seq))
+      return fail(
+        "attestations",
+        `an attestation row names seq ${seq}, which the log does not hold`,
+        null,
+        seq,
+      );
+    counts.attestations_uncovered++;
+  }
+  checks.push({ name: "attestations", ok: true });
   return out;
 }
 
@@ -548,6 +659,7 @@ export function verifyChain(db: Db, options: VerifyOptions = {}): ChainReport {
     checks: w.checks,
     first_break: w.failure,
     log: w.genesis?.log ?? null,
+    version: w.version,
     counts: w.counts,
     head:
       w.failure === null
@@ -623,6 +735,15 @@ export function verifyChain(db: Db, options: VerifyOptions = {}): ChainReport {
   if (w.counts.unchained > 0)
     notes.push(
       `${w.counts.unchained} events before seq ${w.genesis.start} were appended before the chain began; nothing vouches for them`,
+    );
+  const uncovered = w.counts.attestations_uncovered;
+  if (uncovered > 0)
+    notes.push(
+      `${uncovered === 1 ? "1 attestation row belongs" : `${uncovered} attestation rows belong`} to events chained under chain version 1 or before the chain began; nothing vouches for ${uncovered === 1 ? "it" : "them"}`,
+    );
+  if (w.version !== null && w.version < CHAIN_VERSION)
+    notes.push(
+      `the chain is at version ${w.version}, which chains no attestation; the next event a writer that keeps the chain appends moves it to version ${CHAIN_VERSION}`,
     );
   if (judged.length > 0 && (options.held ?? []).length === 0) notes.push(LIMIT);
   notes.push(

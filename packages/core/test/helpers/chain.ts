@@ -93,6 +93,59 @@ export function forgeAppend(
   );
 }
 
+/** What a served surface records beside an event (card E8.12's row, less the event's own seq and id). */
+export interface TestAttestation {
+  surface: string;
+  method: string;
+  actor: string;
+  issuer: string | null;
+  subject: string | null;
+}
+
+/**
+ * A handle over `db` that records `attest.next`, when set, beside each event
+ * appended through it, in the statement call that inserts the event, as the
+ * server's attesting handle does (packages/server/src/attest.ts, card E8.12;
+ * core cannot import it). Test-only.
+ */
+export function attestingHandle(db: Db): Db & { next: TestAttestation | undefined } {
+  const handle = {
+    next: undefined as TestAttestation | undefined,
+    get dialect() {
+      return db.dialect;
+    },
+    exec: (sql: string) => db.exec(sql),
+    prepare(sql: string) {
+      const statement = db.prepare(sql);
+      if (!sql.trimStart().startsWith("INSERT INTO events (seq, id,")) return statement;
+      return {
+        run(...params: Parameters<typeof statement.run>) {
+          const result = statement.run(...params);
+          const a = handle.next;
+          if (a !== undefined)
+            db.prepare(
+              "INSERT INTO event_attestations (seq, event_id, surface, method, actor, issuer, subject) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ).run(
+              params[0] ?? null,
+              params[1] ?? null,
+              a.surface,
+              a.method,
+              a.actor,
+              a.issuer,
+              a.subject,
+            );
+          return result;
+        },
+        get: (...params: Parameters<typeof statement.get>) => statement.get(...params),
+        all: (...params: Parameters<typeof statement.all>) => statement.all(...params),
+      };
+    },
+    transaction: <T>(fn: () => T) => db.transaction(fn),
+    close: () => db.close(),
+  };
+  return handle;
+}
+
 /** Recomputes every chain hash from position `from` on, and the head's hash. */
 export function rehash(db: Db, from: number) {
   const rows = db.prepare("SELECT pos, kind, seq, data FROM chain ORDER BY pos").all();

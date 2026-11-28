@@ -37,6 +37,19 @@
 // Appends run inside appendEvent's transaction, under the log's lock (card
 // E2.6), so writers on several handles chain in seq order.
 //
+// Chain versions (card E1.9). Version 1 chains the event bodies only.
+// Version 2 also chains each event's attestation (card E8.12's
+// event_attestations row, migration 6, which a served surface writes in the
+// statement call that appends the event, before this module links it): its
+// digest joins the entry's data, beside the commitments, under the key
+// `attestation`, and so the record its leaf hashes; an event with no row has
+// no such key, and its record is version 1's. A new chain begins at version
+// 2. A chain begun under version 1 still verifies as it is; the first event a
+// keeping handle appends to it is preceded by one version entry
+// ({kind: "version", version: 2}), from which on its attestations are
+// chained. What version 1 chained before that entry vouches for no
+// attestation row, and the verifier counts those rows as uncovered.
+//
 // Ported in part from huqan (https://github.com/ali-ulu/huqan, commit
 // 0cbc5ec8a67407a432d6a4ec3b41082a1c0f118f, lib/hash-chain.js, Apache-2.0):
 // one canonical serialisation and digest shared by the writer and the
@@ -51,8 +64,11 @@ import type { MemoryEvent, MemoryItem } from "../schema.ts";
 import { normalTimestamp } from "../time.ts";
 import { lintHead } from "./redact.ts";
 
-/** The chain format's version, in every genesis record. */
-export const CHAIN_VERSION = 1;
+/** The chain format's version a writer begins and keeps a chain at (card E1.9: 2 chains attestations). */
+export const CHAIN_VERSION = 2;
+
+/** The key of an event entry's data that holds its attestation's digest, from chain version 2. */
+export const ATTESTATION_KEY = "attestation";
 
 /** hash(-1): the constant the genesis links from (a genesis per log, huqan). */
 export const CHAIN_SEED = createHash("sha256").update("engram event log chain v1").digest("hex");
@@ -227,9 +243,18 @@ export function skeleton(event: MemoryEvent, given: Readonly<Record<string, stri
   return out;
 }
 
-/** The chain record of an event entry, in canonical form: what its leaf hashes. */
+/**
+ * The chain record of an event entry, in canonical form: what its leaf
+ * hashes. `given` is the entry's data: the commitments, and from chain
+ * version 2 the attestation's digest when the event has one; without one the
+ * record is version 1's.
+ */
 export function eventRecord(event: MemoryEvent, given: Readonly<Record<string, string>>): string {
-  return chainCanonical({ kind: "event", skeleton: skeleton(event, given) });
+  return chainCanonical({
+    kind: "event",
+    skeleton: skeleton(event, given),
+    attestation: given[ATTESTATION_KEY],
+  });
 }
 
 /** The skeleton hash of `event` under `given` commitments: the leaf of its chain entry. */
@@ -245,6 +270,75 @@ export interface Genesis {
   log: string;
   /** The first chained seq; events before it were appended before the chain began. */
   start: number;
+}
+
+/** A version entry: the chain's format moves up to `version` from the next entry on. */
+export interface VersionRecord {
+  kind: "version";
+  version: number;
+}
+
+/** An attestation row as the chain digests it (card E8.12, migration 6). */
+export interface AttestationRecord {
+  seq: number;
+  event_id: string;
+  surface: string;
+  method: string;
+  actor: string;
+  issuer: string | null;
+  subject: string | null;
+}
+
+const ATTESTATION_SELECT =
+  "SELECT seq, event_id, surface, method, actor, issuer, subject FROM event_attestations";
+
+const text = (v: unknown) => (v === null || v === undefined ? null : String(v));
+
+/** A row of event_attestations as the chain digests it: the seq a number, every other column text or null. */
+export function attestationRecord(
+  row: AttestationRecord | Readonly<Record<string, unknown>>,
+): AttestationRecord {
+  const r = row as Readonly<Record<string, unknown>>;
+  return {
+    seq: Number(r.seq),
+    event_id: String(r.event_id),
+    surface: String(r.surface),
+    method: String(r.method),
+    actor: String(r.actor),
+    issuer: text(r.issuer),
+    subject: text(r.subject),
+  };
+}
+
+/** The digest of an attestation row: SHA-256 of a domain tag and the row in canonical form. */
+export function attestationDigest(
+  row: AttestationRecord | Readonly<Record<string, unknown>>,
+): string {
+  const digest = sha256("engram.attestation.v1\n", chainCanonical(attestationRecord(row)));
+  return `sha256:${digest.toString("hex")}`;
+}
+
+/** Whether `db` holds migration 6's event_attestations; a present table is cached per handle. */
+const hasAttestations = new WeakMap<Db, boolean>();
+
+export function attestationTable(db: Db): boolean {
+  if (hasAttestations.get(db)) return true;
+  const sql =
+    db.dialect === "postgres"
+      ? "SELECT count(*)::int AS n FROM pg_tables WHERE schemaname = current_schema() AND tablename = 'event_attestations'"
+      : "SELECT count(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'event_attestations'";
+  const present = Number(db.prepare(sql).get()?.n) > 0;
+  if (present) hasAttestations.set(db, true);
+  return present;
+}
+
+/** Every attestation row, by seq; none when the table is absent. */
+export function readAttestations(db: Db): Map<number, AttestationRecord> {
+  const out = new Map<number, AttestationRecord>();
+  if (!attestationTable(db)) return out;
+  for (const row of db.prepare(`${ATTESTATION_SELECT} ORDER BY seq`).all())
+    out.set(Number(row.seq), attestationRecord(row));
+  return out;
 }
 
 /** An offboarding's manifest record. */
@@ -270,6 +364,9 @@ export interface ChainHead {
 }
 
 const keepers = new WeakMap<Db, ChainKeeper>();
+
+/** Handles that saw their chain at CHAIN_VERSION; a chain's version never goes down. */
+const current = new WeakSet<Db>();
 
 /** Whether `db` holds migration 5's chain tables; cached per handle. */
 const hasTables = new WeakMap<Db, boolean>();
@@ -373,19 +470,56 @@ export function keepsChain(db: Db): boolean {
 }
 
 /**
+ * The chain's version at its head: its genesis's, or the last version
+ * entry's. Undefined when the chain never began.
+ */
+export function chainVersion(db: Db): number | undefined {
+  const genesis = readGenesis(db);
+  if (!genesis) return undefined;
+  const row = db
+    .prepare("SELECT data FROM chain WHERE kind = 'version' ORDER BY pos DESC LIMIT 1")
+    .get();
+  if (!row) return genesis.version;
+  return (JSON.parse(String(row.data)) as VersionRecord).version;
+}
+
+/**
+ * Brings the chain to CHAIN_VERSION, inside the caller's transaction, before
+ * a keeping handle's next entry: one version entry per version it moves up.
+ * Read under the log's lock, so another process's upgrade is seen; once a
+ * handle has seen the current version it reads it no more.
+ */
+function upgrade(db: Db): void {
+  if (current.has(db)) return;
+  let version = chainVersion(db) ?? CHAIN_VERSION;
+  while (version < CHAIN_VERSION) {
+    version++;
+    const record = chainCanonical({ kind: "version", version } satisfies VersionRecord);
+    append(db, "version", null, record, record);
+  }
+  current.add(db);
+}
+
+/**
  * Chains `event`, just appended inside the caller's transaction (appendEvent),
- * when this handle keeps the chain: its salt, its commitments and its entry.
- * A handle that keeps none returns at once.
+ * when this handle keeps the chain: its salt, its commitments, its
+ * attestation's digest when a served surface recorded one (chain version 2),
+ * and its entry. A handle that keeps none returns at once.
  */
 export function linkEvent(db: Db, event: MemoryEvent): void {
   const keeper = keepers.get(db);
   if (!keeper) return;
+  upgrade(db);
   const parts = committedParts(event);
   let given: Record<string, string> = {};
   if (parts.size > 0) {
     const salt = freshSalt(keeper);
     given = commitments(event, salt);
     db.prepare("INSERT INTO chain_salts (seq, salt) VALUES (?, ?)").run(event.seq, hex(salt));
+  }
+  if (attestationTable(db)) {
+    const row = db.prepare(`${ATTESTATION_SELECT} WHERE seq = ?`).get(event.seq);
+    if (row) given[ATTESTATION_KEY] = attestationDigest(row);
   }
   append(db, "event", event.seq, chainCanonical(given), eventRecord(event, given));
 }
