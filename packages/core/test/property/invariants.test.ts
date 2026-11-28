@@ -113,6 +113,7 @@ import { strictContentHash } from "../../src/content-hash.ts";
 import type { Db } from "../../src/db/db.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import { openSqlite } from "../../src/db/sqlite.ts";
+import { REPLAY_SEEDS, REPLAY_THRESHOLD } from "../../src/distill/validate.ts";
 import { allEvents, appendEvent, currentItems, eventsByItem, rebuild } from "../../src/events.ts";
 import { itemById } from "../../src/items.ts";
 import { erasureOpen } from "../../src/plane/commit.ts";
@@ -2546,6 +2547,7 @@ async function planeSurfaceLeaksNothing() {
     "recordBypass",
     "refuse",
     "retain",
+    "revalidate",
     "simulate",
     "whoCanRead",
     "whoCanReadItem",
@@ -2643,6 +2645,30 @@ async function planeSurfaceLeaksNothing() {
   leaks("promote by a member who cannot read", blindly);
   expect(blindly.item).toBeNull();
   leaks("retain", await plane.retain(outsider, "person:s", at));
+  // Card D4: a re-validation of the hidden item by the outsider is refused
+  // as for an id the log never held, its event naming no scope and no item.
+  const replayOf = (itemId: string) => ({
+    item_id: itemId,
+    content_hash: `sha256:${"0".repeat(64)}`,
+    induced_from: [],
+    threshold: REPLAY_THRESHOLD,
+    outcomes: REPLAY_SEEDS.map((seed) => ({ task: "t", seed, without: 0, with: 0 })),
+  });
+  const revalidated = await plane.revalidate(outsider, secret.id, at, {
+    replay: replayOf(secret.id),
+  });
+  leaks("revalidate", revalidated);
+  const unknownRevalidated = await plane.revalidate(outsider, unknownId, at, {
+    replay: replayOf(unknownId),
+  });
+  const neutralEvent = (e: MemoryEvent, asked: string) => {
+    const { id: _id, seq: _seq, ...rest } = e;
+    return JSON.parse(JSON.stringify(rest).replaceAll(asked, "<id>"));
+  };
+  expect(revalidated.event.scope_from).toBeNull();
+  expect(neutralEvent(revalidated.event, secret.id)).toEqual(
+    neutralEvent(unknownRevalidated.event, unknownId),
+  );
   leaks(
     "recordBypass",
     await plane.recordBypass(outsider, { command: "cat x", store: "files" }, at),

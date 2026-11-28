@@ -163,6 +163,8 @@ RUNNER_FIXTURES += l9-grounding-fixture
 RUNNER_FIXTURES += d2-induce-fixture
 # After D2: card D3 replays the candidates D2's cassette induces.
 RUNNER_FIXTURES += d3-validate-fixture
+# After D3: card D4 re-validates D3's admitted procedure on a changed pool, from D3's cassettes and its own.
+RUNNER_FIXTURES += d4-drift-fixture
 
 # MEM-INV-Bench at its pinned commit (card B4); the vendoring clones it here when missing.
 MEM_INV_UPSTREAM ?= .engram/upstream/mem-inv-bench

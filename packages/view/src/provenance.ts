@@ -28,13 +28,18 @@ export interface KnownItem {
 
 /** The ops whose allowed event makes the item it names one the viewer may see. */
 const CREATING_OPS = new Set<MemoryEvent["op"]>(["write", "promote"]);
+/** The ops whose allowed event retires the item it names (core's events.ts). */
+const RETIRING_OPS = new Set<MemoryEvent["op"]>(["retire", "evict"]);
+/** The rule of a person-scope erasure, restated from core's events.ts (the package imports no runtime code). */
+const ERASURE_ID = "engram/offboard/erase";
 
 /**
  * The items the viewer may see something of: every item its read returned,
  * every item a visible event carries, and every item an allowed write or
  * promotion among its events names. The state kept is the read's, else the
- * one the latest event carries. An id only a lineage, a denied write or a
- * read's returned ids names is not known.
+ * one the latest event carries, retired by a later allowed retire or evict.
+ * An id only a lineage, a denied write or a read's returned ids names is not
+ * known.
  */
 export function knownItems(
   items: readonly MemoryItem[],
@@ -44,6 +49,22 @@ export function knownItems(
   for (const e of events) {
     if (e.item) known.set(e.item.id, { id: e.item.id, state: e.item });
     else if (
+      // An allowed retire or evict carries no item and retires the one it
+      // names, as core's projection does (events.ts applyEvent): a drift or
+      // ttl retirement shows as retired (card D4).
+      e.item_id !== null &&
+      e.decision === "allow" &&
+      RETIRING_OPS.has(e.op)
+    ) {
+      // An erasure removes its item, as core's projection does (events.ts
+      // ERASURE_ID): it is absent, not retired.
+      if (e.op === "retire" && e.policy_id === ERASURE_ID) {
+        known.delete(e.item_id);
+        continue;
+      }
+      const was = known.get(e.item_id)?.state;
+      if (was) known.set(e.item_id, { id: e.item_id, state: { ...was, status: "retired" } });
+    } else if (
       e.item_id !== null &&
       e.decision === "allow" &&
       CREATING_OPS.has(e.op) &&

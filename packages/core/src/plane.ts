@@ -47,6 +47,7 @@ import { filteredRead, readOne, storedExplanations } from "./plane/read.ts";
 export { accessTime } from "./plane/read.ts";
 
 import { retain } from "./plane/retention.ts";
+import { type RevalidateOptions, type RevalidationResult, revalidate } from "./plane/revalidate.ts";
 import { listScopes, type ScopeList } from "./plane/scopes.ts";
 import { simulate } from "./plane/simulate.ts";
 import type { WhoCanReadAnswer } from "./plane/who-can-read.ts";
@@ -396,6 +397,28 @@ export interface Plane {
    * the write queue; nothing runs on a timer.
    */
   expireRequests(actor: Actor, scope: string, at: string): Promise<ExpiryReport>;
+   * Re-validates an admitted procedure on drift (card D4, ADR 0011 and
+   * ADR 0050, proposed): the replay is presented, as for promote (ADR 0046),
+   * by a user-sourced member of the item's scope, and checked against the
+   * item as an admission replay is. Due only under the policy's
+   * `procedures.drift` (an environment hash change, or its period since the
+   * last validation); absent is off and every call is refused. A due
+   * re-validation whose success rate falls below `replay-drift.success-floor`
+   * after `replay-drift.min-trials` retires the procedure (one `retire`
+   * event, allow, `<policy>/drift/<trigger>`); one at or above it keeps it
+   * (the same event, deny). A drift-retired procedure whose re-validation
+   * meets the admission rule and the floor again is restored, the same
+   * version active (`<policy>/drift/restored`). Every call that reaches the
+   * log appends one event. Runs in the write queue. An invalid actor, time,
+   * item id, replay or environment is refused with InvalidCallError before
+   * the log is touched.
+   */
+  revalidate(
+    actor: Actor,
+    itemId: string,
+    at: string,
+    options: RevalidateOptions,
+  ): Promise<RevalidationResult>;
   /**
    * Sweeps one scope (ADR 0025): retires items past their ttl, then evicts
    * any budget overage in the rule's order, each one event; items stay in
@@ -558,6 +581,7 @@ export function createPlane(deps: PlaneDeps): Plane {
     refuse: async (actor, itemId, reason, at, options) =>
       refuse(deps, actor, itemId, reason, at, options),
     expireRequests: async (actor, scope, at) => expireRequests(deps, actor, scope, at),
+    revalidate: async (actor, itemId, at, options) => revalidate(deps, actor, itemId, at, options),
     simulate: (workload, policy) => simulate(deps, workload, policy),
     distill: async () => {
       // Card D2 built the induction as a Distiller (distill/induce.ts); this

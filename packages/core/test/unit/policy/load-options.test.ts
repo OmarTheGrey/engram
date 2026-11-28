@@ -146,16 +146,6 @@ const NOT_BUILT: [option: string, card: string, key: string, texts: string[]][] 
     ["off", "report", "hold"].map((v) => withBlocks(`procedures:\n  safety_scan: "${v}"\n`)),
   ],
   [
-    "procedures.drift",
-    "D4",
-    "  drift:",
-    [
-      withBlocks("procedures:\n  drift: {}\n"),
-      withBlocks('procedures:\n  drift:\n    environment_change: "on"\n'),
-      withBlocks('procedures:\n  drift:\n    environment_change: "off"\n    period: 604800\n'),
-    ],
-  ],
-  [
     "consent",
     "E9.12",
     "consent:",
@@ -260,7 +250,6 @@ describe("readers of an already-parsed policy refuse what the loader refuses", (
   /** One policy per option, each setting it, typed as the schema admits it. */
   const SETTING: [option: string, policy: Policy][] = [
     ["procedures.safety_scan", { ...medium, procedures: { safety_scan: "hold" } }],
-    ["procedures.drift", { ...medium, procedures: { drift: { environment_change: "on" } } }],
     ["consent", { ...medium, consent: { opt_outs: [] } }],
     ["erasure.mode", { ...medium, erasure: { mode: "redact" } }],
     ["grants.expiry_cap", { ...medium, grants: { expiry_cap: "off" } }],

@@ -1,0 +1,589 @@
+{
+  "config": "d4-drift-fixture",
+  "policy": {
+    "id": "preset.medium.drift",
+    "version": 1,
+    "write": [
+      {
+        "scope": "person",
+        "allowed_sources": [
+          "user",
+          "document",
+          "tool",
+          "import",
+          "model",
+          "compaction"
+        ],
+        "confidence_floor": 0.3,
+        "forbidden_classes": [],
+        "requires_review": false
+      },
+      {
+        "scope": "role",
+        "allowed_sources": [
+          "user",
+          "document",
+          "tool",
+          "import"
+        ],
+        "confidence_floor": 0.5,
+        "forbidden_classes": [
+          "episodic"
+        ],
+        "requires_review": false
+      },
+      {
+        "scope": "team",
+        "allowed_sources": [
+          "user",
+          "document",
+          "tool",
+          "import"
+        ],
+        "confidence_floor": 0.6,
+        "forbidden_classes": [
+          "episodic"
+        ],
+        "requires_review": false
+      },
+      {
+        "scope": "org",
+        "allowed_sources": [
+          "user",
+          "document",
+          "tool",
+          "import"
+        ],
+        "confidence_floor": 0.8,
+        "forbidden_classes": [
+          "episodic"
+        ],
+        "requires_review": true
+      }
+    ],
+    "read": {
+      "matrix": [
+        {
+          "reader": "person",
+          "may_read": [
+            "person",
+            "role",
+            "team",
+            "org"
+          ]
+        },
+        {
+          "reader": "role",
+          "may_read": [
+            "person",
+            "role",
+            "team",
+            "org"
+          ]
+        },
+        {
+          "reader": "team",
+          "may_read": [
+            "role",
+            "team",
+            "org"
+          ]
+        },
+        {
+          "reader": "org",
+          "may_read": [
+            "team",
+            "org"
+          ]
+        }
+      ],
+      "honour_grants": true
+    },
+    "retention": [
+      {
+        "scope": "person",
+        "class": "episodic",
+        "ttl": 7776000,
+        "budget": 5000,
+        "eviction": "recency"
+      },
+      {
+        "scope": "person",
+        "class": "semantic",
+        "ttl": null,
+        "budget": 2000,
+        "eviction": "utility"
+      },
+      {
+        "scope": "person",
+        "class": "procedural",
+        "ttl": null,
+        "budget": 200,
+        "eviction": "utility"
+      },
+      {
+        "scope": "role",
+        "class": "semantic",
+        "ttl": null,
+        "budget": 2000,
+        "eviction": "utility"
+      },
+      {
+        "scope": "role",
+        "class": "procedural",
+        "ttl": null,
+        "budget": 200,
+        "eviction": "utility"
+      },
+      {
+        "scope": "team",
+        "class": "semantic",
+        "ttl": null,
+        "budget": 10000,
+        "eviction": "utility"
+      },
+      {
+        "scope": "team",
+        "class": "procedural",
+        "ttl": null,
+        "budget": 500,
+        "eviction": "utility"
+      },
+      {
+        "scope": "org",
+        "class": "semantic",
+        "ttl": null,
+        "budget": null,
+        "eviction": "manual"
+      },
+      {
+        "scope": "org",
+        "class": "procedural",
+        "ttl": null,
+        "budget": null,
+        "eviction": "manual"
+      }
+    ],
+    "promotion": {
+      "episodic_to_semantic": {
+        "confirmations": 3,
+        "or_review": true
+      },
+      "procedural": {
+        "replay_k": 4,
+        "replay_n": 5
+      }
+    },
+    "lints": {
+      "enabled": [
+        "expired-validity",
+        "source-changed",
+        "scope-class-mismatch",
+        "missing-provenance",
+        "orphan",
+        "duplicate"
+      ],
+      "thresholds": {
+        "near-duplicate": 0.85,
+        "replay-drift.success-floor": 0.7,
+        "replay-drift.min-trials": 10
+      }
+    },
+    "procedures": {
+      "drift": {
+        "environment_change": "on"
+      }
+    },
+    "schema_version": 1
+  },
+  "item": {
+    "id": "01920000-0000-7000-8000-000000000002",
+    "scope": "person:fixture",
+    "owner": "person:fixture",
+    "provenance": {
+      "kind": "compaction",
+      "ref": "distill:awm:cd38e0d4-3e62-4dc2-b801-dcf42945e1d9,990b7a49-4239-43c0-905d-13ed49582414,05239226-543a-4bc8-8144-a4c43741beba,ad58f890-1500-4c2b-b085-b66ff2faf89c,33820ea0-d387-4923-8f52-0104d30516b5,e12f0bf8-89e4-4909-9c6e-f6bf8ef17e1c,61f67e43-fd95-437d-830f-733198d5a522,98c79d06-d114-4805-87c1-a43ac2ab1874,666c7e6e-53cf-4d2b-b687-b4e75c500927,d1fa1c45-76b9-4a91-87b2-778283fa0eb8",
+      "hash": "sha256:33353c90caa6cafed9add0d150ad161c857ac384c38fab88ebd1b190a4afde5b",
+      "actor": "person:fixture",
+      "model": "scripted/induce-1"
+    },
+    "confidence": 0.5,
+    "valid_from": "2026-11-21T12:00:00.000Z",
+    "valid_to": null,
+    "ttl": null,
+    "grants": [],
+    "version": 1,
+    "lineage": [],
+    "status": "candidate",
+    "store_ref": null,
+    "schema_version": 1,
+    "class": "procedural",
+    "content": {
+      "body": "# Edit a file and check the edit\n\nEdit a file and check the edit. Use when a task changes one file and the change must be seen to have applied.\n\n## Steps\n\n1. I make the change in {source-file}.\n\n   ```\n   edit({\"path\":\"{source-file}\"})\n   ```\n\n2. I read {source-file} again to check that the edit applied, rather than retrying a shell edit.\n\n   ```\n   read({\"path\":\"{source-file}\"})\n   ```\n",
+      "tools": [
+        "edit",
+        "read"
+      ]
+    }
+  },
+  "sessions": {
+    "05239226-543a-4bc8-8144-a4c43741beba": "synthetic/remove-dead-code-05",
+    "33820ea0-d387-4923-8f52-0104d30516b5": "synthetic/type-error-07",
+    "61f67e43-fd95-437d-830f-733198d5a522": "synthetic/sort-output-10",
+    "666c7e6e-53cf-4d2b-b687-b4e75c500927": "synthetic/fix-failing-test-22",
+    "98c79d06-d114-4805-87c1-a43ac2ab1874": "synthetic/add-test-18",
+    "990b7a49-4239-43c0-905d-13ed49582414": "synthetic/update-docs-04",
+    "ad58f890-1500-4c2b-b085-b66ff2faf89c": "synthetic/bump-timeout-06",
+    "cd38e0d4-3e62-4dc2-b801-dcf42945e1d9": "synthetic/rename-symbol-01",
+    "d1fa1c45-76b9-4a91-87b2-778283fa0eb8": "synthetic/add-flag-23",
+    "e12f0bf8-89e4-4909-9c6e-f6bf8ef17e1c": "synthetic/log-level-09"
+  },
+  "calls": {
+    "new": 0,
+    "cached": 508
+  },
+  "phases": [
+    {
+      "name": "admission",
+      "at": "2026-11-21T13:00:00.000Z",
+      "replay": {
+        "item_id": "01920000-0000-7000-8000-000000000002",
+        "content_hash": "sha256:5f0faa79b888b7f69ab5d5324fecfb9d52145110284b46d576e35747ef8f9a8e",
+        "induced_from": [
+          "synthetic/rename-symbol-01",
+          "synthetic/update-docs-04",
+          "synthetic/remove-dead-code-05",
+          "synthetic/bump-timeout-06",
+          "synthetic/type-error-07",
+          "synthetic/log-level-09",
+          "synthetic/sort-output-10",
+          "synthetic/add-test-18",
+          "synthetic/fix-failing-test-22",
+          "synthetic/add-flag-23"
+        ],
+        "threshold": 0.6666666666666666,
+        "outcomes": [
+          {
+            "task": "synthetic/rename-symbol-11",
+            "seed": 1,
+            "without": 1,
+            "with": 1
+          },
+          {
+            "task": "synthetic/rename-symbol-11",
+            "seed": 2,
+            "without": 1,
+            "with": 1
+          },
+          {
+            "task": "synthetic/rename-symbol-11",
+            "seed": 3,
+            "without": 1,
+            "with": 1
+          },
+          {
+            "task": "synthetic/fix-failing-test-32",
+            "seed": 1,
+            "without": 0,
+            "with": 1
+          },
+          {
+            "task": "synthetic/fix-failing-test-32",
+            "seed": 2,
+            "without": 0,
+            "with": 1
+          },
+          {
+            "task": "synthetic/fix-failing-test-32",
+            "seed": 3,
+            "without": 0,
+            "with": 0
+          },
+          {
+            "task": "synthetic/remove-dead-code-15",
+            "seed": 1,
+            "without": 0,
+            "with": 1
+          },
+          {
+            "task": "synthetic/remove-dead-code-15",
+            "seed": 2,
+            "without": 0,
+            "with": 1
+          },
+          {
+            "task": "synthetic/remove-dead-code-15",
+            "seed": 3,
+            "without": 0,
+            "with": 1
+          },
+          {
+            "task": "synthetic/bump-timeout-16",
+            "seed": 1,
+            "without": 0,
+            "with": 0
+          },
+          {
+            "task": "synthetic/bump-timeout-16",
+            "seed": 2,
+            "without": 0,
+            "with": 0
+          },
+          {
+            "task": "synthetic/bump-timeout-16",
+            "seed": 3,
+            "without": 0,
+            "with": 0
+          },
+          {
+            "task": "synthetic/log-level-29",
+            "seed": 1,
+            "without": 1,
+            "with": 1
+          },
+          {
+            "task": "synthetic/log-level-29",
+            "seed": 2,
+            "without": 1,
+            "with": 1
+          },
+          {
+            "task": "synthetic/log-level-29",
+            "seed": 3,
+            "without": 0,
+            "with": 1
+          }
+        ]
+      },
+      "environment": "sha256:90ae2379167758462e17c0d8d4c02da34139c13a817b81c602aa897ba0c609e5"
+    },
+    {
+      "name": "drift",
+      "at": "2026-11-28T13:00:00.000Z",
+      "replay": {
+        "item_id": "01920000-0000-7000-8000-000000000002",
+        "content_hash": "sha256:5f0faa79b888b7f69ab5d5324fecfb9d52145110284b46d576e35747ef8f9a8e",
+        "induced_from": [
+          "synthetic/rename-symbol-01",
+          "synthetic/update-docs-04",
+          "synthetic/remove-dead-code-05",
+          "synthetic/bump-timeout-06",
+          "synthetic/type-error-07",
+          "synthetic/log-level-09",
+          "synthetic/sort-output-10",
+          "synthetic/add-test-18",
+          "synthetic/fix-failing-test-22",
+          "synthetic/add-flag-23"
+        ],
+        "threshold": 0.6666666666666666,
+        "outcomes": [
+          {
+            "task": "synthetic/rename-symbol-11",
+            "seed": 1,
+            "without": 1,
+            "with": 1
+          },
+          {
+            "task": "synthetic/rename-symbol-11",
+            "seed": 2,
+            "without": 1,
+            "with": 1
+          },
+          {
+            "task": "synthetic/rename-symbol-11",
+            "seed": 3,
+            "without": 1,
+            "with": 1
+          },
+          {
+            "task": "synthetic/fix-failing-test-32",
+            "seed": 1,
+            "without": 0,
+            "with": 1
+          },
+          {
+            "task": "synthetic/fix-failing-test-32",
+            "seed": 2,
+            "without": 0,
+            "with": 1
+          },
+          {
+            "task": "synthetic/fix-failing-test-32",
+            "seed": 3,
+            "without": 0,
+            "with": 0
+          },
+          {
+            "task": "synthetic/remove-dead-code-15",
+            "seed": 1,
+            "without": 0,
+            "with": 0
+          },
+          {
+            "task": "synthetic/remove-dead-code-15",
+            "seed": 2,
+            "without": 0,
+            "with": 0
+          },
+          {
+            "task": "synthetic/remove-dead-code-15",
+            "seed": 3,
+            "without": 0,
+            "with": 0
+          },
+          {
+            "task": "synthetic/bump-timeout-16",
+            "seed": 1,
+            "without": 0,
+            "with": 0
+          },
+          {
+            "task": "synthetic/bump-timeout-16",
+            "seed": 2,
+            "without": 0,
+            "with": 0
+          },
+          {
+            "task": "synthetic/bump-timeout-16",
+            "seed": 3,
+            "without": 0,
+            "with": 0
+          },
+          {
+            "task": "synthetic/log-level-29",
+            "seed": 1,
+            "without": 1,
+            "with": 1
+          },
+          {
+            "task": "synthetic/log-level-29",
+            "seed": 2,
+            "without": 1,
+            "with": 1
+          },
+          {
+            "task": "synthetic/log-level-29",
+            "seed": 3,
+            "without": 0,
+            "with": 1
+          }
+        ]
+      },
+      "environment": "sha256:67983e79980afe001e9706645c0dcf9033199d526dd784a79b114c1861c9d55d"
+    },
+    {
+      "name": "restore",
+      "at": "2026-11-29T13:00:00.000Z",
+      "replay": {
+        "item_id": "01920000-0000-7000-8000-000000000002",
+        "content_hash": "sha256:5f0faa79b888b7f69ab5d5324fecfb9d52145110284b46d576e35747ef8f9a8e",
+        "induced_from": [
+          "synthetic/rename-symbol-01",
+          "synthetic/update-docs-04",
+          "synthetic/remove-dead-code-05",
+          "synthetic/bump-timeout-06",
+          "synthetic/type-error-07",
+          "synthetic/log-level-09",
+          "synthetic/sort-output-10",
+          "synthetic/add-test-18",
+          "synthetic/fix-failing-test-22",
+          "synthetic/add-flag-23"
+        ],
+        "threshold": 0.6666666666666666,
+        "outcomes": [
+          {
+            "task": "synthetic/rename-symbol-11",
+            "seed": 1,
+            "without": 1,
+            "with": 1
+          },
+          {
+            "task": "synthetic/rename-symbol-11",
+            "seed": 2,
+            "without": 1,
+            "with": 1
+          },
+          {
+            "task": "synthetic/rename-symbol-11",
+            "seed": 3,
+            "without": 1,
+            "with": 1
+          },
+          {
+            "task": "synthetic/fix-failing-test-32",
+            "seed": 1,
+            "without": 0,
+            "with": 1
+          },
+          {
+            "task": "synthetic/fix-failing-test-32",
+            "seed": 2,
+            "without": 0,
+            "with": 1
+          },
+          {
+            "task": "synthetic/fix-failing-test-32",
+            "seed": 3,
+            "without": 0,
+            "with": 0
+          },
+          {
+            "task": "synthetic/remove-dead-code-15",
+            "seed": 1,
+            "without": 0,
+            "with": 1
+          },
+          {
+            "task": "synthetic/remove-dead-code-15",
+            "seed": 2,
+            "without": 0,
+            "with": 1
+          },
+          {
+            "task": "synthetic/remove-dead-code-15",
+            "seed": 3,
+            "without": 0,
+            "with": 1
+          },
+          {
+            "task": "synthetic/bump-timeout-16",
+            "seed": 1,
+            "without": 0,
+            "with": 0
+          },
+          {
+            "task": "synthetic/bump-timeout-16",
+            "seed": 2,
+            "without": 0,
+            "with": 0
+          },
+          {
+            "task": "synthetic/bump-timeout-16",
+            "seed": 3,
+            "without": 0,
+            "with": 0
+          },
+          {
+            "task": "synthetic/log-level-29",
+            "seed": 1,
+            "without": 1,
+            "with": 1
+          },
+          {
+            "task": "synthetic/log-level-29",
+            "seed": 2,
+            "without": 1,
+            "with": 1
+          },
+          {
+            "task": "synthetic/log-level-29",
+            "seed": 3,
+            "without": 0,
+            "with": 1
+          }
+        ]
+      },
+      "environment": "sha256:90ae2379167758462e17c0d8d4c02da34139c13a817b81c602aa897ba0c609e5"
+    }
+  ]
+}

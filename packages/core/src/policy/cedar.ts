@@ -50,6 +50,10 @@
 //     and expires requests, and the promotion gate is not exported; the read
 //     and write gates are the same with or without it, so a policy that sets
 //     it is exported, with a header line naming its routes as not exported;
+//   - `procedures.drift` (card D4): a lifecycle outside the gate, like
+//     promotion and retention sweeps. Plane.revalidate's events set an
+//     item's status, which the exported status rule judges, so a policy that
+//     sets it exports the same rules as one that does not, faithfully;
 //   - the lints (`lints`, `lints.model.evidence` of card L9 included): a
 //     lint decides no read or write, so the export is the same with or
 //     without them, and a policy turning quote grounding on is exported as
