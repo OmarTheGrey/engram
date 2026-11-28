@@ -13,3 +13,10 @@ notice-elsewhere
 scripts/check-log.ts copies parts of notice-elsewhere
 (https://github.com/example-org/notice-elsewhere), under the BSD-3-Clause
 License. This entry names another file than the row's.
+
+------------------------------------------------------------------------
+cc-by-data
+
+fixtures/ci/absorbed-red/absorbed.md copies data of cc-by-data
+(https://github.com/example-org/cc-by-data, commit
+0123456789abcdef0123456789abcdef01234567), under CC-BY-4.0.
