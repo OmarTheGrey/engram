@@ -166,6 +166,7 @@ export const ENGRAM_RULES: readonly string[] = [
   "engram/approval/expired",
   "engram/approval/membership",
   "engram/approval/no-request",
+  "engram/approval/off",
   "engram/approval/refused",
   "engram/approval/route",
   "engram/approval/stale",
