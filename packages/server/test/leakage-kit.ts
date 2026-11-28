@@ -44,6 +44,7 @@ import {
   type Adapter,
   acceptedClosures,
   adoptStoreItems,
+  contentHash,
   createPlane,
   type Db,
   itemById,
@@ -52,6 +53,7 @@ import {
   type Policy,
   planSupersession,
   servedImport,
+  strictContentHash,
   writeClosures,
 } from "@engram/core";
 
@@ -193,16 +195,57 @@ export const CONTROL: ProbeActor = {
   allowed: ["dana-team", "fred-team", "lee-team", "denied-team"],
 };
 
-/** The canaries leaked in `text` to `probe`: those outside its allowed set, by nonce or by id. */
+/** The canary item's content, as the seed writes it. */
+export const contentOf = (c: Pick<Canary, "nonce" | "label">) =>
+  `${c.nonce} is the ${c.label} canary`;
+
+const sha256Hex = (text: string) => createHash("sha256").update(text).digest("hex");
+const hexOf = (hash: string) => hash.replace(/^sha256:/, "");
+
+/**
+ * The shapes a canary is looked for in, besides its nonce and its id: its
+ * id without dashes, the sha256 of its content and the plane's two content
+ * hashes (a lint reason or an erase event carries one), the content's tail,
+ * which names the label, each matched in any case; and the nonce and the
+ * content in base64 and base64url, matched exactly.
+ */
+export function needles(c: Canary) {
+  const content = contentOf(c);
+  const ids = [c.id, c.id.replaceAll("-", "")];
+  const text = [
+    c.nonce,
+    sha256Hex(content),
+    hexOf(contentHash(content)),
+    hexOf(strictContentHash(content)),
+    `is the ${c.label} canary`,
+  ];
+  const encoded = [c.nonce, content].flatMap((t) => [
+    Buffer.from(t).toString("base64"),
+    Buffer.from(t).toString("base64url"),
+  ]);
+  return { ids, text, encoded };
+}
+
+/**
+ * The canaries leaked in `text` to `probe`: those outside its allowed set,
+ * found in any shape `needles` names. Erasure removes content, never the
+ * audit trail (ADR 0010): the erased item's id stays in its scope's events,
+ * which the scope's members still see, so for them only its content in any
+ * shape is a leak; to anyone else its id is one too.
+ */
 export function leaksIn(text: string, probe: ProbeActor, asked: readonly string[] = []): string[] {
   // An id the probe itself sent is echoed legitimately (a read by id names it).
   const shown = asked.reduce((t, id) => t.replaceAll(id, "<asked>"), text);
+  const lower = shown.toLowerCase();
   return CANARIES.filter((c) => {
-    // Erasure removes content, never the audit trail (ADR 0010): the erased
-    // item's id stays in its scope's events, which its members still see, so
-    // for it only the nonce is a leak, and to anyone.
-    if (c.path === "offboard-erased") return shown.includes(c.nonce);
-    return !probe.allowed.includes(c.label) && (shown.includes(c.nonce) || shown.includes(c.id));
+    const n = needles(c);
+    const content =
+      n.text.some((t) => lower.includes(t.toLowerCase())) ||
+      n.encoded.some((e) => shown.includes(e));
+    const id = n.ids.some((i) => lower.includes(i.toLowerCase()));
+    if (c.path === "offboard-erased")
+      return content || (id && !probe.actor.memberships.includes(c.scope));
+    return !probe.allowed.includes(c.label) && (content || id);
   }).map((c) => c.label);
 }
 
@@ -219,7 +262,7 @@ export function canaryItem(c: Canary, owner: string, over: Partial<MemoryItem> =
     class: "semantic",
     scope: c.scope,
     owner,
-    content: `${c.nonce} is the ${c.label} canary`,
+    content: contentOf(c),
     provenance: { kind: "user", ref: "e8.16", hash: ZERO_HASH, actor: owner },
     confidence: 0.9,
     valid_from: "2026-10-01T00:00:00.000Z",
