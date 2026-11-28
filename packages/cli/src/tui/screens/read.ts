@@ -226,7 +226,8 @@ export class ReadScreen extends RichScreen {
 
   protected ownHints(): string {
     return this.answer() === undefined
-      ? "enter read  tab next field  n why not"
+      ? // n types into the query field here; it acts on the lanes, and the help overlay lists it.
+        "enter read  tab next field"
       : // n (why not) is in the help overlay: the hint row is full at 120 columns.
         "v plain  J json  enter item page  e explain  p promote  g grants  w who  S supersede";
   }

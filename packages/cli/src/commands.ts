@@ -794,6 +794,10 @@ export const EXPLAIN = plane({
       throw new UsageError(
         "--at is the time a read judges validity windows at: engram explain takes it only with --absent",
       );
+    if (absent === undefined && (values.root ?? values.store ?? values["import-valid-from"]))
+      throw new UsageError(
+        "--store, --root and --import-valid-from name the store a read searches: engram explain takes them only with --absent",
+      );
     if (absent !== undefined && !Id.safeParse(absent).success)
       throw new UsageError(`--absent ${absent} is not an item id (a UUIDv7)`);
     const [readId, ...rest] = positionals;
@@ -804,7 +808,21 @@ export const EXPLAIN = plane({
     const actor = buildActor(values, values.owner);
     return {
       io,
-      flags: { db: values.db, policy: values.policy, server: values.server },
+      // With --absent, the store flags too: the store's own search does the match, as for the
+      // read with the same flags, opened read-only and neither swept nor adopted.
+      flags: {
+        db: values.db,
+        policy: values.policy,
+        server: values.server,
+        ...(absent === undefined
+          ? {}
+          : {
+              store: values.store,
+              root: values.root,
+              owner: values.owner,
+              "import-valid-from": values["import-valid-from"],
+            }),
+      },
       session: { requireStore: false, mustExist: true, readOnlyStore: true },
       actor: () => actor,
       json: values.json === true,

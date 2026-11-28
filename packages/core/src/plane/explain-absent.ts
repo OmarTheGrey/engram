@@ -39,10 +39,23 @@
 //
 // The answer is a new response type, never stored and never an Explanation
 // (so no schema_version bump), and the call appends no event, as explain
-// and who-can-read append none: it decides nothing. It is computed over the
-// projection as it stands, with no store sweep or adoption, at the read's
-// own access time (accessTime): the read a caller would make now with the
-// same query. Plane.read is unchanged.
+// and who-can-read append none: it decides nothing. Plane.read is unchanged.
+//
+// Which read it explains (review of card E2.17, finding 1): the read with
+// the same query over the projection as it stands, at the read's own access
+// time (accessTime), before any sweep or adoption. A surface's read with a
+// store first runs the store owner's retention sweep and adopts the store's
+// records (syncBeforeRead); this call runs neither, since both append
+// events. So, for the store's owner, an item past its ttl answers `ttl`
+// where the read after its sweep would count it not active (`status`), a
+// store record not yet adopted answers as an unknown id until a read adopts
+// it, and an edited record is matched on the content the plane holds.
+//
+// One snapshot (finding 2): the access time and the projection are taken
+// together under the log's lock, and both the entitlement and every stage
+// are computed from that one projection; the store's search, awaited after
+// the lock is released, matches the snapshot's items as the read's does,
+// and a write landing meanwhile is not seen.
 import { z } from "zod";
 import { type Actor, checkCall, InvalidCallError } from "../actor.ts";
 import { currentItems } from "../events.ts";
@@ -124,11 +137,11 @@ const FILTER_STAGE = {
   "outside-validity": "validity",
 } as const;
 
-/** The read's times for `query`, as filteredRead takes them, the call checked. */
-function readTimes(deps: PlaneDeps, actor: Actor, query: ReadQuery, method: string) {
+/** The read's validity time for `query`, as filteredRead takes it, the call checked. */
+function readTimes(actor: Actor, query: ReadQuery, method: string) {
   checkCall(actor, query?.at, method);
   if (query.valid_at !== undefined) checkCall(actor, query.valid_at, `${method} (valid_at)`);
-  return { at: accessTime(deps.db, query.at), validAt: query.valid_at ?? query.at };
+  return { validAt: query.valid_at ?? query.at };
 }
 
 /**
@@ -143,9 +156,9 @@ export async function readOutcomes(
   query: Pick<ReadQuery, "text">,
   at: string,
   validAt: string,
+  projected: readonly MemoryItem[] = currentItems(deps.db),
 ): Promise<Map<string, ReadOutcome>> {
-  const { db, policy } = deps;
-  const projected = currentItems(db);
+  const { policy } = deps;
   const live = projected.filter((i) => reachable(policy, actor, i));
   const core = deps.retrieval?.pipeline === "core";
   const terms = queryTerms(query.text);
@@ -230,12 +243,17 @@ export async function explainAbsent(
   itemId: string,
   query: ReadQuery,
 ): Promise<AbsenceExplanation> {
-  const { at, validAt } = readTimes(deps, actor, query, "explainAbsent");
+  const { validAt } = readTimes(actor, query, "explainAbsent");
   if (!Id.safeParse(itemId).success)
     throw new InvalidCallError(
       `Plane.explainAbsent: invalid item id ${JSON.stringify(itemId)}; expected a UUIDv7`,
     );
-  const byId = new Map(currentItems(deps.db).map((i) => [i.id, i]));
+  // The access time and the projection in one snapshot, under the log's lock (see the module comment).
+  const { at, projected } = deps.db.transaction(() => ({
+    at: accessTime(deps.db, query.at),
+    projected: currentItems(deps.db),
+  }));
+  const byId = new Map(projected.map((i) => [i.id, i]));
   const view = { policy: deps.policy, at, validAt, current: (id: string) => byId.get(id) };
   const base = { item_id: itemId, at, valid_at: validAt };
   if (!idShownTo(actor, itemId, view))
@@ -247,7 +265,7 @@ export async function explainAbsent(
       policy_id: null,
       reason: absenceRefusal(actor, itemId),
     };
-  const outcome = (await readOutcomes(deps, actor, query, at, validAt)).get(itemId);
+  const outcome = (await readOutcomes(deps, actor, query, at, validAt, projected)).get(itemId);
   if (outcome === undefined || outcome.stage === "reach" || outcome.stage === "access")
     // Unreachable for an entitled actor (see the module comment); kept a refusal, never a leak.
     return {
