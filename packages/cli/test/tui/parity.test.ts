@@ -232,6 +232,16 @@ const CASES: Case[] = [
     server: true,
   },
   {
+    // n on the read screen opens it with the read's query (none here); the item is typed.
+    name: "why not, from the read screen",
+    keys: async (h) => {
+      await h.press("r", CTRL_S, "y", "n");
+      await h.type(ITEM);
+      await h.press(CTRL_S);
+    },
+    runs: ["read", "explain"],
+  },
+  {
     name: "supersede, plan then accept",
     keys: async (h) => {
       await open("supersede", {}, [NEW])(h);
@@ -267,6 +277,7 @@ const MEANS: Record<string, (ran: readonly RunResult[]) => string[][]> = {
   events: () => [["events"]],
   policy: () => [["policy"]],
   "who-can-read": () => [["who-can-read", ITEM]],
+  "why not, from the read screen": () => [["read"], ["explain", "--absent", ITEM]],
   "why not, from the item page": () => [
     ["read", "--item", ITEM],
     ["events"],
