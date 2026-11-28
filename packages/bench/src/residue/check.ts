@@ -413,7 +413,7 @@ export async function runResidueCheck(options: CheckOptions): Promise<CheckOutco
   let store: StoreHandle | undefined;
   try {
     backend = await openBackend(options.backend, join(work, "log"));
-    store = await openStore(options.store, join(work, "store"));
+    store = await openStore(options.store, join(work, "store"), options.seed);
     return await check(options, backend.db, backend, store);
   } finally {
     await store?.close();

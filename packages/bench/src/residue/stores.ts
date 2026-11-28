@@ -10,7 +10,9 @@
 // - mcp-memory: the MCP reference memory server's JSONL file (card A6).
 // The fake adapter keeps nothing on disk and is not a store here.
 import { execFileSync } from "node:child_process";
+import crypto, { createHash } from "node:crypto";
 import { mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { join } from "node:path";
 import {
   type Adapter,
@@ -33,9 +35,32 @@ export interface StoreHandle {
 
 const OWNER = "x19";
 
+/**
+ * Replaces node:crypto's randomUUID, for this process, with UUIDs drawn from
+ * `seed` (sha256 over the seed and a counter, version 4 bits set). Mem0 names
+ * every memory and entity with randomUUID (directly and through the uuid
+ * package), and those ids reach the log as store refs, so the log's pages,
+ * and the residue its free pages and WAL hold, would differ from run to run
+ * (AGENTS.md rule 6: no unseeded randomness under packages/bench). Called
+ * before `mem0ai/oss` first loads, which binds the function at import.
+ */
+export function seedRandomUuid(seed: number): void {
+  let n = 0;
+  const next = (): `${string}-${string}-${string}-${string}-${string}` => {
+    const b = createHash("sha256").update(`x19/uuid/${seed}/${n++}`).digest();
+    b[6] = ((b[6] as number) & 0x0f) | 0x40;
+    b[8] = ((b[8] as number) & 0x3f) | 0x80;
+    const h = b.subarray(0, 16).toString("hex");
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`;
+  };
+  (crypto as { randomUUID: typeof crypto.randomUUID }).randomUUID = next;
+  syncBuiltinESMExports();
+}
+
 export async function openStore(
   name: "files" | "mem0" | "letta" | "mcp-memory",
   dir: string,
+  seed: number,
 ): Promise<StoreHandle> {
   mkdirSync(dir, { recursive: true });
   const none = async () => [] as Uint8Array[];
@@ -52,6 +77,7 @@ export async function openStore(
   if (name === "mem0") {
     // Mem0's home folder, should anything reach for it, inside the check's folder.
     process.env.MEM0_DIR = join(dir, "mem0-home");
+    seedRandomUuid(seed);
     const root = join(dir, "mem0");
     mkdirSync(root, { recursive: true });
     const adapter = await createMem0Adapter({
