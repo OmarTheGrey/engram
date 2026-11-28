@@ -1,0 +1,4111 @@
+{
+  "card": "E2.18",
+  "exports": {
+    "medium": {
+      "policies_sha256": "57dc74f01320095b669e4cc3f1d3715c0fb865209a80f81c031db0b627d5032c",
+      "rules": 40
+    },
+    "permissive": {
+      "policies_sha256": "b9629c0674f112489d6e9e02fd4bc51de1185b03d45fb898de2a1d147f552813",
+      "rules": 37
+    },
+    "strict": {
+      "policies_sha256": "af69289071428280822decb32404bce598b8b79495a2fbf3dcff43d08449bbef",
+      "rules": 38
+    }
+  },
+  "hypothesis": "none",
+  "kind": "measurement",
+  "name": "cedar-properties",
+  "properties": [
+    {
+      "as_expected": true,
+      "checks": [
+        {
+          "action": "read",
+          "as_expected": true,
+          "id": "read-monotone/strict-before-medium/read",
+          "left": "strict",
+          "left_sha256": "a67fb0596dcdea1c3270af63dd7092bcf304dc04396d7dcbd164e2fd2f862d4a",
+          "request_environments": 1,
+          "right": "medium",
+          "right_sha256": "57dc74f01320095b669e4cc3f1d3715c0fb865209a80f81c031db0b627d5032c",
+          "verdict": "proved"
+        },
+        {
+          "action": "read",
+          "as_expected": true,
+          "id": "read-monotone/medium-before-permissive/read",
+          "left": "medium",
+          "left_sha256": "54c95bbf7879ec2d1a9845d8310ecb62b394087fbbb69a0fd52c87084063c27a",
+          "request_environments": 1,
+          "right": "permissive",
+          "right_sha256": "b9629c0674f112489d6e9e02fd4bc51de1185b03d45fb898de2a1d147f552813",
+          "verdict": "proved"
+        }
+      ],
+      "expect": "holds",
+      "id": "read-monotone",
+      "shape": "monotone",
+      "statement": "strict never allows a read medium denies, nor medium one permissive denies"
+    },
+    {
+      "as_expected": true,
+      "cedar": "permit (principal, action, resource)\nwhen { resource.kind != \"model\" || (resource.scope.level == \"person\" && principal in resource.scope) };",
+      "checks": [
+        {
+          "action": "write",
+          "as_expected": true,
+          "id": "model-write-person-scope/strict/write",
+          "left": "strict",
+          "left_sha256": "205f9e624d5af6ef01c2267ceee17fac4d9ba48fabbaa22d1328368557c0e4a2",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "42ac9d5169893536704d7b755550a00504bf23666b4ddec23dfe7d7881a24746",
+          "verdict": "proved"
+        },
+        {
+          "action": "write_without_review",
+          "as_expected": true,
+          "id": "model-write-person-scope/strict/write_without_review",
+          "left": "strict",
+          "left_sha256": "debca42bcc95d0526853dba61291d5c217d2c4b6def7a24332d640979673d5e0",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "42ac9d5169893536704d7b755550a00504bf23666b4ddec23dfe7d7881a24746",
+          "verdict": "proved"
+        },
+        {
+          "action": "write",
+          "as_expected": true,
+          "id": "model-write-person-scope/medium/write",
+          "left": "medium",
+          "left_sha256": "263b78fb454a9fcd922f19eb7e0c99a1c0350cefbed26815d3e791d59108c3a2",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "42ac9d5169893536704d7b755550a00504bf23666b4ddec23dfe7d7881a24746",
+          "verdict": "proved"
+        },
+        {
+          "action": "write_without_review",
+          "as_expected": true,
+          "id": "model-write-person-scope/medium/write_without_review",
+          "left": "medium",
+          "left_sha256": "ba69ee873929163cd479420a39513289e3df9a4d063b9b3c5310e95d017fad3b",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "42ac9d5169893536704d7b755550a00504bf23666b4ddec23dfe7d7881a24746",
+          "verdict": "proved"
+        },
+        {
+          "action": "write",
+          "as_expected": true,
+          "id": "model-write-person-scope/permissive/write",
+          "left": "permissive",
+          "left_sha256": "8835613dabedd350ca19e6832820e4035528e035e1edc38f50dcf11f896db9dd",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "42ac9d5169893536704d7b755550a00504bf23666b4ddec23dfe7d7881a24746",
+          "verdict": "proved"
+        },
+        {
+          "action": "write_without_review",
+          "as_expected": true,
+          "id": "model-write-person-scope/permissive/write_without_review",
+          "left": "permissive",
+          "left_sha256": "011820777cb08ddbd0e185735e7d073fbfb686bdb1822d9539d9b164bd9ad2b4",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "42ac9d5169893536704d7b755550a00504bf23666b4ddec23dfe7d7881a24746",
+          "verdict": "proved"
+        }
+      ],
+      "expect": "holds",
+      "id": "model-write-person-scope",
+      "shape": "invariant",
+      "statement": "a model-sourced write is allowed, with or without review, only into a person scope the writer is a member of"
+    },
+    {
+      "as_expected": true,
+      "cedar": "permit (principal, action, resource)\nwhen { resource.scope.level != \"person\" || principal in resource.scope || (context has grant && (if context.grant has expires then (context.at.s < context.grant.expires.s || (context.at.s == context.grant.expires.s && context.at.ns < context.grant.expires.ns)) else true)) };",
+      "checks": [
+        {
+          "action": "read",
+          "as_expected": true,
+          "id": "person-read-needs-grant/strict/read",
+          "left": "strict",
+          "left_sha256": "a67fb0596dcdea1c3270af63dd7092bcf304dc04396d7dcbd164e2fd2f862d4a",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "a79cd2b311b09577192ec15cbb686ce90b2ecdf3f22ccb1bfea43f99dd7ae97f",
+          "verdict": "proved"
+        },
+        {
+          "action": "read",
+          "as_expected": true,
+          "id": "person-read-needs-grant/medium/read",
+          "left": "medium",
+          "left_sha256": "54c95bbf7879ec2d1a9845d8310ecb62b394087fbbb69a0fd52c87084063c27a",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "a79cd2b311b09577192ec15cbb686ce90b2ecdf3f22ccb1bfea43f99dd7ae97f",
+          "verdict": "proved"
+        },
+        {
+          "action": "read",
+          "as_expected": true,
+          "id": "person-read-needs-grant/permissive/read",
+          "left": "permissive",
+          "left_sha256": "e30d1dbc93a4a76193062ca158702944eafbb673309ada6a647d36fbe90e57a8",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "a79cd2b311b09577192ec15cbb686ce90b2ecdf3f22ccb1bfea43f99dd7ae97f",
+          "verdict": "proved"
+        }
+      ],
+      "expect": "holds",
+      "id": "person-read-needs-grant",
+      "shape": "invariant",
+      "statement": "an item in a person scope is read only by a member of that scope, or under a live grant naming the reader"
+    },
+    {
+      "as_expected": true,
+      "checks": [
+        {
+          "action": "read",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "read",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "at": {
+                  "ns": 999999998,
+                  "s": 7775999
+                },
+                "valid_at": {
+                  "ns": 999999999,
+                  "s": 244816412555
+                }
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [
+                    {
+                      "id": "",
+                      "type": "Engram::Scope"
+                    }
+                  ],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "episodic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "A",
+                    "kind": "user",
+                    "owner": {
+                      "__entity": {
+                        "id": "A",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "active",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "read",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [
+                  "person:s0"
+                ],
+                "source": null
+              },
+              "at": "1970-03-31T23:59:59.999999998Z",
+              "item": {
+                "class": "episodic",
+                "confidence": "0.9999999999999999",
+                "grants": [],
+                "kind": "user",
+                "owner": "actor:a1",
+                "scope": "person:s0",
+                "status": "active",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "valid_at": "9727-12-04T07:02:35.999999999Z"
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.medium/read/person",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "read-monotone-reversed/medium-before-strict/read",
+          "left": "medium",
+          "left_sha256": "54c95bbf7879ec2d1a9845d8310ecb62b394087fbbb69a0fd52c87084063c27a",
+          "request_environments": 1,
+          "right": "strict",
+          "right_sha256": "af69289071428280822decb32404bce598b8b79495a2fbf3dcff43d08449bbef",
+          "verdict": "refuted"
+        },
+        {
+          "action": "read",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "read",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "at": {
+                  "ns": 999999999,
+                  "s": 689920
+                },
+                "valid_at": {
+                  "ns": 999999999,
+                  "s": 7776001
+                }
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "org"
+                  },
+                  "parents": [
+                    {
+                      "id": "",
+                      "type": "Engram::Scope"
+                    }
+                  ],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "org"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "semantic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "A",
+                    "kind": "user",
+                    "owner": {
+                      "__entity": {
+                        "id": "A",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "active",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -7776001
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "role"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "read",
+              "actor": {
+                "id": "actor:a0",
+                "level": "org",
+                "memberships": [
+                  "role:s0"
+                ],
+                "source": null
+              },
+              "at": "1970-01-08T23:38:40.999999999Z",
+              "item": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [],
+                "kind": "user",
+                "owner": "actor:a1",
+                "scope": "role:s0",
+                "status": "active",
+                "ttl": null,
+                "valid_from": "1969-10-02T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "valid_at": "1970-04-01T00:00:01.999999999Z"
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.permissive/read/org",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "read-monotone-reversed/permissive-before-medium/read",
+          "left": "permissive",
+          "left_sha256": "e30d1dbc93a4a76193062ca158702944eafbb673309ada6a647d36fbe90e57a8",
+          "request_environments": 1,
+          "right": "medium",
+          "right_sha256": "57dc74f01320095b669e4cc3f1d3715c0fb865209a80f81c031db0b627d5032c",
+          "verdict": "refuted"
+        }
+      ],
+      "expect": "fails",
+      "id": "read-monotone-reversed",
+      "shape": "monotone",
+      "statement": "the control: the converse of read-monotone, which must be refuted, with a counterexample the evaluator reproduces; it shows the solver is not answering yes to everything and exercises the replay"
+    },
+    {
+      "as_expected": true,
+      "cedar": "",
+      "checks": [
+        {
+          "action": "read",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "read",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "at": {
+                  "ns": 999999998,
+                  "s": 2591999
+                },
+                "valid_at": {
+                  "ns": 999999999,
+                  "s": 115954155403
+                }
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [
+                    {
+                      "id": "",
+                      "type": "Engram::Scope"
+                    }
+                  ],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "episodic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "A",
+                    "kind": "user",
+                    "owner": {
+                      "__entity": {
+                        "id": "A",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "active",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "read",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [
+                  "person:s0"
+                ],
+                "source": null
+              },
+              "at": "1970-01-30T23:59:59.999999998Z",
+              "item": {
+                "class": "episodic",
+                "confidence": "0.9999999999999999",
+                "grants": [],
+                "kind": "user",
+                "owner": "actor:a1",
+                "scope": "person:s0",
+                "status": "active",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "valid_at": "5644-06-09T23:36:43.999999999Z"
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.strict/read/person",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "left-allows-some/strict/read",
+          "left": "strict",
+          "left_sha256": "a67fb0596dcdea1c3270af63dd7092bcf304dc04396d7dcbd164e2fd2f862d4a",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "verdict": "refuted"
+        },
+        {
+          "action": "write",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "write",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "changes_grants": true,
+                "existing": {
+                  "granted": true,
+                  "owner": {
+                    "__entity": {
+                      "id": "",
+                      "type": "Engram::Actor"
+                    }
+                  },
+                  "scope": {
+                    "__entity": {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  },
+                  "version": 9007199254740991
+                },
+                "granted": true,
+                "in_place_promotion": false,
+                "retired": []
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person",
+                    "source": "user"
+                  },
+                  "parents": [
+                    {
+                      "id": "",
+                      "type": "Engram::Scope"
+                    },
+                    {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  ],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "semantic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "",
+                    "kind": "user",
+                    "owner": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "retired",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "write",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [
+                  "person:s0",
+                  "person:s1"
+                ],
+                "source": "user"
+              },
+              "existing": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee1"
+                  }
+                ],
+                "kind": "user",
+                "owner": "actor:a0",
+                "scope": "person:s1",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "item": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee0"
+                  }
+                ],
+                "kind": "user",
+                "owner": "actor:a0",
+                "scope": "person:s0",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "promotion": false,
+              "retired": false
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.strict/write/person",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "left-allows-some/strict/write",
+          "left": "strict",
+          "left_sha256": "205f9e624d5af6ef01c2267ceee17fac4d9ba48fabbaa22d1328368557c0e4a2",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "verdict": "refuted"
+        },
+        {
+          "action": "write_without_review",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "write_without_review",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "changes_grants": true,
+                "existing": {
+                  "granted": true,
+                  "owner": {
+                    "__entity": {
+                      "id": "",
+                      "type": "Engram::Actor"
+                    }
+                  },
+                  "scope": {
+                    "__entity": {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  },
+                  "version": 9007199254740991
+                },
+                "granted": true,
+                "in_place_promotion": false,
+                "retired": []
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person",
+                    "source": "user"
+                  },
+                  "parents": [
+                    {
+                      "id": "",
+                      "type": "Engram::Scope"
+                    },
+                    {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  ],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "semantic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "",
+                    "kind": "user",
+                    "owner": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "retired",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "write_without_review",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [
+                  "person:s0",
+                  "person:s1"
+                ],
+                "source": "user"
+              },
+              "existing": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee1"
+                  }
+                ],
+                "kind": "user",
+                "owner": "actor:a0",
+                "scope": "person:s1",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "item": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee0"
+                  }
+                ],
+                "kind": "user",
+                "owner": "actor:a0",
+                "scope": "person:s0",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "promotion": false,
+              "retired": false
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.strict/write/person",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "left-allows-some/strict/write_without_review",
+          "left": "strict",
+          "left_sha256": "debca42bcc95d0526853dba61291d5c217d2c4b6def7a24332d640979673d5e0",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "verdict": "refuted"
+        },
+        {
+          "action": "read",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "read",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "at": {
+                  "ns": 999999998,
+                  "s": 7775999
+                },
+                "valid_at": {
+                  "ns": 999999999,
+                  "s": 244812366091
+                }
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [
+                    {
+                      "id": "",
+                      "type": "Engram::Scope"
+                    }
+                  ],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "episodic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "A",
+                    "kind": "user",
+                    "owner": {
+                      "__entity": {
+                        "id": "A",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "active",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "read",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [
+                  "person:s0"
+                ],
+                "source": null
+              },
+              "at": "1970-03-31T23:59:59.999999998Z",
+              "item": {
+                "class": "episodic",
+                "confidence": "0.9999999999999999",
+                "grants": [],
+                "kind": "user",
+                "owner": "actor:a1",
+                "scope": "person:s0",
+                "status": "active",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "valid_at": "9727-10-18T11:01:31.999999999Z"
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.medium/read/person",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "left-allows-some/medium/read",
+          "left": "medium",
+          "left_sha256": "54c95bbf7879ec2d1a9845d8310ecb62b394087fbbb69a0fd52c87084063c27a",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "verdict": "refuted"
+        },
+        {
+          "action": "write",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "write",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "changes_grants": true,
+                "existing": {
+                  "granted": true,
+                  "owner": {
+                    "__entity": {
+                      "id": "",
+                      "type": "Engram::Actor"
+                    }
+                  },
+                  "scope": {
+                    "__entity": {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  },
+                  "version": 9007199254740991
+                },
+                "granted": true,
+                "in_place_promotion": false,
+                "retired": []
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person",
+                    "source": "user"
+                  },
+                  "parents": [
+                    {
+                      "id": "",
+                      "type": "Engram::Scope"
+                    },
+                    {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  ],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "semantic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "",
+                    "kind": "user",
+                    "owner": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "retired",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "write",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [
+                  "person:s0",
+                  "person:s1"
+                ],
+                "source": "user"
+              },
+              "existing": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee1"
+                  }
+                ],
+                "kind": "user",
+                "owner": "actor:a0",
+                "scope": "person:s1",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "item": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee0"
+                  }
+                ],
+                "kind": "user",
+                "owner": "actor:a0",
+                "scope": "person:s0",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "promotion": false,
+              "retired": false
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.medium/write/person",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "left-allows-some/medium/write",
+          "left": "medium",
+          "left_sha256": "263b78fb454a9fcd922f19eb7e0c99a1c0350cefbed26815d3e791d59108c3a2",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "verdict": "refuted"
+        },
+        {
+          "action": "write_without_review",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "write_without_review",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "changes_grants": true,
+                "existing": {
+                  "granted": true,
+                  "owner": {
+                    "__entity": {
+                      "id": "",
+                      "type": "Engram::Actor"
+                    }
+                  },
+                  "scope": {
+                    "__entity": {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  },
+                  "version": 9007199254740991
+                },
+                "granted": true,
+                "in_place_promotion": false,
+                "retired": []
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person",
+                    "source": "user"
+                  },
+                  "parents": [
+                    {
+                      "id": "",
+                      "type": "Engram::Scope"
+                    },
+                    {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  ],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "semantic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "",
+                    "kind": "user",
+                    "owner": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "retired",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "write_without_review",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [
+                  "person:s0",
+                  "person:s1"
+                ],
+                "source": "user"
+              },
+              "existing": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee1"
+                  }
+                ],
+                "kind": "user",
+                "owner": "actor:a0",
+                "scope": "person:s1",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "item": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee0"
+                  }
+                ],
+                "kind": "user",
+                "owner": "actor:a0",
+                "scope": "person:s0",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "promotion": false,
+              "retired": false
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.medium/write/person",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "left-allows-some/medium/write_without_review",
+          "left": "medium",
+          "left_sha256": "ba69ee873929163cd479420a39513289e3df9a4d063b9b3c5310e95d017fad3b",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "verdict": "refuted"
+        },
+        {
+          "action": "read",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "read",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "at": {
+                  "ns": 999999999,
+                  "s": -1
+                },
+                "valid_at": {
+                  "ns": 999999999,
+                  "s": 249105727103
+                }
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [
+                    {
+                      "id": "",
+                      "type": "Engram::Scope"
+                    }
+                  ],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "semantic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "A",
+                    "kind": "user",
+                    "owner": {
+                      "__entity": {
+                        "id": "A",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "active",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "read",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [
+                  "person:s0"
+                ],
+                "source": null
+              },
+              "at": "1969-12-31T23:59:59.999999999Z",
+              "item": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [],
+                "kind": "user",
+                "owner": "actor:a1",
+                "scope": "person:s0",
+                "status": "active",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "valid_at": "9863-11-06T03:18:23.999999999Z"
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.permissive/read/person",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "left-allows-some/permissive/read",
+          "left": "permissive",
+          "left_sha256": "e30d1dbc93a4a76193062ca158702944eafbb673309ada6a647d36fbe90e57a8",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "verdict": "refuted"
+        },
+        {
+          "action": "write",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "write",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "changes_grants": true,
+                "existing": {
+                  "granted": true,
+                  "owner": {
+                    "__entity": {
+                      "id": "",
+                      "type": "Engram::Actor"
+                    }
+                  },
+                  "scope": {
+                    "__entity": {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  },
+                  "version": 9007199254740991
+                },
+                "granted": true,
+                "in_place_promotion": false,
+                "retired": []
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person",
+                    "source": "user"
+                  },
+                  "parents": [
+                    {
+                      "id": "",
+                      "type": "Engram::Scope"
+                    },
+                    {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  ],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "semantic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "",
+                    "kind": "user",
+                    "owner": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "retired",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "write",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [
+                  "person:s0",
+                  "person:s1"
+                ],
+                "source": "user"
+              },
+              "existing": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee1"
+                  }
+                ],
+                "kind": "user",
+                "owner": "actor:a0",
+                "scope": "person:s1",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "item": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee0"
+                  }
+                ],
+                "kind": "user",
+                "owner": "actor:a0",
+                "scope": "person:s0",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "promotion": false,
+              "retired": false
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.permissive/write/person",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "left-allows-some/permissive/write",
+          "left": "permissive",
+          "left_sha256": "8835613dabedd350ca19e6832820e4035528e035e1edc38f50dcf11f896db9dd",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "verdict": "refuted"
+        },
+        {
+          "action": "write_without_review",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "write_without_review",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "changes_grants": true,
+                "existing": {
+                  "granted": true,
+                  "owner": {
+                    "__entity": {
+                      "id": "",
+                      "type": "Engram::Actor"
+                    }
+                  },
+                  "scope": {
+                    "__entity": {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  },
+                  "version": 9007199254740991
+                },
+                "granted": true,
+                "in_place_promotion": false,
+                "retired": []
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person",
+                    "source": "user"
+                  },
+                  "parents": [
+                    {
+                      "id": "",
+                      "type": "Engram::Scope"
+                    },
+                    {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  ],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "semantic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "",
+                    "kind": "user",
+                    "owner": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "retired",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "write_without_review",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [
+                  "person:s0",
+                  "person:s1"
+                ],
+                "source": "user"
+              },
+              "existing": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee1"
+                  }
+                ],
+                "kind": "user",
+                "owner": "actor:a0",
+                "scope": "person:s1",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "item": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee0"
+                  }
+                ],
+                "kind": "user",
+                "owner": "actor:a0",
+                "scope": "person:s0",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "promotion": false,
+              "retired": false
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.permissive/write/person",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "left-allows-some/permissive/write_without_review",
+          "left": "permissive",
+          "left_sha256": "011820777cb08ddbd0e185735e7d073fbfb686bdb1822d9539d9b164bd9ad2b4",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "verdict": "refuted"
+        }
+      ],
+      "expect": "fails",
+      "id": "left-allows-some",
+      "shape": "invariant",
+      "statement": "non-vacuity: each preset's left set, its export with the domain, allows some read, some write and some write without review, so no proof above holds because its left side allows nothing"
+    },
+    {
+      "as_expected": true,
+      "cedar": "permit (principal, action, resource)\nwhen { resource.kind != \"model\" };",
+      "checks": [
+        {
+          "action": "write",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "write",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "changes_grants": true,
+                "existing": {
+                  "granted": true,
+                  "owner": {
+                    "__entity": {
+                      "id": "",
+                      "type": "Engram::Actor"
+                    }
+                  },
+                  "scope": {
+                    "__entity": {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  },
+                  "version": 9007199254740991
+                },
+                "granted": false,
+                "in_place_promotion": false,
+                "retired": []
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person",
+                    "source": "user"
+                  },
+                  "parents": [
+                    {
+                      "id": "",
+                      "type": "Engram::Scope"
+                    },
+                    {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  ],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "semantic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "",
+                    "kind": "model",
+                    "owner": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "retired",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "write",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [
+                  "person:s0",
+                  "person:s1"
+                ],
+                "source": "user"
+              },
+              "existing": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee1"
+                  }
+                ],
+                "kind": "model",
+                "owner": "actor:a0",
+                "scope": "person:s1",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "item": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [],
+                "kind": "model",
+                "owner": "actor:a0",
+                "scope": "person:s0",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "promotion": false,
+              "retired": false
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.strict/write/person",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "model-write-reachable/strict/write",
+          "left": "strict",
+          "left_sha256": "205f9e624d5af6ef01c2267ceee17fac4d9ba48fabbaa22d1328368557c0e4a2",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "fa724c19118887e3876e5eaf9cea05e11e819d9aff1eda3798af39659cca9cbb",
+          "verdict": "refuted"
+        },
+        {
+          "action": "write_without_review",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "write_without_review",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "changes_grants": true,
+                "existing": {
+                  "granted": true,
+                  "owner": {
+                    "__entity": {
+                      "id": "",
+                      "type": "Engram::Actor"
+                    }
+                  },
+                  "scope": {
+                    "__entity": {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  },
+                  "version": 9007199254740991
+                },
+                "granted": false,
+                "in_place_promotion": false,
+                "retired": []
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person",
+                    "source": "user"
+                  },
+                  "parents": [
+                    {
+                      "id": "",
+                      "type": "Engram::Scope"
+                    },
+                    {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  ],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "semantic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "",
+                    "kind": "model",
+                    "owner": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "retired",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "write_without_review",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [
+                  "person:s0",
+                  "person:s1"
+                ],
+                "source": "user"
+              },
+              "existing": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee1"
+                  }
+                ],
+                "kind": "model",
+                "owner": "actor:a0",
+                "scope": "person:s1",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "item": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [],
+                "kind": "model",
+                "owner": "actor:a0",
+                "scope": "person:s0",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "promotion": false,
+              "retired": false
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.strict/write/person",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "model-write-reachable/strict/write_without_review",
+          "left": "strict",
+          "left_sha256": "debca42bcc95d0526853dba61291d5c217d2c4b6def7a24332d640979673d5e0",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "fa724c19118887e3876e5eaf9cea05e11e819d9aff1eda3798af39659cca9cbb",
+          "verdict": "refuted"
+        },
+        {
+          "action": "write",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "write",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "changes_grants": true,
+                "existing": {
+                  "granted": true,
+                  "owner": {
+                    "__entity": {
+                      "id": "",
+                      "type": "Engram::Actor"
+                    }
+                  },
+                  "scope": {
+                    "__entity": {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  },
+                  "version": 9007199254740991
+                },
+                "granted": false,
+                "in_place_promotion": false,
+                "retired": []
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person",
+                    "source": "user"
+                  },
+                  "parents": [
+                    {
+                      "id": "",
+                      "type": "Engram::Scope"
+                    },
+                    {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  ],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "semantic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "",
+                    "kind": "model",
+                    "owner": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "retired",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "write",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [
+                  "person:s0",
+                  "person:s1"
+                ],
+                "source": "user"
+              },
+              "existing": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee1"
+                  }
+                ],
+                "kind": "model",
+                "owner": "actor:a0",
+                "scope": "person:s1",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "item": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [],
+                "kind": "model",
+                "owner": "actor:a0",
+                "scope": "person:s0",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "promotion": false,
+              "retired": false
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.medium/write/person",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "model-write-reachable/medium/write",
+          "left": "medium",
+          "left_sha256": "263b78fb454a9fcd922f19eb7e0c99a1c0350cefbed26815d3e791d59108c3a2",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "fa724c19118887e3876e5eaf9cea05e11e819d9aff1eda3798af39659cca9cbb",
+          "verdict": "refuted"
+        },
+        {
+          "action": "write_without_review",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "write_without_review",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "changes_grants": true,
+                "existing": {
+                  "granted": true,
+                  "owner": {
+                    "__entity": {
+                      "id": "",
+                      "type": "Engram::Actor"
+                    }
+                  },
+                  "scope": {
+                    "__entity": {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  },
+                  "version": 9007199254740991
+                },
+                "granted": false,
+                "in_place_promotion": false,
+                "retired": []
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person",
+                    "source": "user"
+                  },
+                  "parents": [
+                    {
+                      "id": "",
+                      "type": "Engram::Scope"
+                    },
+                    {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  ],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "semantic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "",
+                    "kind": "model",
+                    "owner": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "retired",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "write_without_review",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [
+                  "person:s0",
+                  "person:s1"
+                ],
+                "source": "user"
+              },
+              "existing": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee1"
+                  }
+                ],
+                "kind": "model",
+                "owner": "actor:a0",
+                "scope": "person:s1",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "item": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [],
+                "kind": "model",
+                "owner": "actor:a0",
+                "scope": "person:s0",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "promotion": false,
+              "retired": false
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.medium/write/person",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "model-write-reachable/medium/write_without_review",
+          "left": "medium",
+          "left_sha256": "ba69ee873929163cd479420a39513289e3df9a4d063b9b3c5310e95d017fad3b",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "fa724c19118887e3876e5eaf9cea05e11e819d9aff1eda3798af39659cca9cbb",
+          "verdict": "refuted"
+        },
+        {
+          "action": "write",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "write",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "changes_grants": true,
+                "existing": {
+                  "granted": true,
+                  "owner": {
+                    "__entity": {
+                      "id": "",
+                      "type": "Engram::Actor"
+                    }
+                  },
+                  "scope": {
+                    "__entity": {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  },
+                  "version": 9007199254740991
+                },
+                "granted": false,
+                "in_place_promotion": false,
+                "retired": []
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person",
+                    "source": "user"
+                  },
+                  "parents": [
+                    {
+                      "id": "",
+                      "type": "Engram::Scope"
+                    },
+                    {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  ],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "semantic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "",
+                    "kind": "model",
+                    "owner": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "retired",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "write",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [
+                  "person:s0",
+                  "person:s1"
+                ],
+                "source": "user"
+              },
+              "existing": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee1"
+                  }
+                ],
+                "kind": "model",
+                "owner": "actor:a0",
+                "scope": "person:s1",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "item": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [],
+                "kind": "model",
+                "owner": "actor:a0",
+                "scope": "person:s0",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "promotion": false,
+              "retired": false
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.permissive/write/person",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "model-write-reachable/permissive/write",
+          "left": "permissive",
+          "left_sha256": "8835613dabedd350ca19e6832820e4035528e035e1edc38f50dcf11f896db9dd",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "fa724c19118887e3876e5eaf9cea05e11e819d9aff1eda3798af39659cca9cbb",
+          "verdict": "refuted"
+        },
+        {
+          "action": "write_without_review",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "write_without_review",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "changes_grants": true,
+                "existing": {
+                  "granted": true,
+                  "owner": {
+                    "__entity": {
+                      "id": "",
+                      "type": "Engram::Actor"
+                    }
+                  },
+                  "scope": {
+                    "__entity": {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  },
+                  "version": 9007199254740991
+                },
+                "granted": false,
+                "in_place_promotion": false,
+                "retired": []
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person",
+                    "source": "user"
+                  },
+                  "parents": [
+                    {
+                      "id": "",
+                      "type": "Engram::Scope"
+                    },
+                    {
+                      "id": "A",
+                      "type": "Engram::Scope"
+                    }
+                  ],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "semantic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "",
+                    "kind": "model",
+                    "owner": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "retired",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "write_without_review",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [
+                  "person:s0",
+                  "person:s1"
+                ],
+                "source": "user"
+              },
+              "existing": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "9999-12-31T23:59:59Z",
+                    "mode": "read",
+                    "to": "actor:grantee1"
+                  }
+                ],
+                "kind": "model",
+                "owner": "actor:a0",
+                "scope": "person:s1",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "item": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [],
+                "kind": "model",
+                "owner": "actor:a0",
+                "scope": "person:s0",
+                "status": "retired",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "promotion": false,
+              "retired": false
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.permissive/write/person",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "model-write-reachable/permissive/write_without_review",
+          "left": "permissive",
+          "left_sha256": "011820777cb08ddbd0e185735e7d073fbfb686bdb1822d9539d9b164bd9ad2b4",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "fa724c19118887e3876e5eaf9cea05e11e819d9aff1eda3798af39659cca9cbb",
+          "verdict": "refuted"
+        }
+      ],
+      "expect": "fails",
+      "id": "model-write-reachable",
+      "shape": "invariant",
+      "statement": "non-vacuity: each preset allows some model-sourced write, with and without review, so model-write-person-scope is about writes that happen"
+    },
+    {
+      "as_expected": true,
+      "cedar": "permit (principal, action, resource)\nwhen { resource.scope.level != \"person\" || principal in resource.scope };",
+      "checks": [
+        {
+          "action": "read",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "read",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "at": {
+                  "ns": 999999998,
+                  "s": 2591999
+                },
+                "grant": {
+                  "expires": {
+                    "ns": 999999999,
+                    "s": 253402300799
+                  }
+                },
+                "valid_at": {
+                  "ns": 999999999,
+                  "s": 253402300799
+                }
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "episodic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "A",
+                    "kind": "user",
+                    "owner": {
+                      "__entity": {
+                        "id": "A",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "active",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "read",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [],
+                "source": null
+              },
+              "at": "1970-01-30T23:59:59.999999998Z",
+              "item": {
+                "class": "episodic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "episodic",
+                    "expires": "9999-12-31T23:59:59.999999999Z",
+                    "mode": "read",
+                    "to": "actor:a0"
+                  }
+                ],
+                "kind": "user",
+                "owner": "actor:a1",
+                "scope": "person:s0",
+                "status": "active",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "valid_at": "9999-12-31T23:59:59.999999999Z"
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.strict/read/grants",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "person-read-by-non-member-reachable/strict/read",
+          "left": "strict",
+          "left_sha256": "a67fb0596dcdea1c3270af63dd7092bcf304dc04396d7dcbd164e2fd2f862d4a",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "458c4df9273e796bfab4b19a361d9445eeab942dd6922a39b11fe2bf9a53c41d",
+          "verdict": "refuted"
+        },
+        {
+          "action": "read",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "read",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "at": {
+                  "ns": 999999998,
+                  "s": 7775999
+                },
+                "grant": {
+                  "expires": {
+                    "ns": 999999999,
+                    "s": 253402300799
+                  }
+                },
+                "valid_at": {
+                  "ns": 999999999,
+                  "s": 253402300799
+                }
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "episodic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "A",
+                    "kind": "user",
+                    "owner": {
+                      "__entity": {
+                        "id": "A",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "active",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "read",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [],
+                "source": null
+              },
+              "at": "1970-03-31T23:59:59.999999998Z",
+              "item": {
+                "class": "episodic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "episodic",
+                    "expires": "9999-12-31T23:59:59.999999999Z",
+                    "mode": "read",
+                    "to": "actor:a0"
+                  }
+                ],
+                "kind": "user",
+                "owner": "actor:a1",
+                "scope": "person:s0",
+                "status": "active",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "valid_at": "9999-12-31T23:59:59.999999999Z"
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.medium/read/grants",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "person-read-by-non-member-reachable/medium/read",
+          "left": "medium",
+          "left_sha256": "54c95bbf7879ec2d1a9845d8310ecb62b394087fbbb69a0fd52c87084063c27a",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "458c4df9273e796bfab4b19a361d9445eeab942dd6922a39b11fe2bf9a53c41d",
+          "verdict": "refuted"
+        },
+        {
+          "action": "read",
+          "as_expected": true,
+          "counterexample": {
+            "cedar": {
+              "action": {
+                "id": "read",
+                "type": "Engram::Action"
+              },
+              "context": {
+                "at": {
+                  "ns": 999999998,
+                  "s": -2
+                },
+                "grant": {
+                  "expires": {
+                    "ns": 999999999,
+                    "s": -1
+                  }
+                },
+                "valid_at": {
+                  "ns": 999999999,
+                  "s": 253402300799
+                }
+              },
+              "entities": [
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "read",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {},
+                  "parents": [],
+                  "uid": {
+                    "id": "write_without_review",
+                    "type": "Engram::Action"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "A",
+                    "type": "Engram::Actor"
+                  }
+                },
+                {
+                  "attrs": {
+                    "class": "semantic",
+                    "confidence": {
+                      "hi": 1072693247,
+                      "lo": 4294967295
+                    },
+                    "content_hash": "A",
+                    "kind": "user",
+                    "owner": {
+                      "__entity": {
+                        "id": "A",
+                        "type": "Engram::Actor"
+                      }
+                    },
+                    "scope": {
+                      "__entity": {
+                        "id": "",
+                        "type": "Engram::Scope"
+                      }
+                    },
+                    "status": "active",
+                    "valid_from": {
+                      "ns": 999999999,
+                      "s": -1
+                    },
+                    "version": 9007199254740991
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Item"
+                  }
+                },
+                {
+                  "attrs": {
+                    "level": "person"
+                  },
+                  "parents": [],
+                  "uid": {
+                    "id": "",
+                    "type": "Engram::Scope"
+                  }
+                }
+              ],
+              "left_decision": "allow",
+              "principal": {
+                "id": "",
+                "type": "Engram::Actor"
+              },
+              "resource": {
+                "id": "",
+                "type": "Engram::Item"
+              },
+              "right_decision": "deny"
+            },
+            "decode_problems": [],
+            "decoded_faithfully": true,
+            "engram": {
+              "action": "read",
+              "actor": {
+                "id": "actor:a0",
+                "level": "person",
+                "memberships": [],
+                "source": null
+              },
+              "at": "1969-12-31T23:59:58.999999998Z",
+              "item": {
+                "class": "semantic",
+                "confidence": "0.9999999999999999",
+                "grants": [
+                  {
+                    "class": "semantic",
+                    "expires": "1969-12-31T23:59:59.999999999Z",
+                    "mode": "read",
+                    "to": "actor:a0"
+                  }
+                ],
+                "kind": "user",
+                "owner": "actor:a1",
+                "scope": "person:s0",
+                "status": "active",
+                "ttl": null,
+                "valid_from": "1969-12-31T23:59:59.999999999Z",
+                "valid_to": null,
+                "version": 9007199254740991
+              },
+              "valid_at": "9999-12-31T23:59:59.999999999Z"
+            },
+            "evaluator": {
+              "left_allows": true,
+              "left_rule": "preset.permissive/read/grants",
+              "right_allows": false
+            },
+            "reproduced": true
+          },
+          "id": "person-read-by-non-member-reachable/permissive/read",
+          "left": "permissive",
+          "left_sha256": "e30d1dbc93a4a76193062ca158702944eafbb673309ada6a647d36fbe90e57a8",
+          "request_environments": 1,
+          "right": "the property",
+          "right_sha256": "458c4df9273e796bfab4b19a361d9445eeab942dd6922a39b11fe2bf9a53c41d",
+          "verdict": "refuted"
+        }
+      ],
+      "expect": "fails",
+      "id": "person-read-by-non-member-reachable",
+      "shape": "invariant",
+      "statement": "non-vacuity: each preset lets a non-member read some person scope's item, under a grant, so person-read-needs-grant is about reads that happen"
+    }
+  ],
+  "scope": {
+    "domains": {
+      "read": "// The domain (card E2.18): only requests Engram can express.\n@id(\"domain\")\nforbid (principal, action == Engram::Action::\"read\", resource)\nunless { [\"person\", \"role\", \"team\", \"org\"].contains(principal.level) && (if principal has source then [\"user\", \"document\", \"tool\", \"model\", \"import\", \"compaction\", \"external\"].contains(principal.source) else true) && [\"person\", \"role\", \"team\", \"org\"].contains(resource.scope.level) && [\"candidate\", \"active\", \"retired\"].contains(resource.status) && [\"user\", \"document\", \"tool\", \"model\", \"import\", \"compaction\", \"external\"].contains(resource.kind) && [\"episodic\", \"semantic\", \"procedural\"].contains(resource.class) && (1 <= resource.version && resource.version <= 9007199254740991) && (if resource has ttl then (1 <= resource.ttl && resource.ttl <= 9007199254740991) else true) && ((-62167219200 <= resource.valid_from.s && resource.valid_from.s <= 253402300799) && (0 <= resource.valid_from.ns && resource.valid_from.ns <= 999999999)) && (if resource has valid_to then ((-62167219200 <= resource.valid_to.s && resource.valid_to.s <= 253402300799) && (0 <= resource.valid_to.ns && resource.valid_to.ns <= 999999999)) else true) && (0 <= resource.confidence.hi && resource.confidence.hi <= 4294967295) && (0 <= resource.confidence.lo && resource.confidence.lo <= 4294967295) && (resource.confidence.hi < 1072693248 || (resource.confidence.hi == 1072693248 && resource.confidence.lo == 0)) && ((-62167219200 <= context.at.s && context.at.s <= 253402300799) && (0 <= context.at.ns && context.at.ns <= 999999999)) && ((-62167219200 <= context.valid_at.s && context.valid_at.s <= 253402300799) && (0 <= context.valid_at.ns && context.valid_at.ns <= 999999999)) && (if context has grant then (if context.grant has expires then ((-62167219200 <= context.grant.expires.s && context.grant.expires.s <= 253402300799) && (0 <= context.grant.expires.ns && context.grant.expires.ns <= 999999999)) else true) else true) };",
+      "write": "// The domain (card E2.18): only requests Engram can express.\n@id(\"domain\")\nforbid (principal, action == Engram::Action::\"write\", resource)\nunless { [\"person\", \"role\", \"team\", \"org\"].contains(principal.level) && (if principal has source then [\"user\", \"document\", \"tool\", \"model\", \"import\", \"compaction\", \"external\"].contains(principal.source) else true) && [\"person\", \"role\", \"team\", \"org\"].contains(resource.scope.level) && [\"candidate\", \"active\", \"retired\"].contains(resource.status) && [\"user\", \"document\", \"tool\", \"model\", \"import\", \"compaction\", \"external\"].contains(resource.kind) && [\"episodic\", \"semantic\", \"procedural\"].contains(resource.class) && (1 <= resource.version && resource.version <= 9007199254740991) && (if resource has ttl then (1 <= resource.ttl && resource.ttl <= 9007199254740991) else true) && ((-62167219200 <= resource.valid_from.s && resource.valid_from.s <= 253402300799) && (0 <= resource.valid_from.ns && resource.valid_from.ns <= 999999999)) && (if resource has valid_to then ((-62167219200 <= resource.valid_to.s && resource.valid_to.s <= 253402300799) && (0 <= resource.valid_to.ns && resource.valid_to.ns <= 999999999)) else true) && (0 <= resource.confidence.hi && resource.confidence.hi <= 4294967295) && (0 <= resource.confidence.lo && resource.confidence.lo <= 4294967295) && (resource.confidence.hi < 1072693248 || (resource.confidence.hi == 1072693248 && resource.confidence.lo == 0)) && (if context has existing then [\"person\", \"role\", \"team\", \"org\"].contains(context.existing.scope.level) && (1 <= context.existing.version && context.existing.version <= 9007199254740991) else true) && (if context.changes_grants then (context has existing && (context.granted || context.existing.granted)) else true) && (if context has existing then (context.changes_grants || context.granted == context.existing.granted) else !context.in_place_promotion) && (if context.in_place_promotion then (context has existing && !context.changes_grants && context.existing.scope == resource.scope && context.existing.owner == resource.owner) else true) };",
+      "write_without_review": "// The domain (card E2.18): only requests Engram can express.\n@id(\"domain\")\nforbid (principal, action == Engram::Action::\"write_without_review\", resource)\nunless { [\"person\", \"role\", \"team\", \"org\"].contains(principal.level) && (if principal has source then [\"user\", \"document\", \"tool\", \"model\", \"import\", \"compaction\", \"external\"].contains(principal.source) else true) && [\"person\", \"role\", \"team\", \"org\"].contains(resource.scope.level) && [\"candidate\", \"active\", \"retired\"].contains(resource.status) && [\"user\", \"document\", \"tool\", \"model\", \"import\", \"compaction\", \"external\"].contains(resource.kind) && [\"episodic\", \"semantic\", \"procedural\"].contains(resource.class) && (1 <= resource.version && resource.version <= 9007199254740991) && (if resource has ttl then (1 <= resource.ttl && resource.ttl <= 9007199254740991) else true) && ((-62167219200 <= resource.valid_from.s && resource.valid_from.s <= 253402300799) && (0 <= resource.valid_from.ns && resource.valid_from.ns <= 999999999)) && (if resource has valid_to then ((-62167219200 <= resource.valid_to.s && resource.valid_to.s <= 253402300799) && (0 <= resource.valid_to.ns && resource.valid_to.ns <= 999999999)) else true) && (0 <= resource.confidence.hi && resource.confidence.hi <= 4294967295) && (0 <= resource.confidence.lo && resource.confidence.lo <= 4294967295) && (resource.confidence.hi < 1072693248 || (resource.confidence.hi == 1072693248 && resource.confidence.lo == 0)) && (if context has existing then [\"person\", \"role\", \"team\", \"org\"].contains(context.existing.scope.level) && (1 <= context.existing.version && context.existing.version <= 9007199254740991) else true) && (if context.changes_grants then (context has existing && (context.granted || context.existing.granted)) else true) && (if context has existing then (context.changes_grants || context.granted == context.existing.granted) else !context.in_place_promotion) && (if context.in_place_promotion then (context has existing && !context.changes_grants && context.existing.scope == resource.scope && context.existing.owner == resource.owner) else true) };"
+    },
+    "evaluator": "proved of exportCedar's text for the three presets, not of evaluate.ts itself; the two are tied only by card E2.12's differential test (packages/core/test/property/cedar.test.ts), which samples requests and requires the same decision, with the exclusions its header names",
+    "grants": "flattened by the export (ADR 0041, decision 5): every proof holds modulo grants"
+  },
+  "status": "proof of concept",
+  "summary": {
+    "all_as_expected": true,
+    "as_expected": 31,
+    "checks": 31,
+    "proved": 11,
+    "refuted": 20,
+    "reproduced": 20
+  },
+  "tools": {
+    "cedar_policy": "4.14.1",
+    "cedar_policy_symcc": "0.8.1",
+    "cvc5": "1.4.2"
+  },
+  "wording": "properties of the Cedar export of the three registered presets, proved by Cedar's symbolic compiler and cvc5 for every request in the stated domain (scope.domains: every level, status, class, source kind, version, ttl, confidence and instant from 0000 to 9999 that Engram's schema accepts, instants to the nanosecond as the export encodes them), modulo grants (ADR 0041, decision 5); tied to evaluate.ts only by card E2.12's sampled differential test (scope.evaluator); a proof of concept, no hypothesis result, and no registered analysis reads it"
+}

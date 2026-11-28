@@ -82,6 +82,52 @@ def test_reproduce_fails_when_the_regenerated_bytes_differ(tmp_path: Path) -> No
     assert reproduce.main(["--root", str(root)]) == 1
 
 
+SKIPPING_SCRIPT = """\
+import sys
+print("toy: cargo is missing: install Rust", file=sys.stderr)
+sys.exit(3)
+"""
+
+
+def add_skipping_row(root: Path) -> None:
+    """A second row whose script lacks a tool and exits 3, as h2_cedar_properties.py does."""
+    (root / "research/scripts/tool.py").write_text(SKIPPING_SCRIPT, encoding="utf-8")
+    (root / "research/configs/tool.json").write_text("{}", encoding="utf-8")
+    body = b"{}\n"
+    (root / "research/results/h9-tool.json").write_bytes(body)
+    with (root / "research/results/MANIFEST.md").open("a", encoding="utf-8") as f:
+        f.write(
+            "| research/results/h9-tool.json | research/configs/tool.json"
+            " | research/scripts/tool.py"
+            f" | abc1234 | {hashlib.sha256(body).hexdigest()} | none |\n"
+        )
+
+
+def test_reproduce_reports_a_row_whose_tool_is_missing_as_skipped_not_ok(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = toy_repo(tmp_path, n=3)
+    add_skipping_row(root)
+    assert reproduce.main(["--root", str(root)]) == 0
+    out = capsys.readouterr().out
+    assert "test-repro: SKIP research/results/h9-tool.json: toy: cargo is missing" in out
+    assert "test-repro: ok research/results/h9-tool.json" not in out
+    assert "1 of 2 results reproduce; 1 skipped for a missing tool, not checked" in out
+
+
+def test_reproduce_still_fails_on_a_mismatch_beside_a_skipped_row(tmp_path: Path) -> None:
+    root = toy_repo(tmp_path, n=4)
+    add_skipping_row(root)
+    assert reproduce.main(["--root", str(root)]) == 1
+
+
+def test_a_skipped_row_whose_committed_file_differs_from_its_hash_fails(tmp_path: Path) -> None:
+    root = toy_repo(tmp_path, n=3)
+    add_skipping_row(root)
+    (root / "research/results/h9-tool.json").write_bytes(b"{}  \n")
+    assert reproduce.main(["--root", str(root)]) == 1
+
+
 def test_reproduce_fails_when_the_manifest_hash_is_not_the_committed_file(tmp_path: Path) -> None:
     root = toy_repo(tmp_path, n=3, sha="0" * 64)
     problems = reproduce.check_row(
