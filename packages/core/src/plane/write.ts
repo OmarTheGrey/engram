@@ -36,7 +36,13 @@ import type { Db } from "../db/db.ts";
 import { appendEvent, erases } from "../events.ts";
 import { itemById, itemsByStoreRef } from "../items.ts";
 import type { PlaneDeps, WriteCheckResult, WriteResult } from "../plane.ts";
-import { evaluateWrite, SCHEMA_ID, STORE_FAILURE_ID, sameGrant } from "../policy/evaluate.ts";
+import {
+  evaluateWrite,
+  SCHEMA_ID,
+  STORE_FAILURE_ID,
+  sameGrant,
+  scopeLevel,
+} from "../policy/evaluate.ts";
 import { leastTrusted } from "../policy/promotion.ts";
 import { ITEM_TTL_ID } from "../policy/retention.ts";
 import { unattestedFloor } from "../policy/trust.ts";
@@ -353,7 +359,10 @@ function planeRefusal(
 /**
  * Why a new item under `id`, or naming `ancestor` in its lineage, is refused:
  * `gone` is the event that took the id out (commit.ts lastRemoval). It names
- * the scope only to a member of it (finding N3).
+ * the scope the id lived in only to a member of it (finding N3), and the
+ * person scope whose offboarding took it out only to a member of that scope:
+ * a sweep of a lineage record lies in the scope the record was in, a team
+ * scope say, not in the offboarded person scope (card E1.7's review).
  */
 function removedReason(
   actor: Actor,
@@ -364,11 +373,27 @@ function removedReason(
   const scope = gone.scope_from;
   if (scope === null || !actor.memberships.includes(scope))
     return "the item id is held by an item you cannot access";
+  const person = offboardedScope(gone);
+  const who =
+    person !== null && actor.memberships.includes(person)
+      ? `an offboarding of ${person}`
+      : "an offboarding";
   if (ancestor)
-    return `item ${id} names in its lineage item ${ancestor}, which an offboarding of ${scope} took out; content traced to it is not written again`;
+    return `item ${id} names in its lineage item ${ancestor}, which ${who} took out; content traced to it is not written again`;
   if (erases(gone))
     return `item id ${id} belonged to an item erased with ${scope} at an offboarding; an erased id is never used again, so a new memory takes a new id`;
-  return `item id ${id} is one an offboarding of ${scope} swept out of the store (${gone.policy_id}); an id taken out of the store is never used again, so a new memory takes a new id`;
+  return `item id ${id} was swept out of the store of ${scope} by ${who} (${gone.policy_id}); an id taken out of the store is never used again, so a new memory takes a new id`;
+}
+
+/**
+ * The person scope whose offboarding appended `gone`: its own scope when that
+ * is a person scope (an erasure, or a sweep of the person scope), else the
+ * one a lineage sweep's reason names (offboard.ts, "an offboarding of <person>
+ * took out"), or null.
+ */
+function offboardedScope(gone: MemoryEvent): string | null {
+  if (gone.scope_from !== null && scopeLevel(gone.scope_from) === "person") return gone.scope_from;
+  return /an offboarding of (person:\S+?) took out/.exec(gone.reason)?.[1] ?? null;
 }
 
 /**

@@ -338,4 +338,39 @@ module replayThreeOffboardings {
         HANDLES.forall(h => pc.get(h).tag == "idle"),
         safety,
       })
+
+  // A known limit, pinned (card E1.7's review): the first offboarding stops
+  // just after its put-back wrote b's erased content back (a crash there, a
+  // failed delete on the next round, or the fourth round's give-up). No
+  // handle is left to delete it: erasureHolds is false in the model too, in
+  // a state seed 1's simulation rarely samples. The model's next adoption
+  // refuses and purges the record; the code's refuses it without a purge,
+  // since the third erasure found no record at b's ref (E18-F7, whose rule
+  // card E1.7 keeps; card X19 measures that residue).
+  run putBackCrashReplayTest =
+    init
+      .then(decide("h3", "b", USER)).then(storeWrite("h3"))
+      .then(obBegin("h1")).then(obErase("h1")).then(obSweepList("h1"))
+      .then(obSweepDecide("h1", "b"))
+      .then(commit("h3")).then(settleRead("h3")).then(settleStore("h3")).then(settleConfirm("h3"))
+      .then(obBegin("h2")).then(obErase("h2")).then(obSweepList("h2")).then(obReport("h2"))
+      .then(decide("h2", "b", USER)).then(storeWrite("h2")).then(commit("h2"))
+      .expect(proj.get("b").live)
+      .then(obSweepDel("h1")).then(obSweepCommit("h1"))
+      .expect(pc.get("h1").tag == "obPutBackRead")
+      .then(obPutBackRead("h1"))
+      .then(obBegin("h2")).then(obDelete("h2", "b")).then(obErase("h2")).then(obSweepList("h2"))
+      .then(obPutBackWrite("h1"))
+      .then(obStop("h1"))
+      .then(obReport("h2"))
+      .expect(all {
+        store.get("b").present,
+        erasedContent.contains(store.get("b").content),
+        HANDLES.forall(h => pc.get(h).tag == "idle"),
+        not(erasureHolds),
+      })
+      .then(adoptList("h3")).then(adoptOne("h3", "b"))
+      .expect(pc.get("h3").tag == "adoptPurge")
+      .then(adoptPurge("h3")).then(adoptDone("h3"))
+      .expect(all { not(store.get("b").present), safety })
 }

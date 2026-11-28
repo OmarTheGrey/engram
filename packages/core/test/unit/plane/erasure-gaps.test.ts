@@ -59,6 +59,7 @@ interface Pause {
 /** One handle's view of the shared store; `pause` holds that method's next call until released. */
 function pausable(store: Adapter) {
   const armed = new Map<string, { arrive: () => void; gate: Promise<void> }>();
+  let failDelete = false;
   const at = async (key: string) => {
     const hold = armed.get(key);
     if (!hold) return;
@@ -73,6 +74,10 @@ function pausable(store: Adapter) {
     },
     delete: async (ref: StoreRef) => {
       await at("delete:before");
+      if (failDelete) {
+        failDelete = false;
+        throw new Error("the store is unavailable");
+      }
       await store.delete(ref);
       await at("delete:after");
     },
@@ -94,7 +99,11 @@ function pausable(store: Adapter) {
     armed.set(`${method}:${when}`, { arrive, gate });
     return { arrived, release };
   };
-  return { adapter, pause };
+  /** The next delete through this handle fails, as a transient store failure does. */
+  const failNextDelete = () => {
+    failDelete = true;
+  };
+  return { adapter, pause, failNextDelete };
 }
 
 /** The handle `db`, whose `n`-th outermost transaction from now first runs `hook`: another process committing then. */
@@ -199,12 +208,51 @@ forEachBackend((backend) => {
       expect(JSON.stringify(await env.store.list(PERSON))).not.toContain("Mira");
     });
 
+    test("known limit: a put-back whose delete fails leaves the erased record; adoption refuses it and never serves it, and it stays in the store", async () => {
+      const env = setup(backend);
+      await env.store.write(personItem(2, "Never committed."));
+      const listed = env.a.pause("list", "after");
+      const first = offboard(env.depsMine, hr, { person: PERSON, roles: [] }, AT);
+      await listed.arrived;
+      await env.store.delete(ref(env, 2));
+      const sweepDelete = env.a.pause("delete", "before");
+      listed.release();
+      await sweepDelete.arrived;
+      await offboard(env.depsTheirs, hr, { person: PERSON, roles: [] }, AT);
+      expect(
+        (await createPlane(env.depsTheirs).write(dana, personItem(2, SECRET), AT)).event.decision,
+      ).toBe("allow");
+      const putBack = env.a.pause("write", "before");
+      sweepDelete.release();
+      await putBack.arrived;
+      const third = await offboard(env.depsTheirs, hr, { person: PERSON, roles: [] }, AT);
+      // The third erasure finds no record at b's ref: the sweep deleted it.
+      expect(third.erased.not_found_in_store.flatMap((r) => r.items)).toEqual([id(2)]);
+      // The put-back writes b back; its next round's delete fails and throws.
+      env.a.failNextDelete();
+      putBack.release();
+      await expect(first).rejects.toThrow(/the store is unavailable/);
+      expect((await env.store.read(ref(env, 2)))?.content).toBe(SECRET);
+      // Adoption refuses it (engram/adopt/erased), so the plane never projects
+      // or serves it, but does not purge it: the not-found erasure's rule
+      // (E18-F7, kept by card E1.7). A later offboarding's sweep leaves it
+      // too. It is the residue card X19 measures.
+      const r = await adoptStoreItems(env.depsMine, dana, PERSON, LATER);
+      expect(r.denials.map((d) => d.policy_id)).toEqual(["engram/adopt/erased"]);
+      expect(itemById(env.mine, id(2))).toBeUndefined();
+      expect((await createPlane(env.depsMine).read(dana, { at: LATER })).items).toEqual([]);
+      await offboard(env.depsMine, hr, { person: PERSON, roles: [] }, LATER);
+      expect((await env.store.read(ref(env, 2)))?.content).toBe(SECRET);
+    });
+
     test("E1.5-8: a new write under a swept id is refused as under an erased one, naming the sweep", async () => {
       const env = setup(backend);
       await sweptNine(env);
       const w = await createPlane(env.depsMine).write(dana, personItem(9, "A new memory."), LATER);
       expect(w.event).toMatchObject({ decision: "deny", policy_id: "engram/write/erased" });
-      expect(w.event.reason).toMatch(/swept out of the store \(engram\/offboard\/swept\)/);
+      expect(w.event.reason).toMatch(
+        /item id .* was swept out of the store of person:dana by an offboarding of person:dana \(engram\/offboard\/swept\)/,
+      );
       expect(await env.store.read(ref(env, 9))).toBeUndefined();
       // A non-member is told only that the id is held.
       const sam: Actor = { ...dana, id: "person:sam", memberships: ["person:sam"] };
@@ -215,6 +263,38 @@ forEachBackend((backend) => {
       );
       expect(s).toMatchObject({ decision: "deny", policy_id: "engram/write/erased" });
       expect(s.reason).toMatch(/^the item id is held by an item you cannot access/);
+    });
+
+    test("E1.5-8: a write under an id swept from a team scope names the offboarded person scope only to its member", async () => {
+      const env = setup(backend);
+      const danaTeam: Actor = { ...dana, memberships: [PERSON, "team:x"] };
+      const lee: Actor = { ...dana, id: "person:lee", memberships: ["person:lee", "team:x"] };
+      // team:x is a scope the log names, so the sweep lists it.
+      await createPlane(env.depsMine).write(
+        danaTeam,
+        item(40, { scope: "team:x", owner: PERSON, content: "Team note." }),
+        AT,
+      );
+      await env.store.write(personItem(9, "Never committed."));
+      await env.store.write(
+        item(53, { scope: "team:x", owner: PERSON, content: "Copied.", lineage: [id(9)] }),
+      );
+      await offboard(env.depsTheirs, hr, { person: PERSON, roles: [] }, AT);
+      expect(rules(env.mine, 53)).toEqual(["engram/offboard/swept"]);
+      const fresh = (who: Actor) =>
+        createPlane(env.depsMine).checkWrite(
+          who,
+          item(53, { scope: "team:x", owner: who.id, content: "Mine now." }),
+          LATER,
+        );
+      const asLee = await fresh(lee);
+      expect(asLee).toMatchObject({ decision: "deny", policy_id: "engram/write/erased" });
+      expect(asLee.reason).toMatch(/swept out of the store of team:x by an offboarding \(/);
+      expect(asLee.reason).not.toContain(PERSON);
+      const asDana = await fresh(danaTeam);
+      expect(asDana.reason).toMatch(
+        /swept out of the store of team:x by an offboarding of person:dana \(/,
+      );
     });
 
     test("E1.5-8: the purge checks under the lock before its delete: a change since the refusal leaves the record", async () => {

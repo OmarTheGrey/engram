@@ -192,6 +192,21 @@ describe("the two gaps of card E1.5, as card E1.7 closed them", () => {
     expect(puts).toHaveLength(2);
   });
 
+  test("known limit: a put-back stopped after its write leaves b's erased content, which the code's adoption refuses without the model's purge (E18-F7)", async () => {
+    const t = load("putBackCrashReplayTest.itf.json.gz");
+    const r = await replay(t);
+    // The code reaches the leftover the model states, every handle idle...
+    expect(r.mismatch?.step).toBe(29);
+    expect(r.mismatch?.what).toBe("whether handle h3 is inside a call");
+    // ...and leaves the model where it purges: the third erasure found no
+    // record at b's ref, so adoption refuses the record and keeps it.
+    expect(r.finding).toBe("E18-F7");
+    expect(r.final.proj.b?.live).toBe(false);
+    expect(r.final.store.b?.present).toBe(true);
+    const leftover = modelState(t.states[28] as Record<string, ItfValue>);
+    expect(leftover.erasedContent.has(r.final.store.b?.content as number)).toBe(true);
+  });
+
   test("a write under a swept id is refused, and adoption's purge deletes the record dropped in by hand", async () => {
     const r = await replay(load("sweptIdPurgeRaceReplayTest.itf.json.gz"));
     expect(r.mismatch).toBeNull();
