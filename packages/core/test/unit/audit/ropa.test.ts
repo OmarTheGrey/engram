@@ -67,6 +67,22 @@ describe("ropaRecord", () => {
     expect(JSON.stringify(r)).not.toContain("person:omar");
     expect(r.erasure.mode).toBe("shred");
     expect(r.measures[0]).toMatch(/write gate/);
+    expect(r.measures).toContain("consent: 2 opt-outs refused at the write gate (card E9.12)");
+  });
+
+  it("lists the approval routes and procedure options the policy turns on, as measures", () => {
+    const r = ropaRecord(
+      testPolicy({
+        approval: { routes: [{ scope: "org", approvers: ["role:lead"] }] },
+        procedures: { safety_scan: "hold", drift: { period: 86_400 } },
+      }),
+    );
+    expect(r.measures).toContain("approval routes: 1");
+    expect(r.measures).toContain("procedures: a safety scan at admission (hold)");
+    expect(r.measures).toContain(
+      "procedures: re-validated by replay on drift, and retired when they fail",
+    );
+    expect(JSON.stringify(r)).not.toContain("role:lead");
   });
 
   it("is the same bytes for the same policy and projection", () => {

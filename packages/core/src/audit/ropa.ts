@@ -9,7 +9,9 @@
 // how many items each level holds of each class and status. Never content,
 // an item id, a scope id, an actor or a reason, so a record from a member's
 // own log may leave the machine (AGENTS.md rule 12). Consent opt-outs name
-// person scopes, so only their number is given.
+// person scopes, so only their number is given. The policy's own id is
+// printed as the policy file names it: a preset's never names anyone, and a
+// hand-written id that named a person would be the operator's to change.
 //
 // What it cannot hold: the controller's name and contact details (point
 // (a)), the purposes of the processing (b) and transfers to third countries
@@ -145,6 +147,13 @@ function measuresOf(policy: Policy): string[] {
   if (trust?.protect_trusted === "on")
     m.push("trust: a less trusted source never rewrites a more trusted item");
   if (policy.grants?.expiry_cap === "on") m.push("grants: expiry capped at 365 days");
+  const optOuts = policy.consent?.opt_outs.length ?? 0;
+  if (optOuts > 0) m.push(`consent: ${optOuts} opt-outs refused at the write gate (card E9.12)`);
+  const proc = policy.procedures;
+  if (proc?.safety_scan !== undefined && proc.safety_scan !== "off")
+    m.push(`procedures: a safety scan at admission (${proc.safety_scan})`);
+  if (proc?.drift?.environment_change === "on" || proc?.drift?.period !== undefined)
+    m.push("procedures: re-validated by replay on drift, and retired when they fail");
   if ((policy.approval?.routes.length ?? 0) > 0)
     m.push(`approval routes: ${policy.approval?.routes.length}`);
   return m;
