@@ -17,6 +17,6 @@ supersedes: none
 
 **Why.** The line came from card D4 (#151) on main, not from D5; D5's held-answer action already asks core (`reviewCouldLand`). The guard walks `packages/view`, which may hold no rule id.
 
-**Result.** The view now takes core's `erases` predicate as an injected argument of `knownItems`, `provenanceGraph` and `itemVersions`; the TUI's item page passes `erases` from `@engram/core`. The guard test is unchanged and passes. Without the predicate an erased item shows as retired, its content already redacted by core; the inspector, which imports no core runtime, takes that default.
+**Result.** The view now takes core's `erases` predicate as an injected argument of `knownItems`, `provenanceGraph` and `itemVersions`; the TUI's item page passes `erases` from `@engram/core`, whose parameter is widened to the three fields it reads, so the client's event type fits. The guard test is unchanged and passes. Without the predicate an erased item shows as retired, its content already redacted by core; the inspector, which imports no core runtime, takes that default.
 
 **Consequence.** If the inspector must show an erased item as absent, the answer it reads needs a field core computes (a later card).

@@ -115,7 +115,7 @@ export function erasedScopeContent(db: Db, scope: string): () => ReadonlySet<str
 }
 
 /** The event erases its item: the projection and replay drop it (ERASURE_ID). */
-export function erases(event: MemoryEvent): boolean {
+export function erases(event: Pick<MemoryEvent, "decision" | "op" | "policy_id">): boolean {
   return event.decision === "allow" && event.op === "retire" && event.policy_id === ERASURE_ID;
 }
 
