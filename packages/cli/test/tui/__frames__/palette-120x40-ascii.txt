@@ -4,12 +4,12 @@
 | > [r] Read and explain                engram read [query]            ||                                              |
 |   [o] Read one item                   engram read --item <id>        || Read through the plane and explain every     |
 |   [w] Write a memory                  engram write                   || returned item.                               |
-|   [C] Check a write                   engram check                   ||                                              |
-|   [p] Promote an i+- Commands -------------------------------------------------------------------+he log; as its     |
-|   [S] Supersede   | > prom                                                                       |xpired items. Asks |
-|   [g] Grants on an|                                                                              |                   |
-|   [E] Explain a re| > Promote an item             engram promote <itemId>                        |                   |
-|   [n] Who can read|   Harness memory              engram discover                                |r: a log it cannot |
+|   [C] Check a writ+- Commands -------------------------------------------------------------------+                   |
+|   [p] Promote an i| > prom                                                                       |he log; as its     |
+|   [S] Supersede   |                                                                              |xpired items. Asks |
+|   [g] Grants on an| > Promote an item             engram promote <itemId>                        |                   |
+|   [E] Explain a re|   Harness memory              engram discover                                |                   |
+|   [n] Who can read|   Export an audit report      engram audit export                            |r: a log it cannot |
 |   [u] Scopes you c|   Check a write               engram check                                   |t answer; 2 usage: |
 | 2 Policy          |   Write a memory              engram write                                   | a 501 naming a    |
 |   [t] Retention sw|   Grants on an item           engram grants <itemId>                         |                   |
@@ -27,11 +27,11 @@
 |   [h] Serve the AP|   Import a bundle             engram import <bundle>                         |                   |
 |   [m] MCP server  |   Scopes you can see          engram scopes                                  |                   |
 |   [b] Claude Code |   Events                      engram events                                  |                   |
-|   [a] Create a key|   Simulate a policy           engram simulate                                |                   |
-|   [A] List keys   |                                                                              |                   |
-|   [R] Revoke a key| enter open   tab fill   esc close                                            |                   |
-| 6 Machine         +------------------------------------------------------------------------------+                   |
-|   [d] Doctor                          engram doctor                  ||                                              |
+|   [a] Create a key|   Verify an audit report      engram audit verify                            |                   |
+|   [A] List keys   |   Simulate a policy           engram simulate                                |                   |
+|   [R] Revoke a key|                                                                              |                   |
+| 6 Machine         | enter open   tab fill   esc close                                            |                   |
+|   [d] Doctor      +------------------------------------------------------------------------------+                   |
 |   [D] Harness memory                  engram discover        E9.10   ||                                              |
 +----------------------------------------------------------------------++----------------------------------------------+
  - doctor not run this session: d   log engram.db   policy preset.medium v1
@@ -41,5 +41,5 @@ $ engram read --db engram.db --owner dana --root mem
 --- styles
 r0 c0-119 inverse
 r3 c1-70 inverse
-r8 c28-28 inverse
-r10 c21-98 inverse
+r7 c28-28 inverse
+r9 c21-98 inverse

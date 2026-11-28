@@ -577,6 +577,14 @@ const EXEMPT: Record<string, { reason: string; holds?: string[] }> = {
     reason: "an operator's checkpoint of the chain's head: a hash, no content",
     holds: ["log", "checkpoint", "--db", "engram.db", "--out", "checkpoint.json"],
   },
+  "audit export": {
+    reason:
+      "an operator's signed report of the log on the machine holding it and the key: counts, hashes and seqs only, no content by construction (card E9.15; packages/core/test/unit/audit/report.test.ts and packages/cli/test/audit.test.ts check its bytes for every content, id, actor, scope, grant, lineage and reason)",
+  },
+  "audit verify": {
+    reason:
+      "it checks a report against the log and prints the report's own counts and the checks' names, no content (card E9.15)",
+  },
   discover: {
     reason:
       "it counts harness memory files outside every store root, never their content (card E9.10); it reaches no plane",

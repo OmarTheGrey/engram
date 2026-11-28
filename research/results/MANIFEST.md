@@ -35,3 +35,4 @@ One row per results file. A results file exists only if `research/scripts/<scrip
 | research/results/h3-l9-grounding.json | research/configs/l9-grounding.json | research/scripts/l9_grounding.py | 3786ab25 | c895152f6f361ce8c9962fb25a6b02487d7bc2b4d5eaa8fc724104bc493e9ced | none |
 | research/results/h1-drift-fixture.json | research/configs/drift-fixture.json | research/scripts/drift_fixture.py | 2c3503b9 | 579fa43dffc7ca6123e2b9812a6f22886c1581a70dfd59e561f20ee62e6abb71 | none |
 | research/results/h5-procedure-scan.json | research/configs/procedure-scan.json | research/scripts/procedure_scan.py | b297e5b6 | 0ac5428238ea46f52fbd3d152f649f370935ebef2bee4a7ba95fb03e296cc39f | none |
+| research/results/h1-audit-report.json | research/configs/audit-report.json | research/scripts/audit_report.py | 87bef631 | d503840658800b3cd4318fe4f660df3fe49ae89c5f3bec16f07a2b4714840c5e | none |
